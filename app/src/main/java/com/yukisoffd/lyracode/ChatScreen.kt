@@ -458,6 +458,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
         settings.chatBackgroundPath
             ?.let { path -> BitmapFactory.decodeFile(path)?.asImageBitmap() }
     }
+    val chatBackgroundMaskAlpha = 1f - settings.chatBackgroundMaskOpacity.coerceIn(0f, 1f)
     Box(
         Modifier
             .fillMaxSize()
@@ -469,12 +470,11 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                 contentDescription = null,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop,
-                alpha = 0.34f,
             )
             Box(
                 Modifier
                     .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background.copy(alpha = 0.42f)),
+                    .background(MaterialTheme.colorScheme.background.copy(alpha = chatBackgroundMaskAlpha)),
             )
         }
         Column(
@@ -967,7 +967,8 @@ private fun AppSettings.settingsRevisionSafe(): Int {
     return roleplayScenarios().hashCode() * 31 +
         selectedRoleplayId.hashCode() +
         immersiveRoleplayEnabled.hashCode() +
-        chatBackgroundPath.hashCode()
+        chatBackgroundPath.hashCode() +
+        chatBackgroundMaskOpacity.hashCode()
 }
 
 internal fun requestTermuxRunCommandPermission(context: Context) {

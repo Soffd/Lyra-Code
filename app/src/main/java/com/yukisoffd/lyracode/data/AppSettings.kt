@@ -268,6 +268,10 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getString(KEY_CHAT_BACKGROUND_PATH, null)
         set(value) = plainPrefs.edit().putString(KEY_CHAT_BACKGROUND_PATH, value).apply()
 
+    var chatBackgroundMaskOpacity: Float
+        get() = plainPrefs.getFloat(KEY_CHAT_BACKGROUND_MASK_OPACITY, DEFAULT_CHAT_BACKGROUND_MASK_OPACITY).coerceIn(0f, 1f)
+        set(value) = plainPrefs.edit().putFloat(KEY_CHAT_BACKGROUND_MASK_OPACITY, value.coerceIn(0f, 1f)).apply()
+
     var hideTermuxPermissionHint: Boolean
         get() = plainPrefs.getBoolean(KEY_HIDE_TERMUX_PERMISSION_HINT, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_HIDE_TERMUX_PERMISSION_HINT, value).apply()
@@ -844,6 +848,7 @@ class AppSettings(context: Context) {
             if (file.isFile) file.delete()
         }
         chatBackgroundPath = null
+        chatBackgroundMaskOpacity = DEFAULT_CHAT_BACKGROUND_MASK_OPACITY
     }
 
     fun updateRoleplayNickname(id: String, nickname: String) {
@@ -1173,6 +1178,7 @@ class AppSettings(context: Context) {
             .put("userNickname", userNickname)
             .put("userAvatarPath", userAvatarPath.orEmpty())
             .put("chatBackgroundPath", chatBackgroundPath.orEmpty())
+            .put("chatBackgroundMaskOpacity", chatBackgroundMaskOpacity.toDouble())
             .put("hideTermuxPermissionHint", hideTermuxPermissionHint)
             .put("immersiveRoleplayEnabled", immersiveRoleplayEnabled)
             .put("selectedRoleplayId", selectedRoleplayId)
@@ -1263,6 +1269,12 @@ class AppSettings(context: Context) {
         root.optString("userNickname").takeIf { it.isNotBlank() }?.let { userNickname = it }
         root.optString("userAvatarPath").takeIf { it.isNotBlank() }?.let { userAvatarPath = it }
         root.optString("chatBackgroundPath").takeIf { it.isNotBlank() }?.let { chatBackgroundPath = it }
+        if (root.has("chatBackgroundMaskOpacity")) {
+            chatBackgroundMaskOpacity = root.optDouble(
+                "chatBackgroundMaskOpacity",
+                DEFAULT_CHAT_BACKGROUND_MASK_OPACITY.toDouble(),
+            ).toFloat()
+        }
         if (root.has("hideTermuxPermissionHint")) hideTermuxPermissionHint = root.optBoolean("hideTermuxPermissionHint")
         if (root.has("immersiveRoleplayEnabled")) immersiveRoleplayEnabled = root.optBoolean("immersiveRoleplayEnabled")
         root.optString("selectedRoleplayId").takeIf { it.isNotBlank() }?.let { selectedRoleplayId = it }
@@ -1837,6 +1849,8 @@ class AppSettings(context: Context) {
         private const val KEY_USER_NICKNAME = "user_nickname"
         private const val KEY_USER_AVATAR_PATH = "user_avatar_path"
         private const val KEY_CHAT_BACKGROUND_PATH = "chat_background_path"
+        private const val KEY_CHAT_BACKGROUND_MASK_OPACITY = "chat_background_mask_opacity"
+        private const val DEFAULT_CHAT_BACKGROUND_MASK_OPACITY = 0.58f
         private const val KEY_HIDE_TERMUX_PERMISSION_HINT = "hide_termux_permission_hint"
         private const val KEY_DISABLED_TOOLS = "disabled_tools"
         private const val KEY_HIDDEN_TODO_SIGNATURE_PREFIX = "hidden_todo_signature_"

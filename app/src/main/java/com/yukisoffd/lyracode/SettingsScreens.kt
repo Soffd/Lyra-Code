@@ -1188,7 +1188,14 @@ internal fun ThemeSettings(
             },
         )
     }
-    val hasBackground = remember(backgroundRevision) { !settings.chatBackgroundPath.isNullOrBlank() }
+    val backgroundPath = remember(backgroundRevision) { settings.chatBackgroundPath }
+    val hasBackground = !backgroundPath.isNullOrBlank()
+    val backgroundPreview = remember(backgroundPath) {
+        backgroundPath?.let { path -> BitmapFactory.decodeFile(path)?.asImageBitmap() }
+    }
+    var maskOpacity by remember(backgroundPath, backgroundRevision) {
+        mutableStateOf(settings.chatBackgroundMaskOpacity.coerceIn(0f, 1f))
+    }
     KimiCardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
@@ -1215,6 +1222,65 @@ internal fun ThemeSettings(
             backgroundLauncher.launch("image/*")
         }
         if (hasBackground) {
+            KimiDivider()
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (backgroundPreview != null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(28.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Image(
+                            bitmap = backgroundPreview,
+                            contentDescription = null,
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                        )
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(MaterialTheme.colorScheme.background.copy(alpha = 1f - maskOpacity)),
+                        )
+                        Surface(
+                            modifier = Modifier
+                                .align(Alignment.TopStart)
+                                .padding(12.dp),
+                            shape = RoundedCornerShape(999.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.84f),
+                            contentColor = MaterialTheme.colorScheme.onSurface,
+                        ) {
+                            Text(
+                                "聊天背景预览",
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            "蒙版透明度 ${(maskOpacity * 100f).toInt().coerceIn(0, 100)}%",
+                            style = MaterialTheme.typography.titleSmall,
+                        )
+                        Text(
+                            "越低越接近纯色背景，越高背景图越清晰。",
+                            color = KimiMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+                Slider(
+                    value = maskOpacity,
+                    onValueChange = { value ->
+                        maskOpacity = value.coerceIn(0f, 1f)
+                        settings.chatBackgroundMaskOpacity = maskOpacity
+                    },
+                    valueRange = 0f..1f,
+                )
+            }
             KimiDivider()
             KimiMenuRow(Icons.Default.DeleteOutline, "移除聊天背景", "恢复纯色背景") {
                 settings.clearChatBackground()
