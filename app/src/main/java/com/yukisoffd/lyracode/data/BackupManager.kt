@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
+import com.yukisoffd.lyracode.R
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
@@ -104,11 +105,11 @@ class BackupManager(
         val bytes = exportZip(options)
         val name = "lyra_backup_${System.currentTimeMillis()}${if (options.includeSecrets) "_with_keys" else ""}.zip"
         saveBytesToDownloads(bytes, name, "application/zip")
-        return "已导出到 Download/LyraCode/$name"
+        return context.getString(R.string.backup_exported_to, name)
     }
 
     fun importFromUri(uri: Uri, mode: String): String {
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("无法读取备份文件")
+        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error(context.getString(R.string.error_cannot_read_backup))
         return importZip(bytes, mode)
     }
 
@@ -132,14 +133,14 @@ class BackupManager(
         val skillEntries = entries.filterKeys { it.startsWith("skills/") }
         if (skillEntries.isNotEmpty()) {
             restoreSkillEntries(skillEntries, mode)
-            messages += "Skills 文件 ${skillEntries.size} 个"
+            messages += context.getString(R.string.backup_import_skills, skillEntries.size)
         }
         val roleplayEntries = entries.filterKeys { it.startsWith("roleplay/") }
         if (roleplayEntries.isNotEmpty()) {
             restoreRoleplayEntries(roleplayEntries, mode)
-            messages += "沉浸扮演设定文件 ${roleplayEntries.size} 个"
+            messages += context.getString(R.string.backup_import_roleplay, roleplayEntries.size)
         }
-        return messages.ifEmpty { listOf("没有导入兼容数据") }.joinToString("；")
+        return messages.ifEmpty { listOf(context.getString(R.string.backup_no_compatible_data)) }.joinToString("；")
     }
 
     private fun restoreSkillEntries(entries: Map<String, ByteArray>, mode: String) {
@@ -176,9 +177,9 @@ class BackupManager(
                 put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/LyraCode")
                 put(MediaStore.MediaColumns.IS_PENDING, 1)
             }
-            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("无法创建导出文件")
+            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error(context.getString(R.string.error_cannot_create_export))
             try {
-                context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("无法写入导出文件")
+                context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error(context.getString(R.string.error_cannot_write_export))
                 values.clear()
                 values.put(MediaStore.MediaColumns.IS_PENDING, 0)
                 context.contentResolver.update(uri, values, null, null)

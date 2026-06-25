@@ -34,6 +34,7 @@ import com.yukisoffd.lyracode.tasks.ScheduledTask
 import com.yukisoffd.lyracode.tasks.ScheduledTaskManager
 import com.yukisoffd.lyracode.tasks.ScheduledTaskType
 import com.yukisoffd.lyracode.termux.TermuxExecutor
+import com.yukisoffd.lyracode.uiText
 import com.yukisoffd.lyracode.webdav.WebDavClient
 import com.yukisoffd.lyracode.workspace.GlobalFileManager
 import com.yukisoffd.lyracode.workspace.NativeFileManager
@@ -210,7 +211,7 @@ class OpenAiAgent(
             model = model,
         )
         conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
-        onUpdate(ChatUpdate("", "", "已发送"))
+        onUpdate(ChatUpdate("", "", uiText("已发送")))
         runLoop(conversationId, profile, model, onUpdate, propagateErrors)
     }
 
@@ -345,7 +346,7 @@ class OpenAiAgent(
                 val assistantId = conversationStore.addMessage(conversationId, "assistant", "", profileId = profile.id, model = model)
                 val result = streamModel(conversationId, assistantId, profile, model) { content, thinking ->
                     conversationStore.updateMessage(assistantId, content = content, thinking = thinking)
-                    onUpdate(ChatUpdate(content, thinking, "输出中", assistantId))
+                    onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
                 }
                 conversationStore.updateMessage(
                     assistantId,
@@ -353,13 +354,13 @@ class OpenAiAgent(
                     thinking = result.thinking,
                     rawJson = result.rawMessage.toString(),
                 )
-                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) "缓存命中" else "模型完成", assistantId))
+                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText("缓存命中") else uiText("模型完成"), assistantId))
                 if (result.toolCalls.isEmpty()) {
                     conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE, profileId = profile.id, model = model)
                     return
                 }
                 result.toolCalls.forEach { call ->
-                    onUpdate(ChatUpdate(result.content, result.thinking, "调用工具: ${call.name}", assistantId))
+                    onUpdate(ChatUpdate(result.content, result.thinking, uiText("调用工具：") + call.name, assistantId))
                     val toolResult = executeTool(conversationId, call)
                     conversationStore.addMessage(
                         conversationId,
@@ -369,7 +370,7 @@ class OpenAiAgent(
                         model = model,
                         toolCallId = call.id,
                     )
-                    onUpdate(ChatUpdate(result.content, result.thinking, "工具完成: ${call.name}", assistantId))
+                    onUpdate(ChatUpdate(result.content, result.thinking, uiText("工具完成：") + call.name, assistantId))
                 }
             }
         } catch (error: CancellationException) {
@@ -378,7 +379,7 @@ class OpenAiAgent(
         } catch (error: Throwable) {
             conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_INTERRUPTED, profileId = profile.id, model = model)
             conversationStore.addMessage(conversationId, "assistant", "请求中断: ${error.message}", profileId = profile.id, model = model)
-            onUpdate(ChatUpdate("", "", "请求中断: ${error.message}"))
+            onUpdate(ChatUpdate("", "", uiText("请求中断：") + error.message))
             if (propagateErrors) throw error
         }
     }
@@ -4023,3 +4024,5 @@ fun ChatMessage.toRecord(): ChatRecord = ChatRecord(
     model,
     createdAt,
 )
+
+

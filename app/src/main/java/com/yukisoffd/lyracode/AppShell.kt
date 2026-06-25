@@ -232,6 +232,8 @@ internal fun LyraCodeApp(
     onThemeModeChange: (String) -> Unit,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    languageMode: String,
+    onLanguageModeChange: (String) -> Unit,
     refreshRateMode: String,
     onRefreshRateModeChange: (String) -> Unit,
     fontScaleMode: String,
@@ -239,8 +241,14 @@ internal fun LyraCodeApp(
     onFontScaleModeChange: (String) -> Unit,
     onCustomFontScaleChange: (Float) -> Unit,
 ) {
-    val pages = listOf("AI 对话", "日志", "统计", "任务", "设置")
     val context = LocalContext.current
+    val pages = listOf(
+        context.getString(R.string.nav_tab_ai_chat),
+        context.getString(R.string.nav_tab_log),
+        context.getString(R.string.nav_tab_statistics),
+        context.getString(R.string.nav_tab_tasks),
+        context.getString(R.string.nav_tab_settings),
+    )
     var selectedPage by rememberSaveable { mutableIntStateOf(PAGE_CHAT) }
     val safeSelectedPage = selectedPage.coerceIn(0, pages.lastIndex)
     val controllerStatus = controller.status.value
@@ -269,7 +277,7 @@ internal fun LyraCodeApp(
         if (controller.requestNewConversation()) {
             selectedPage = PAGE_CHAT
         } else {
-            appNotice = "你已在新对话中，无需重复操作"
+            appNotice = context.getString(R.string.notice_already_in_new_chat)
         }
     }
 
@@ -282,18 +290,18 @@ internal fun LyraCodeApp(
         startupPendingApk = apk
         if (apk != null && !updateManager.needsInstallPermission()) {
             runCatching { context.startActivity(updateManager.installIntent(apk)) }
-                .onFailure { appNotice = it.message.orEmpty().ifBlank { "无法打开安装器" } }
+                .onFailure { appNotice = it.message.orEmpty().ifBlank { context.getString(R.string.notice_cannot_open_installer) } }
         } else if (apk != null) {
-            appNotice = "授权未完成，可稍后在关于软件中继续安装"
+            appNotice = context.getString(R.string.notice_auth_pending_install_later)
         }
     }
     fun openStartupInstaller(apk: File) {
         if (updateManager.needsInstallPermission()) {
-            appNotice = "请授权安装未知来源应用，返回后将继续安装"
+            appNotice = context.getString(R.string.notice_grant_install_permission)
             startupInstallPermissionLauncher.launch(updateManager.installPermissionIntent())
         } else {
             runCatching { context.startActivity(updateManager.installIntent(apk)) }
-                .onFailure { appNotice = it.message.orEmpty().ifBlank { "无法打开安装器" } }
+                .onFailure { appNotice = it.message.orEmpty().ifBlank { context.getString(R.string.notice_cannot_open_installer) } }
         }
     }
     LaunchedEffect(Unit) {
@@ -328,10 +336,10 @@ internal fun LyraCodeApp(
     fun updateSkillImportStatus(result: Result<SkillPack>) {
         result.fold(
             onSuccess = {
-                skillStatus = "已导入 ${it.name}"
+                skillStatus = context.getString(R.string.notice_skill_imported, it.name)
                 skillsRevision++
             },
-            onFailure = { skillStatus = it.message.orEmpty().ifBlank { "导入失败" } },
+            onFailure = { skillStatus = it.message.orEmpty().ifBlank { context.getString(R.string.notice_skill_import_failed) } },
         )
     }
     val skillFileLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
@@ -342,11 +350,11 @@ internal fun LyraCodeApp(
     val backupZipLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) {
             scope.launch {
-                backupStatus = "正在导入备份..."
-                appNotice = "正在导入备份..."
+                backupStatus = context.getString(R.string.notice_importing_backup)
+                appNotice = context.getString(R.string.notice_importing_backup)
                 backupStatus = withContext(Dispatchers.IO) {
                     runCatching { backupManager.importFromUri(uri, backupImportMode) }
-                        .fold({ "导入完成：$it" }, { "导入失败：${it.message}" })
+                        .fold({ context.getString(R.string.notice_import_complete, it) }, { context.getString(R.string.notice_import_failed, it.message.orEmpty()) })
                 }
                 appNotice = backupStatus
                 controller.reloadConversations()
@@ -374,7 +382,7 @@ internal fun LyraCodeApp(
             onDownload = {
                 if (startupUpdateDownloading) return@UpdateDialog
                 startupUpdateDownloading = true
-                startupUpdateProgress = UpdateDownloadProgress(status = "准备下载")
+                startupUpdateProgress = UpdateDownloadProgress(status = context.getString(R.string.notice_preparing_download))
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         updateManager.downloadApk(info) { progress -> startupUpdateProgress = progress }
@@ -384,11 +392,11 @@ internal fun LyraCodeApp(
                         onSuccess = { apk ->
                             startupPendingApk = apk
                             aboutUpdateAvailable = true
-                            appNotice = "下载完成，准备安装"
+                            appNotice = context.getString(R.string.notice_download_complete_prepare_install)
                             openStartupInstaller(apk)
                         },
                         onFailure = {
-                            val message = it.message.orEmpty().ifBlank { "下载失败" }
+                            val message = it.message.orEmpty().ifBlank { context.getString(R.string.notice_download_failed) }
                             startupUpdateProgress = UpdateDownloadProgress(status = message)
                             appNotice = message
                         },
@@ -455,9 +463,9 @@ internal fun LyraCodeApp(
                             modifier = Modifier.width(64.dp),
                         ) {
                             if (safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+                                Icon(Icons.Default.ArrowBack, contentDescription = context.getString(R.string.cd_back))
                             } else {
-                                Icon(Icons.Default.Menu, contentDescription = "菜单")
+                                Icon(Icons.Default.Menu, contentDescription = context.getString(R.string.cd_menu))
                             }
                         }
                     },
@@ -465,17 +473,17 @@ internal fun LyraCodeApp(
                         if (safeSelectedPage == PAGE_CHAT) {
                             if (controller.isRoleplayMode()) {
                                 val scenario = settings.roleplayScenario(controller.currentRoleplayId())
-                                val roleplayBusy = controller.isActiveConversationRunning() || controllerStatus.startsWith("运行") || controllerStatus.startsWith("等待") || controllerStatus.contains("工具") || controllerStatus.contains("继续")
+                                val roleplayBusy = controller.isActiveConversationRunning() || controllerStatus.startsWith("运行") || controllerStatus.startsWith("等待") || controllerStatus.contains("工具") || controllerStatus.contains("继续") || controllerStatus.startsWith("Running") || controllerStatus.startsWith("Waiting") || controllerStatus.contains("Tool") || controllerStatus.contains("Continue")
                                 Text(
-                                    if (roleplayBusy) "对方正在输入..." else scenario?.aiNickname.orEmpty().ifBlank { scenario?.name ?: "沉浸对话" },
+                                    if (roleplayBusy) context.getString(R.string.roleplay_typing) else scenario?.aiNickname.orEmpty().ifBlank { scenario?.name ?: context.getString(R.string.title_immersive_chat) },
                                     style = MaterialTheme.typography.titleLarge,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             } else {
                                 val activeConversation = controller.conversations.firstOrNull { it.id == controller.activeConversationId.value }
-                                val title = activeConversation?.title.orEmpty().ifBlank { "新聊天" }
-                                    .let { if (it == "新对话") "新聊天" else it }
+                                val title = activeConversation?.title.orEmpty().ifBlank { context.getString(R.string.title_new_chat) }
+                                    .let { if (it == context.getString(R.string.title_new_chat)) context.getString(R.string.title_new_chat) else it }
                                 Column(
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.Center,
@@ -488,7 +496,7 @@ internal fun LyraCodeApp(
                                     )
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                         val activeProfile = controller.profiles.firstOrNull { it.id == controller.activeProfileId.value }
-                                        val activeModelName = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { "模型" } }
+                                        val activeModelName = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { context.getString(R.string.label_model) } }
                                         Text(
                                             "$activeModelName / $workspaceName",
                                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -502,7 +510,7 @@ internal fun LyraCodeApp(
                             }
                         } else {
                             Text(
-                                if (safeSelectedPage == PAGE_SETTINGS) settingsDetailTitle ?: "设置" else pages[safeSelectedPage],
+                                if (safeSelectedPage == PAGE_SETTINGS) settingsDetailTitle ?: context.getString(R.string.title_settings) else pages[safeSelectedPage],
                                 style = MaterialTheme.typography.titleLarge,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -566,6 +574,8 @@ internal fun LyraCodeApp(
                             onThemeModeChange = onThemeModeChange,
                             dynamicColorEnabled = dynamicColorEnabled,
                             onDynamicColorChange = onDynamicColorChange,
+                            languageMode = languageMode,
+                            onLanguageModeChange = onLanguageModeChange,
                             refreshRateMode = refreshRateMode,
                             onRefreshRateModeChange = onRefreshRateModeChange,
                             fontScaleMode = fontScaleMode,
@@ -575,7 +585,7 @@ internal fun LyraCodeApp(
                             onPickWorkspace = { treeLauncher.launch(null) },
                             onImportSkillFile = { skillFileLauncher.launch("*/*") },
                             onImportSkillRepository = { url ->
-                                skillStatus = "正在下载 Skills 仓库..."
+                                skillStatus = context.getString(R.string.skill_downloading)
                                 scope.launch {
                                     val result = withContext(Dispatchers.IO) { settings.importSkillRepository(url) }
                                     updateSkillImportStatus(result)
@@ -630,6 +640,7 @@ internal fun KimiDrawerContent(
     onNewConversation: () -> Unit,
     onSelectConversation: (Long) -> Unit,
 ) {
+    val context = LocalContext.current
     val conversationSnapshot = controller.conversations.toList()
     var historyQuery by rememberSaveable { mutableStateOf("") }
     var selectedHistoryIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
@@ -647,7 +658,7 @@ internal fun KimiDrawerContent(
         }
     }
     val groupedConversations = remember(filteredConversations) {
-        groupConversationsByTime(filteredConversations)
+        groupConversationsByTime(filteredConversations, context)
     }
     var editingProfile by rememberSaveable { mutableStateOf(false) }
     actionConversation?.let { conversation ->
@@ -711,7 +722,7 @@ internal fun KimiDrawerContent(
         item {
             KimiCardBox {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("功能", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(context.getString(R.string.label_functions), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 }
                 KimiDivider()
                 pages.forEachIndexed { index, page ->
@@ -727,7 +738,7 @@ internal fun KimiDrawerContent(
                             else -> Icons.Default.Info
                         },
                         title = page,
-                        value = if (selectedPage == index) "当前" else "",
+                        value = if (selectedPage == index) context.getString(R.string.label_current) else "",
                         onClick = { onSelectPage(index) },
                     )
                     if (index != pages.lastIndex) KimiDivider()
@@ -737,34 +748,34 @@ internal fun KimiDrawerContent(
         item {
             KimiCardBox {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("历史会话", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
+                    Text(context.getString(R.string.label_history_sessions), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge)
                 }
                 CapsuleTextField(
                     value = historyQuery,
                     onValueChange = { historyQuery = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = "搜索历史对话",
+                    placeholder = context.getString(R.string.search_history_placeholder),
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                 )
                 if (selectedHistoryIds.isNotEmpty()) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text("已选择 ${selectedHistoryIds.size}", modifier = Modifier.weight(1f), color = KimiMuted)
-                        KimiChip("置顶", onClick = {
+                        Text(context.getString(R.string.label_selected_count, selectedHistoryIds.size), modifier = Modifier.weight(1f), color = KimiMuted)
+                        KimiChip(context.getString(R.string.action_pin), onClick = {
                             controller.setConversationsPinned(selectedHistoryIds, true)
                             selectedHistoryIds = emptySet()
                         })
-                        KimiChip("删除", onClick = {
+                        KimiChip(context.getString(R.string.action_delete), onClick = {
                             controller.deleteConversations(selectedHistoryIds)
                             selectedHistoryIds = emptySet()
                         })
                         IconButton(onClick = { selectedHistoryIds = emptySet() }) {
-                            Icon(Icons.Default.Close, contentDescription = "取消选择")
+                            Icon(Icons.Default.Close, contentDescription = context.getString(R.string.action_cancel_select))
                         }
                     }
                 }
                 KimiDivider()
                 if (filteredConversations.isEmpty()) {
-                    Text("暂无会话", color = KimiMuted)
+                    Text(context.getString(R.string.notice_no_sessions), color = KimiMuted)
                 }
             }
         }
@@ -806,6 +817,7 @@ internal fun KimiDrawerContent(
 
 private fun groupConversationsByTime(
     conversations: List<Conversation>,
+    context: android.content.Context,
     nowMillis: Long = System.currentTimeMillis(),
 ): List<Pair<String, List<Conversation>>> {
     if (conversations.isEmpty()) return emptyList()
@@ -832,12 +844,12 @@ private fun groupConversationsByTime(
     val groups = linkedMapOf<String, MutableList<Conversation>>()
     conversations.forEach { conversation ->
         val label = when {
-            conversation.pinnedAt > 0L -> "置顶"
-            conversation.updatedAt >= todayStart -> "今天"
-            conversation.updatedAt >= yesterdayStart -> "昨天"
-            conversation.updatedAt >= weekStart -> "一周内"
-            conversation.updatedAt >= monthStart -> "一月内"
-            else -> SimpleDateFormat("yyyy年M月", Locale.getDefault()).format(Date(conversation.updatedAt))
+            conversation.pinnedAt > 0L -> context.getString(R.string.label_pinned)
+            conversation.updatedAt >= todayStart -> context.getString(R.string.label_today)
+            conversation.updatedAt >= yesterdayStart -> context.getString(R.string.label_yesterday)
+            conversation.updatedAt >= weekStart -> context.getString(R.string.label_this_week)
+            conversation.updatedAt >= monthStart -> context.getString(R.string.label_this_month)
+            else -> SimpleDateFormat(context.getString(R.string.date_format_year_month), Locale.getDefault()).format(Date(conversation.updatedAt))
         }
         groups.getOrPut(label) { mutableListOf() }.add(conversation)
     }
@@ -938,7 +950,7 @@ internal fun ProfileEditDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("个人资料") },
+        title = { Text(context.getString(R.string.label_profile)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
@@ -988,18 +1000,18 @@ internal fun ProfileEditDialog(
                     value = draftName,
                     onValueChange = { draftName = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("昵称") },
+                    label = { Text(context.getString(R.string.label_nickname)) },
                     singleLine = true,
                 )
                 OutlinedButton(onClick = { avatarLauncher.launch("image/*") }, shape = KimiPillShape) {
-                    Text("选择头像图片")
+                    Text(context.getString(R.string.action_select_avatar))
                 }
                 if (previewBitmap != null) {
-                    Text("裁剪缩放", color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                    Text(context.getString(R.string.label_crop_zoom), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     Slider(value = zoom, onValueChange = { zoom = it }, valueRange = 1f..3f)
-                    Text("水平位置", color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                    Text(context.getString(R.string.label_horizontal_position), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     Slider(value = offsetX, onValueChange = { offsetX = it }, valueRange = -1f..1f)
-                    Text("垂直位置", color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                    Text(context.getString(R.string.label_vertical_position), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     Slider(value = offsetY, onValueChange = { offsetY = it }, valueRange = -1f..1f)
                 }
             }
@@ -1012,14 +1024,15 @@ internal fun ProfileEditDialog(
                     settings.userAvatarPath = newAvatarPath
                     onSaved(settings.userNickname, newAvatarPath)
                 },
-            ) { Text("保存") }
+            ) { Text(context.getString(R.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(context.getString(R.string.action_cancel)) } },
     )
 }
 
 @Composable
 internal fun SkillDrawerRow(skill: SkillPack, onToggle: () -> Unit, onDelete: () -> Unit) {
+    val context = LocalContext.current
     Row(
         Modifier
             .fillMaxWidth()
@@ -1028,12 +1041,12 @@ internal fun SkillDrawerRow(skill: SkillPack, onToggle: () -> Unit, onDelete: ()
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyLarge)
-            Text("${skill.fileCount} 个文件 · ${if (skill.enabled) "已启用" else "已禁用"}", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+            Text(context.getString(R.string.label_files_count_enabled, skill.fileCount, if (skill.enabled) context.getString(R.string.skill_status_enabled) else context.getString(R.string.skill_status_disabled)), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
         }
-        KimiChip(if (skill.enabled) "禁用" else "启用", onClick = onToggle)
+        KimiChip(if (skill.enabled) context.getString(R.string.action_disable) else context.getString(R.string.action_enable), onClick = onToggle)
         Spacer(Modifier.width(6.dp))
         IconButton(onClick = onDelete) {
-            Icon(Icons.Default.Delete, contentDescription = "删除 Skill")
+            Icon(Icons.Default.Delete, contentDescription = context.getString(R.string.action_delete_skill))
         }
     }
 }
@@ -1052,10 +1065,11 @@ internal fun SkillsScreen(
     var importModeVisible by remember { mutableStateOf(false) }
     var manualImportVisible by remember { mutableStateOf(false) }
     var repositoryImportVisible by remember { mutableStateOf(false) }
+    val context = LocalContext.current
     deleteTarget?.let { skill ->
         ConfirmDeleteDialog(
-            title = "删除 Skill",
-            message = "该操作会删除此 Skill 包及其本地文件。",
+            title = context.getString(R.string.action_delete_skill),
+            message = context.getString(R.string.confirm_delete_skill),
             targetName = skill.name,
             onDismiss = { deleteTarget = null },
             onConfirm = { onDeleteSkill(skill.id) },
@@ -1104,9 +1118,9 @@ internal fun SkillsScreen(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Icon(Icons.Default.School, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("Skills 能力包", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text(context.getString(R.string.label_skills_capability), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Text(
-                        "支持从文件、仓库链接或手动编辑 SKILL.md 导入。AI 会先查看 name/description 判断是否需要，再按需读取包内文件。",
+                        context.getString(R.string.skills_description),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1115,8 +1129,8 @@ internal fun SkillsScreen(
             KimiDivider()
             KimiMenuRow(
                 icon = Icons.Default.UploadFile,
-                title = "导入 Skills",
-                value = "${skills.size} 个已安装",
+                title = context.getString(R.string.action_import_skills),
+                value = context.getString(R.string.label_installed_count, skills.size),
                 onClick = { importModeVisible = true },
             )
         }
@@ -1128,13 +1142,13 @@ internal fun SkillsScreen(
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Icon(Icons.Default.Extension, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("暂无 Skills", style = MaterialTheme.typography.titleMedium)
-                            Text("导入 zip、单个 SKILL.md 或仓库后会在这里显示，可启用、禁用或删除。", color = KimiMuted)
+                            Text(context.getString(R.string.notice_no_skills), style = MaterialTheme.typography.titleMedium)
+                            Text(context.getString(R.string.skills_empty_hint), color = KimiMuted)
                         }
                     }
                 }
             } else {
-            KimiSectionLabel("已安装")
+            KimiSectionLabel(context.getString(R.string.label_installed))
         }
         if (skills.isNotEmpty()) {
             KimiCardBox {
@@ -1158,6 +1172,7 @@ internal fun SkillImportModeDialog(
     onImportRepository: () -> Unit,
     onImportMarkdown: () -> Unit,
 ) {
+    val context = LocalContext.current
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false),
@@ -1173,22 +1188,22 @@ internal fun SkillImportModeDialog(
             ) {
                 SkillImportModeRow(
                     icon = Icons.Default.UploadFile,
-                    title = "从文件导入",
-                    subtitle = "选择 zip 或单个 SKILL.md",
+                    title = context.getString(R.string.action_import_from_file),
+                    subtitle = context.getString(R.string.label_import_file_hint),
                     onClick = onImportFile,
                 )
                 KimiDivider()
                 SkillImportModeRow(
                     icon = Icons.Default.CloudDownload,
-                    title = "从仓库导入",
-                    subtitle = "GitHub / Gitee / GitLab",
+                    title = context.getString(R.string.action_import_from_repo),
+                    subtitle = context.getString(R.string.label_import_repo_hint),
                     onClick = onImportRepository,
                 )
                 KimiDivider()
                 SkillImportModeRow(
                     icon = Icons.Default.Add,
-                    title = "手动添加",
-                    subtitle = "直接编辑 SKILL.md",
+                    title = context.getString(R.string.action_manual_add),
+                    subtitle = context.getString(R.string.label_manual_add_hint),
                     onClick = onImportMarkdown,
                 )
             }
@@ -1225,6 +1240,7 @@ internal fun SkillRepositoryImportDialog(
     onDismiss: () -> Unit,
     onImportRepository: (String) -> Unit,
 ) {
+    val context = LocalContext.current
     var repoUrl by rememberSaveable { mutableStateOf("") }
     Dialog(
         onDismissRequest = onDismiss,
@@ -1243,9 +1259,9 @@ internal fun SkillRepositoryImportDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("从仓库导入", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(context.getString(R.string.title_import_from_repo), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "输入 GitHub、Gitee 或 GitLab 仓库链接，Lyra Code 会自动下载仓库文件并识别 SKILL.md。",
+                    context.getString(R.string.repo_import_description),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -1253,7 +1269,7 @@ internal fun SkillRepositoryImportDialog(
                     value = repoUrl,
                     onValueChange = { repoUrl = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text("GitHub / Gitee / GitLab 链接") },
+                    label = { Text(context.getString(R.string.label_repo_link)) },
                     placeholder = { Text("https://github.com/owner/repo") },
                     singleLine = true,
                 )
@@ -1262,7 +1278,7 @@ internal fun SkillRepositoryImportDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(context.getString(R.string.action_cancel)) }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = { onImportRepository(repoUrl.trim()) },
@@ -1271,7 +1287,7 @@ internal fun SkillRepositoryImportDialog(
                     ) {
                         Icon(Icons.Default.CloudDownload, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("导入")
+                        Text(context.getString(R.string.action_import))
                     }
                 }
             }
@@ -1284,18 +1300,32 @@ internal fun SkillManualImportDialog(
     onDismiss: () -> Unit,
     onImportMarkdown: (String) -> Unit,
 ) {
+    val context = LocalContext.current
     var manualText by rememberSaveable {
         mutableStateOf(
-            """
-            ---
-            name: 自定义 Skill
-            description: 简要说明这个 Skill 的用途
-            ---
+            if (UiTextBridge.isEnglish()) {
+                """
+                ---
+                name: Custom Skill
+                description: Briefly describe what this Skill is for
+                ---
 
-            # 自定义 Skill
+                # Custom Skill
 
-            在这里写给 AI 的能力说明、适用场景、使用步骤和约束。
-            """.trimIndent(),
+                Write the capability instructions, applicable scenarios, usage steps, and constraints for the AI here.
+                """.trimIndent()
+            } else {
+                """
+                ---
+                name: 自定义 Skill
+                description: 简要说明这个 Skill 的用途
+                ---
+
+                # 自定义 Skill
+
+                在这里写给 AI 的能力说明、适用场景、使用步骤和约束。
+                """.trimIndent()
+            },
         )
     }
     Dialog(
@@ -1315,9 +1345,9 @@ internal fun SkillManualImportDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
-                Text("手动添加", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                Text(context.getString(R.string.title_manual_add), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                 Text(
-                    "直接编辑 SKILL.md 内容，保存后会作为一个独立 Skill 安装。",
+                    context.getString(R.string.manual_add_description),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -1335,7 +1365,7 @@ internal fun SkillManualImportDialog(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    TextButton(onClick = onDismiss) { Text("取消") }
+                    TextButton(onClick = onDismiss) { Text(context.getString(R.string.action_cancel)) }
                     Spacer(Modifier.width(8.dp))
                     Button(
                         onClick = { onImportMarkdown(manualText) },
@@ -1344,7 +1374,7 @@ internal fun SkillManualImportDialog(
                     ) {
                         Icon(Icons.Default.Save, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("保存 Skill")
+                        Text(context.getString(R.string.action_save_skill))
                     }
                 }
             }
@@ -1354,6 +1384,7 @@ internal fun SkillManualImportDialog(
 
 @Composable
 internal fun SkillSettingsRow(skill: SkillPack, onToggle: () -> Unit, onDelete: () -> Unit) {
+    val context = LocalContext.current
     Row(
         Modifier
             .fillMaxWidth()
@@ -1370,8 +1401,8 @@ internal fun SkillSettingsRow(skill: SkillPack, onToggle: () -> Unit, onDelete: 
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(skill.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text(
-                    if (skill.enabled) "已启用" else "已禁用",
+            Text(
+                    if (skill.enabled) context.getString(R.string.skill_status_enabled) else context.getString(R.string.skill_status_disabled),
                     color = if (skill.enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     style = MaterialTheme.typography.labelSmall,
                 )
@@ -1385,12 +1416,12 @@ internal fun SkillSettingsRow(skill: SkillPack, onToggle: () -> Unit, onDelete: 
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            Text("${skill.fileCount} 个文件 · ${skill.id}", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+            Text(context.getString(R.string.label_files_and_id, skill.fileCount, skill.id), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Switch(checked = skill.enabled, onCheckedChange = { onToggle() })
             IconButton(onClick = onDelete, modifier = Modifier.size(36.dp)) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = "删除 Skill", tint = MaterialTheme.colorScheme.error)
+                Icon(Icons.Default.DeleteOutline, contentDescription = context.getString(R.string.action_delete_skill), tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -1479,7 +1510,7 @@ internal fun ImageCropUploadDialog(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onDismiss) { Text("取消", color = Color.White) }
+                TextButton(onClick = onDismiss) { Text(context.getString(R.string.action_cancel), color = Color.White) }
                 Spacer(Modifier.weight(1f))
                 IconButton(
                     enabled = strokes.isNotEmpty(),
@@ -1492,7 +1523,7 @@ internal fun ImageCropUploadDialog(
                 ) {
                     Icon(
                         Icons.Default.Undo,
-                        contentDescription = "撤销",
+                        contentDescription = context.getString(R.string.action_undo),
                         tint = if (strokes.isNotEmpty()) Color.White else Color.Gray,
                     )
                 }
@@ -1507,7 +1538,7 @@ internal fun ImageCropUploadDialog(
                 ) {
                     Icon(
                         Icons.Default.Redo,
-                        contentDescription = "重做",
+                        contentDescription = context.getString(R.string.action_redo),
                         tint = if (redoStack.isNotEmpty()) Color.White else Color.Gray,
                     )
                 }
@@ -1602,7 +1633,7 @@ internal fun ImageCropUploadDialog(
                         }
                     }
                 } else {
-                    Text("无法预览图片", color = Color.White)
+                    Text(context.getString(R.string.notice_cannot_preview_image), color = Color.White)
                 }
             }
             ImageEditToolbar(
@@ -1635,7 +1666,7 @@ internal fun ImageCropUploadDialog(
                 OutlinedButton(onClick = onUseOriginal, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("原图上传")
+                    Text(context.getString(R.string.action_upload_original))
                 }
                 Button(
                     onClick = {
@@ -1648,7 +1679,7 @@ internal fun ImageCropUploadDialog(
                 ) {
                     Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("完成")
+                    Text(context.getString(R.string.action_done))
                 }
             }
         }
@@ -1697,12 +1728,13 @@ internal fun ImageEditToolbar(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            ImageModeChip("裁剪", mode == ImageEditMode.Crop) { onModeChange(ImageEditMode.Crop) }
-            ImageModeChip("画笔", mode == ImageEditMode.Brush) { onModeChange(ImageEditMode.Brush) }
-            ImageModeChip("马赛克", mode == ImageEditMode.Mosaic) { onModeChange(ImageEditMode.Mosaic) }
+            val context = LocalContext.current
+            ImageModeChip(context.getString(R.string.label_crop), mode == ImageEditMode.Crop) { onModeChange(ImageEditMode.Crop) }
+            ImageModeChip(context.getString(R.string.label_brush), mode == ImageEditMode.Brush) { onModeChange(ImageEditMode.Brush) }
+            ImageModeChip(context.getString(R.string.label_mosaic), mode == ImageEditMode.Mosaic) { onModeChange(ImageEditMode.Mosaic) }
             Spacer(Modifier.weight(1f))
-            KimiChip("旋转", onClick = onRotate)
-            KimiChip("还原", onClick = onReset)
+            KimiChip(context.getString(R.string.action_rotate), onClick = onRotate)
+            KimiChip(context.getString(R.string.action_reset), onClick = onReset)
         }
         if (mode == ImageEditMode.Brush || mode == ImageEditMode.Mosaic) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -1718,7 +1750,8 @@ internal fun ImageEditToolbar(
                         )
                     }
                 }
-                Text("粗细", color = Color.White, style = MaterialTheme.typography.labelMedium)
+                val contextThickness = LocalContext.current
+                Text(contextThickness.getString(R.string.label_thickness), color = Color.White, style = MaterialTheme.typography.labelMedium)
                 Slider(
                     value = brushWidth,
                     onValueChange = onBrushWidthChange,
@@ -2041,8 +2074,9 @@ internal fun KimiConversationRow(
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (conversation.pinnedAt > 0L) {
-                        Icon(Icons.Default.PushPin, contentDescription = "已置顶", modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
+                if (conversation.pinnedAt > 0L) {
+                        val contextForPinned = LocalContext.current
+                        Icon(Icons.Default.PushPin, contentDescription = contextForPinned.getString(R.string.label_pinned_icon), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.primary)
                         Spacer(Modifier.width(4.dp))
                     }
                     Text(conversation.title, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
@@ -2068,10 +2102,11 @@ internal fun HistoryConversationActionsDialog(
     onDelete: () -> Unit,
     onMultiSelect: () -> Unit,
 ) {
+    val context = LocalContext.current
     var title by rememberSaveable(conversation.id) { mutableStateOf(conversation.title) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("会话操作") },
+        title = { Text(context.getString(R.string.title_session_actions)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 OutlinedTextField(
@@ -2079,33 +2114,35 @@ internal fun HistoryConversationActionsDialog(
                     onValueChange = { title = it },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    label = { Text("对话标题") },
+                    label = { Text(context.getString(R.string.label_chat_title)) },
                 )
                 Button(onClick = { onRename(title.trim().ifBlank { conversation.title }) }, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Edit, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("保存标题")
+                    Text(context.getString(R.string.action_save_title))
                 }
                 OutlinedButton(onClick = onPin, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.PushPin, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (conversation.pinnedAt > 0L) "取消置顶" else "置顶对话")
+                    Text(if (conversation.pinnedAt > 0L) context.getString(R.string.action_unpin) else context.getString(R.string.action_pin_chat))
                 }
                 OutlinedButton(onClick = onMultiSelect, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("进入多选")
+                    Text(context.getString(R.string.action_multi_select))
                 }
                 OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Delete, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
-                    Text("删除对话")
+                    Text(context.getString(R.string.action_delete_chat))
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text("关闭") }
+            TextButton(onClick = onDismiss) { Text(context.getString(R.string.action_close)) }
         },
     )
 }
+
+
 

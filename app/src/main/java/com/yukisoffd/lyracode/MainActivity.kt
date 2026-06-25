@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -13,6 +14,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.LocaleList
 import android.provider.Settings
 import android.provider.MediaStore
 import android.util.Base64
@@ -25,6 +27,8 @@ import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.LocalActivityResultRegistryOwner
+import androidx.activity.compose.LocalOnBackPressedDispatcherOwner
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -109,6 +113,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -230,11 +235,11 @@ class MainActivity : ComponentActivity() {
         val uploadedFileManager = UploadedFileManager(this)
         val webAgent = WebViewWebAgent(this, settings)
         val responseCache = AiResponseCache(cacheDir)
-        val mcpClientManager = McpClientManager(settings)
+        val mcpClientManager = McpClientManager(this, settings)
         val sshExecutor = SshExecutor(settings)
         val systemCommandExecutor = SystemCommandExecutor(this, settings)
         val webDavClient = WebDavClient()
-        val fileTransferClient = FileTransferClient()
+        val fileTransferClient = FileTransferClient(this)
         val backupManager = BackupManager(this, settings, conversationStore)
         val miniServerManager = MiniServerManager(this, settings, workspaceManager)
         this.miniServerManager = miniServerManager
@@ -243,15 +248,18 @@ class MainActivity : ComponentActivity() {
         val agent = OpenAiAgent(this, settings, conversationStore, nativeFileManager, globalFileManager, termuxExecutor, workspaceManager, webAgent, mcpClientManager, sshExecutor, systemCommandExecutor, webDavClient, fileTransferClient, backupManager, miniServerManager, downloadTaskManager, scheduledTaskManager, responseCache)
         localMcpServerManager.attachAgent(agent)
         localMcpServerManager.syncWithSettings()
-        val chatController = ChatController(settings, conversationStore, uploadedFileManager, agent)
+        val chatController = ChatController(this, settings, conversationStore, uploadedFileManager, agent)
         controller = chatController
 
         setContent {
             var themeMode by remember { mutableStateOf(settings.themeMode) }
             var dynamicColorEnabled by remember { mutableStateOf(settings.dynamicColorEnabled) }
+            var languageMode by remember { mutableStateOf(settings.languageMode) }
             var refreshRateMode by remember { mutableStateOf(settings.refreshRateMode) }
             var fontScaleMode by remember { mutableStateOf(settings.fontScaleMode) }
             var customFontScale by remember { mutableStateOf(settings.customFontScale) }
+            val localizedContext = remember(languageMode) { this.localizedContext(languageMode) }
+            UiTextBridge.languageMode = languageMode
             val systemDark = isSystemInDarkTheme()
             val systemFontScale = LocalDensity.current.fontScale
             LaunchedEffect(refreshRateMode) {
@@ -270,54 +278,65 @@ class MainActivity : ComponentActivity() {
                 AppSettings.THEME_DARK -> true
                 else -> systemDark
             }
-            LyraCodeTheme(
-                darkMode = darkMode,
-                dynamicColor = dynamicColorEnabled,
-                fontScale = effectiveFontScale,
+            CompositionLocalProvider(
+                LocalContext provides localizedContext,
+                LocalActivityResultRegistryOwner provides this@MainActivity,
+                LocalOnBackPressedDispatcherOwner provides this@MainActivity,
             ) {
-                LyraCodeApp(
-                    settings = settings,
-                    auditLogStore = auditLogStore,
-                    workspaceManager = workspaceManager,
-                    termuxExecutor = termuxExecutor,
-                    mcpClientManager = mcpClientManager,
-                    sshExecutor = sshExecutor,
-                    systemCommandExecutor = systemCommandExecutor,
-                    webDavClient = webDavClient,
-                    fileTransferClient = fileTransferClient,
-                    backupManager = backupManager,
-                    miniServerManager = miniServerManager,
-                    localMcpServerManager = localMcpServerManager,
-                    downloadTaskManager = downloadTaskManager,
-                    scheduledTaskManager = scheduledTaskManager,
-                    controller = chatController,
-                    themeMode = themeMode,
-                    onThemeModeChange = {
-                        themeMode = it
-                        settings.themeMode = it
-                        settings.darkMode = it == AppSettings.THEME_DARK
-                    },
-                    dynamicColorEnabled = dynamicColorEnabled,
-                    onDynamicColorChange = {
-                        dynamicColorEnabled = it
-                        settings.dynamicColorEnabled = it
-                    },
-                    refreshRateMode = refreshRateMode,
-                    onRefreshRateModeChange = {
-                        refreshRateMode = it
-                        settings.refreshRateMode = it
-                    },
-                    fontScaleMode = fontScaleMode,
-                    customFontScale = customFontScale,
-                    onFontScaleModeChange = {
-                        fontScaleMode = it
-                        settings.fontScaleMode = it
-                    },
-                    onCustomFontScaleChange = {
-                        customFontScale = it
-                        settings.customFontScale = it
-                    },
-                )
+                LyraCodeTheme(
+                    darkMode = darkMode,
+                    dynamicColor = dynamicColorEnabled,
+                    fontScale = effectiveFontScale,
+                ) {
+                    LyraCodeApp(
+                        settings = settings,
+                        auditLogStore = auditLogStore,
+                        workspaceManager = workspaceManager,
+                        termuxExecutor = termuxExecutor,
+                        mcpClientManager = mcpClientManager,
+                        sshExecutor = sshExecutor,
+                        systemCommandExecutor = systemCommandExecutor,
+                        webDavClient = webDavClient,
+                        fileTransferClient = fileTransferClient,
+                        backupManager = backupManager,
+                        miniServerManager = miniServerManager,
+                        localMcpServerManager = localMcpServerManager,
+                        downloadTaskManager = downloadTaskManager,
+                        scheduledTaskManager = scheduledTaskManager,
+                        controller = chatController,
+                        themeMode = themeMode,
+                        onThemeModeChange = {
+                            themeMode = it
+                            settings.themeMode = it
+                            settings.darkMode = it == AppSettings.THEME_DARK
+                        },
+                        dynamicColorEnabled = dynamicColorEnabled,
+                        onDynamicColorChange = {
+                            dynamicColorEnabled = it
+                            settings.dynamicColorEnabled = it
+                        },
+                        languageMode = languageMode,
+                        onLanguageModeChange = {
+                            languageMode = AppSettings.normalizeLanguageMode(it)
+                            settings.languageMode = languageMode
+                        },
+                        refreshRateMode = refreshRateMode,
+                        onRefreshRateModeChange = {
+                            refreshRateMode = it
+                            settings.refreshRateMode = it
+                        },
+                        fontScaleMode = fontScaleMode,
+                        customFontScale = customFontScale,
+                        onFontScaleModeChange = {
+                            fontScaleMode = it
+                            settings.fontScaleMode = it
+                        },
+                        onCustomFontScaleChange = {
+                            customFontScale = it
+                            settings.customFontScale = it
+                        },
+                    )
+                }
             }
         }
     }
@@ -344,9 +363,24 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun Context.localizedContext(languageMode: String): Context {
+        val locale = when (AppSettings.normalizeLanguageMode(languageMode)) {
+            AppSettings.LANGUAGE_ZH_CN -> Locale.SIMPLIFIED_CHINESE
+            AppSettings.LANGUAGE_EN -> Locale.ENGLISH
+            else -> null
+        } ?: return this
+        val configuration = Configuration(resources.configuration)
+        configuration.setLocales(LocaleList(locale))
+        return createConfigurationContext(configuration)
+    }
+
     companion object {
         internal const val TERMUX_RUN_COMMAND_PERMISSION = "com.termux.permission.RUN_COMMAND"
     }
 }
+
+
+
+
 
 

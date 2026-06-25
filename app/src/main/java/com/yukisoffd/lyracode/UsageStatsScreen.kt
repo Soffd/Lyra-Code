@@ -92,7 +92,7 @@ internal fun UsageStatsScreen(controller: ChatController) {
             onSuccess = { summary = it },
             onFailure = {
                 summary = null
-                error = it.message.orEmpty().ifBlank { "统计失败" }
+                error = it.message.orEmpty().ifBlank { context.getString(R.string.stats_error) }
             },
         )
         loading = false
@@ -108,12 +108,12 @@ internal fun UsageStatsScreen(controller: ChatController) {
                         showDatePicker = false
                     },
                 ) {
-                    Text("确定")
+                    Text(context.getString(R.string.action_confirm))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDatePicker = false }) {
-                    Text("取消")
+                    Text(context.getString(R.string.action_cancel))
                 }
             },
         ) {
@@ -133,15 +133,15 @@ internal fun UsageStatsScreen(controller: ChatController) {
                 Icon(Icons.Default.Analytics, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(28.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("使用统计", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text(context.getString(R.string.title_usage_stats), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text(
-                        "按模型请求时间估算；会重复计入上下文、工具结果和静态提示词成本。",
+                        context.getString(R.string.stats_description),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 IconButton(onClick = { refreshKey++ }) {
-                    Icon(Icons.Default.Refresh, contentDescription = "刷新")
+                    Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.action_refresh))
                 }
             }
         }
@@ -156,7 +156,7 @@ internal fun UsageStatsScreen(controller: ChatController) {
                 FilterChip(
                     selected = period == selectedPeriod,
                     onClick = { selectedPeriodName = period.name },
-                    label = { Text(period.label) },
+                    label = { Text(context.getString(period.labelResId)) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -172,7 +172,7 @@ internal fun UsageStatsScreen(controller: ChatController) {
             FilterChip(
                 selected = compactNumbers,
                 onClick = { compactNumbers = true },
-                label = { Text("粗略显示") },
+                label = { Text(context.getString(R.string.stats_display_compact)) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -181,7 +181,7 @@ internal fun UsageStatsScreen(controller: ChatController) {
             FilterChip(
                 selected = !compactNumbers,
                 onClick = { compactNumbers = false },
-                label = { Text("精确显示") },
+                label = { Text(context.getString(R.string.stats_display_exact)) },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                     selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -194,19 +194,19 @@ internal fun UsageStatsScreen(controller: ChatController) {
                 Icon(Icons.Default.CalendarMonth, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(26.dp))
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("统计时间", style = MaterialTheme.typography.titleMedium)
+                    Text(context.getString(R.string.stats_time_range), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        summary?.let { formatStatsRange(it) } ?: if (selectedPeriod == UsageStatsPeriod.TOTAL) "全部历史" else formatAnchorDate(anchorAt),
+                        summary?.let { formatStatsRange(context, it) } ?: if (selectedPeriod == UsageStatsPeriod.TOTAL) context.getString(R.string.stats_all_history) else formatAnchorDate(anchorAt),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (selectedPeriod != UsageStatsPeriod.TOTAL) {
                     IconButton(onClick = { anchorAt = shiftAnchor(anchorAt, selectedPeriod, -1) }) {
-                        Icon(Icons.Default.ChevronLeft, contentDescription = "上一段")
+                        Icon(Icons.Default.ChevronLeft, contentDescription = context.getString(R.string.cd_previous_period))
                     }
                     IconButton(onClick = { anchorAt = shiftAnchor(anchorAt, selectedPeriod, 1) }) {
-                        Icon(Icons.Default.ChevronRight, contentDescription = "下一段")
+                        Icon(Icons.Default.ChevronRight, contentDescription = context.getString(R.string.cd_next_period))
                     }
                 }
             }
@@ -218,10 +218,10 @@ internal fun UsageStatsScreen(controller: ChatController) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     TextButton(onClick = { showDatePicker = true }) {
-                        Text("选择日期")
+                        Text(context.getString(R.string.action_select_date))
                     }
                     TextButton(onClick = { anchorAt = System.currentTimeMillis() }) {
-                        Text("回到今天")
+                        Text(context.getString(R.string.action_back_to_today))
                     }
                     Text(formatAnchorDate(anchorAt), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 }
@@ -232,7 +232,7 @@ internal fun UsageStatsScreen(controller: ChatController) {
             loading -> KimiCardBox {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
-                    Text("正在读取本地 tokenizer 并统计...", color = KimiMuted)
+                    Text(context.getString(R.string.stats_loading), color = KimiMuted)
                 }
             }
             error.isNotBlank() -> KimiCardBox {
@@ -245,40 +245,41 @@ internal fun UsageStatsScreen(controller: ChatController) {
 
 @Composable
 private fun UsageStatsContent(summary: UsageStatsSummary, compactNumbers: Boolean) {
-    KimiSectionLabel("${summary.period.label}统计")
+    val context = LocalContext.current
+    KimiSectionLabel(context.getString(R.string.stats_period_format, context.getString(summary.period.labelResId)))
     UsageMetricCard(
         icon = Icons.Default.Forum,
-        title = "对话次数",
+        title = context.getString(R.string.stats_conversation_count),
         value = formatStatsNumber(summary.conversationCount.toLong(), compactNumbers),
-        description = "该时间段内有用户输入的会话数",
+        description = context.getString(R.string.stats_conversation_desc),
     )
     UsageMetricCard(
         icon = Icons.AutoMirrored.Filled.Input,
-        title = "请求输入 Tokens",
+        title = context.getString(R.string.stats_input_tokens),
         value = formatStatsNumber(summary.userInputTokens, compactNumbers),
-        description = "每次请求的上下文 + 工具结果 + 固定提示词估算",
+        description = context.getString(R.string.stats_input_tokens_desc),
     )
     UsageMetricCard(
         icon = Icons.Default.Output,
-        title = "模型输出 Tokens",
+        title = context.getString(R.string.stats_output_tokens),
         value = formatStatsNumber(summary.aiOutputTokens, compactNumbers),
-        description = "AI 正文 + thinking + 工具调用参数",
+        description = context.getString(R.string.stats_output_tokens_desc),
     )
 
     KimiCardBox {
-        Text("明细", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(context.getString(R.string.stats_details), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         KimiDivider()
-        UsageDetailRow(Icons.Default.Analytics, "模型请求", "${formatStatsNumber(summary.modelRequestCount.toLong(), compactNumbers)} 次")
+        UsageDetailRow(Icons.Default.Analytics, context.getString(R.string.stats_model_requests), context.getString(R.string.stats_model_requests_format, formatStatsNumber(summary.modelRequestCount.toLong(), compactNumbers)))
         KimiDivider()
-        UsageDetailRow(Icons.Default.Forum, "用户消息", "${formatStatsNumber(summary.userMessageCount.toLong(), compactNumbers)} 条")
+        UsageDetailRow(Icons.Default.Forum, context.getString(R.string.stats_user_messages), context.getString(R.string.stats_message_format, formatStatsNumber(summary.userMessageCount.toLong(), compactNumbers)))
         KimiDivider()
-        UsageDetailRow(Icons.Default.SmartToy, "AI 消息", "${formatStatsNumber(summary.assistantMessageCount.toLong(), compactNumbers)} 条")
+        UsageDetailRow(Icons.Default.SmartToy, context.getString(R.string.stats_ai_messages), context.getString(R.string.stats_message_format, formatStatsNumber(summary.assistantMessageCount.toLong(), compactNumbers)))
         KimiDivider()
-        UsageDetailRow(Icons.Default.Build, "工具结果", "${formatStatsNumber(summary.toolMessageCount.toLong(), compactNumbers)} 条")
+        UsageDetailRow(Icons.Default.Build, context.getString(R.string.stats_tool_results), context.getString(R.string.stats_message_format, formatStatsNumber(summary.toolMessageCount.toLong(), compactNumbers)))
     }
 
     Text(
-        "Token 数由本地 DeepSeek V3 tokenizer 估算，不访问网络。当前口径按每次模型请求重复计算上下文，并为系统提示词、工具 schema 和消息模板加入固定开销；不同服务商的 tokenizer、图片计费、缓存折扣和实际 usage 仍可能不同。",
+        context.getString(R.string.stats_disclaimer),
         color = KimiMuted,
         style = MaterialTheme.typography.bodySmall,
         modifier = Modifier.padding(horizontal = 6.dp),
@@ -327,19 +328,38 @@ private fun UsageMetricCard(
 
 @Composable
 private fun UsageDetailRow(icon: ImageVector, title: String, value: String) {
-    Row(
+    Column(
         Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.width(14.dp))
-        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+        Row(
+            Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(24.dp))
+            Spacer(Modifier.width(14.dp))
+            Text(
+                title,
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
         AssistChip(
             onClick = {},
             enabled = false,
-            label = { Text(value) },
+            label = {
+                Text(
+                    value,
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
             colors = AssistChipDefaults.assistChipColors(
                 disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
                 disabledLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -350,17 +370,38 @@ private fun UsageDetailRow(icon: ImageVector, title: String, value: String) {
 
 private fun formatStatsNumber(value: Long, compact: Boolean): String {
     if (!compact) return NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
-    return formatCompactChineseNumber(value)
+    return if (UiTextBridge.isEnglish()) formatCompactEnglishNumber(value) else formatCompactChineseNumber(value)
+}
+
+private fun formatCompactEnglishNumber(value: Long): String {
+    val absValue = kotlin.math.abs(value)
+    if (absValue < 1_000L) return NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
+    val units = listOf(
+        1_000.0 to "K",
+        1_000_000.0 to "M",
+        1_000_000_000.0 to "B",
+        1_000_000_000_000.0 to "T",
+        1_000_000_000_000_000.0 to "P",
+    )
+    val (divisor, unit) = units.lastOrNull { absValue >= it.first } ?: units.first()
+    val scaled = absValue / divisor
+    val rounded = if (scaled < 100.0) kotlin.math.round(scaled * 10.0) / 10.0 else kotlin.math.round(scaled)
+    val numberText = if (rounded % 1.0 == 0.0) {
+        rounded.toLong().toString()
+    } else {
+        String.format(Locale.US, "%.1f", rounded)
+    }
+    return "${if (value < 0) "-" else ""}$numberText$unit"
 }
 
 private fun formatCompactChineseNumber(value: Long): String {
     val absValue = kotlin.math.abs(value)
     if (absValue < 10_000L) return NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
     val units = listOf(
-        10_000.0 to "万",
-        100_000_000.0 to "亿",
-        1_000_000_000_000.0 to "万亿",
-        10_000_000_000_000_000.0 to "亿亿",
+        10_000.0 to uiText("万"),
+        100_000_000.0 to uiText("亿"),
+        1_000_000_000_000.0 to uiText("万亿"),
+        10_000_000_000_000_000.0 to uiText("亿亿"),
     )
     val (divisor, unit) = units.lastOrNull { absValue >= it.first } ?: units.first()
     val scaled = absValue / divisor
@@ -390,18 +431,23 @@ private fun formatAnchorDate(anchorAt: Long): String {
     return SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date(anchorAt))
 }
 
-private fun formatStatsRange(summary: UsageStatsSummary): String {
-    if (summary.period == UsageStatsPeriod.TOTAL) return "全部历史"
+private fun formatStatsRange(context: android.content.Context, summary: UsageStatsSummary): String {
+    if (summary.period == UsageStatsPeriod.TOTAL) return context.getString(R.string.stats_all_history)
     val start = Date(summary.startAt)
     val endInclusive = Date((summary.endAt - 1L).coerceAtLeast(summary.startAt))
     return when (summary.period) {
         UsageStatsPeriod.DAY -> SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(start)
         UsageStatsPeriod.WEEK -> {
             val formatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            "${formatter.format(start)} 至 ${formatter.format(endInclusive)}"
+            context.getString(R.string.stats_date_range_format, formatter.format(start), formatter.format(endInclusive))
         }
-        UsageStatsPeriod.MONTH -> SimpleDateFormat("yyyy 年 M 月", Locale.getDefault()).format(start)
-        UsageStatsPeriod.YEAR -> SimpleDateFormat("yyyy 年", Locale.getDefault()).format(start)
-        UsageStatsPeriod.TOTAL -> "全部历史"
+        UsageStatsPeriod.MONTH -> {
+            val cal = Calendar.getInstance().apply { time = start }
+            context.getString(R.string.stats_month_format, cal.get(Calendar.YEAR).toString(), (cal.get(Calendar.MONTH) + 1).toString())
+        }
+        UsageStatsPeriod.YEAR -> context.getString(R.string.stats_year_format, Calendar.getInstance().apply { time = start }.get(Calendar.YEAR).toString())
+        UsageStatsPeriod.TOTAL -> context.getString(R.string.stats_all_history)
     }
 }
+
+

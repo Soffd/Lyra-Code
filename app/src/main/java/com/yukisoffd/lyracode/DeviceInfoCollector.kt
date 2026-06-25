@@ -59,7 +59,7 @@ object DeviceInfoCollector {
     fun collect(context: Context): DeviceInfoSnapshot {
         return DeviceInfoSnapshot(
             listOf(
-                systemSection(),
+                systemSection(context),
                 hardwareSection(context),
                 storageSection(context),
                 networkSection(context),
@@ -70,41 +70,41 @@ object DeviceInfoCollector {
 
     fun collectJson(context: Context): String = collect(context).toJson().toString(2)
 
-    private fun systemSection(): DeviceInfoSection = DeviceInfoSection(
-        "系统",
+    private fun systemSection(context: Context): DeviceInfoSection = DeviceInfoSection(
+        context.getString(R.string.device_section_system),
         listOf(
-            DeviceInfoItem("厂商", Build.MANUFACTURER.orUnknown()),
-            DeviceInfoItem("品牌", Build.BRAND.orUnknown()),
-            DeviceInfoItem("型号", Build.MODEL.orUnknown()),
-            DeviceInfoItem("设备代号", Build.DEVICE.orUnknown()),
-            DeviceInfoItem("Android 版本", Build.VERSION.RELEASE.orUnknown()),
-            DeviceInfoItem("Android SDK", Build.VERSION.SDK_INT.toString()),
-            DeviceInfoItem("构建版本", Build.DISPLAY.orUnknown()),
-            DeviceInfoItem("安全补丁", if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Build.VERSION.SECURITY_PATCH.orUnknown() else "不支持"),
+            DeviceInfoItem(context.getString(R.string.device_manufacturer), Build.MANUFACTURER.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_brand), Build.BRAND.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_model), Build.MODEL.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_codename), Build.DEVICE.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_android_version), Build.VERSION.RELEASE.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_sdk), Build.VERSION.SDK_INT.toString()),
+            DeviceInfoItem(context.getString(R.string.device_build), Build.DISPLAY.orUnknown()),
+            DeviceInfoItem(context.getString(R.string.device_security_patch), if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) Build.VERSION.SECURITY_PATCH.orUnknown() else context.getString(R.string.device_not_supported)),
         ),
     )
 
     private fun hardwareSection(context: Context): DeviceInfoSection {
         val display = displayInfo(context)
         return DeviceInfoSection(
-            "硬件",
+            context.getString(R.string.device_section_hardware),
             listOf(
-                DeviceInfoItem("CPU", cpuInfo()),
-                DeviceInfoItem("CPU 核心数", Runtime.getRuntime().availableProcessors().toString()),
-                DeviceInfoItem("ABI", Build.SUPPORTED_ABIS.joinToString(", ").ifBlank { "未知" }),
-                DeviceInfoItem("内存", memoryInfo(context)),
-                DeviceInfoItem("分辨率", display.first),
-                DeviceInfoItem("屏幕密度", display.second),
+                DeviceInfoItem(context.getString(R.string.device_cpu), cpuInfo()),
+                DeviceInfoItem(context.getString(R.string.device_cpu_cores), Runtime.getRuntime().availableProcessors().toString()),
+                DeviceInfoItem(context.getString(R.string.device_abi), Build.SUPPORTED_ABIS.joinToString(", ").ifBlank { context.getString(R.string.device_battery_unknown) }),
+                DeviceInfoItem(context.getString(R.string.device_memory), memoryInfo(context)),
+                DeviceInfoItem(context.getString(R.string.device_resolution), display.first),
+                DeviceInfoItem(context.getString(R.string.device_density), display.second),
             ),
         )
     }
 
     private fun storageSection(context: Context): DeviceInfoSection {
         val items = mutableListOf<DeviceInfoItem>()
-        items += DeviceInfoItem("内部存储", storageText(Environment.getDataDirectory()))
+        items += DeviceInfoItem(context.getString(R.string.device_internal_storage), storageText(Environment.getDataDirectory()))
         val primaryExternal = Environment.getExternalStorageDirectory()
         if (primaryExternal.exists()) {
-            items += DeviceInfoItem("共享存储", storageText(primaryExternal))
+            items += DeviceInfoItem(context.getString(R.string.device_shared_storage), storageText(primaryExternal))
         }
         val storageManager = context.getSystemService(StorageManager::class.java)
         runCatching {
@@ -113,9 +113,9 @@ object DeviceInfoCollector {
                 val label = buildString {
                     append(
                         when {
-                            volume.isPrimary -> "主存储"
-                            volume.isRemovable -> "外部存储"
-                            else -> "存储卷"
+                            volume.isPrimary -> context.getString(R.string.device_primary_storage)
+                            volume.isRemovable -> context.getString(R.string.device_removable_storage)
+                            else -> context.getString(R.string.device_storage_volume)
                         },
                     )
                     append(" ${index + 1}")
@@ -125,41 +125,41 @@ object DeviceInfoCollector {
                 val value = if (directory != null && directory.exists()) {
                     storageText(directory)
                 } else {
-                    "路径不可直接读取；uuid=${volume.uuid ?: "无"}，removable=${volume.isRemovable}"
+                    context.getString(R.string.device_path_not_readable, volume.uuid ?: context.getString(R.string.device_none), volume.isRemovable.toString())
                 }
                 if (items.none { it.value == value }) {
                     items += DeviceInfoItem(label, value)
                 }
             }
         }
-        return DeviceInfoSection("存储", items)
+        return DeviceInfoSection(context.getString(R.string.device_section_storage), items)
     }
 
     private fun networkSection(context: Context): DeviceInfoSection {
         val connectivity = context.getSystemService(ConnectivityManager::class.java)
         val caps = connectivity?.getNetworkCapabilities(connectivity.activeNetwork)
         val networkType = when {
-            caps == null -> "未连接或无网络状态权限"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> "移动网络"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> "以太网"
+            caps == null -> context.getString(R.string.device_network_none)
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> context.getString(R.string.device_network_wifi)
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> context.getString(R.string.device_network_cellular)
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> context.getString(R.string.device_network_ethernet)
             caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) -> "VPN"
-            caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> "蓝牙网络"
-            else -> "其他"
+            caps.hasTransport(NetworkCapabilities.TRANSPORT_BLUETOOTH) -> context.getString(R.string.device_network_bluetooth)
+            else -> context.getString(R.string.device_network_other)
         }
         val bluetooth = runCatching {
             val adapter = BluetoothAdapter.getDefaultAdapter()
             when {
-                adapter == null -> "设备不支持蓝牙"
-                adapter.isEnabled -> "已开启"
-                else -> "未开启"
+                adapter == null -> context.getString(R.string.device_bluetooth_not_supported)
+                adapter.isEnabled -> context.getString(R.string.device_bluetooth_on)
+                else -> context.getString(R.string.device_bluetooth_off)
             }
-        }.getOrElse { "无法读取：${it.javaClass.simpleName}" }
+        }.getOrElse { context.getString(R.string.device_read_error, it.javaClass.simpleName) }
         return DeviceInfoSection(
-            "连接",
+            context.getString(R.string.device_section_connection),
             listOf(
-                DeviceInfoItem("网络", networkType),
-                DeviceInfoItem("蓝牙", bluetooth),
+                DeviceInfoItem(context.getString(R.string.device_network), networkType),
+                DeviceInfoItem(context.getString(R.string.device_bluetooth), bluetooth),
             ),
         )
     }
@@ -168,26 +168,26 @@ object DeviceInfoCollector {
         val battery = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         val level = battery?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
         val scale = battery?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        val percent = if (level >= 0 && scale > 0) "${level * 100 / scale}%" else "未知"
+        val percent = if (level >= 0 && scale > 0) "${level * 100 / scale}%" else context.getString(R.string.device_battery_unknown)
         val status = when (battery?.getIntExtra(BatteryManager.EXTRA_STATUS, -1)) {
-            BatteryManager.BATTERY_STATUS_CHARGING -> "充电中"
-            BatteryManager.BATTERY_STATUS_DISCHARGING -> "放电中"
-            BatteryManager.BATTERY_STATUS_FULL -> "已充满"
-            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "未充电"
-            else -> "未知"
+            BatteryManager.BATTERY_STATUS_CHARGING -> context.getString(R.string.device_battery_charging)
+            BatteryManager.BATTERY_STATUS_DISCHARGING -> context.getString(R.string.device_battery_discharging)
+            BatteryManager.BATTERY_STATUS_FULL -> context.getString(R.string.device_battery_full)
+            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> context.getString(R.string.device_battery_not_charging)
+            else -> context.getString(R.string.device_battery_unknown)
         }
         val plugged = when (battery?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0)) {
             BatteryManager.BATTERY_PLUGGED_AC -> "AC"
             BatteryManager.BATTERY_PLUGGED_USB -> "USB"
-            BatteryManager.BATTERY_PLUGGED_WIRELESS -> "无线"
-            else -> "未连接"
+            BatteryManager.BATTERY_PLUGGED_WIRELESS -> context.getString(R.string.device_plugged_wireless)
+            else -> context.getString(R.string.device_plugged_none)
         }
         return DeviceInfoSection(
-            "电池",
+            context.getString(R.string.device_section_battery),
             listOf(
-                DeviceInfoItem("电量", percent),
-                DeviceInfoItem("状态", status),
-                DeviceInfoItem("供电", plugged),
+                DeviceInfoItem(context.getString(R.string.device_battery_level), percent),
+                DeviceInfoItem(context.getString(R.string.device_battery_status), status),
+                DeviceInfoItem(context.getString(R.string.device_battery_power), plugged),
             ),
         )
     }
@@ -210,8 +210,8 @@ object DeviceInfoCollector {
         val info = android.app.ActivityManager.MemoryInfo()
         return runCatching {
             activityManager.getMemoryInfo(info)
-            "${formatBytes(info.availMem)} 可用 / ${formatBytes(info.totalMem)} 总计"
-        }.getOrDefault("未知")
+            context.getString(R.string.device_memory_format, formatBytes(info.availMem), formatBytes(info.totalMem))
+        }.getOrDefault(context.getString(R.string.device_battery_unknown))
     }
 
     private fun cpuInfo(): String {
@@ -275,11 +275,11 @@ object DeviceInfoCollector {
             val stat = StatFs(path.absolutePath)
             val total = stat.blockSizeLong * stat.blockCountLong
             val available = stat.blockSizeLong * stat.availableBlocksLong
-            "${formatBytes(available)} 可用 / ${formatBytes(total)} 总计 · ${path.absolutePath}"
-        }.getOrElse { "无法读取：${path.absolutePath}" }
+            formatBytes(available) + uiText(" 可用 / ") + formatBytes(total) + uiText(" 总计 · ") + path.absolutePath
+        }.getOrElse { uiText("无法读取：") + path.absolutePath }
     }
 
-    private fun String?.orUnknown(): String = this?.takeIf { it.isNotBlank() } ?: "未知"
+    private fun String?.orUnknown(): String = this?.takeIf { it.isNotBlank() } ?: uiText("未知")
 
     private fun String?.cleanCpuValue(): String? {
         return this

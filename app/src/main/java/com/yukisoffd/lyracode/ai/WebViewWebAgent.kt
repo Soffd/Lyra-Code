@@ -48,13 +48,13 @@ class WebViewWebAgent(
 
     suspend fun search(query: String, limit: Int = 6): String {
         val cleanQuery = query.trim()
-        require(cleanQuery.isNotBlank()) { "搜索关键词不能为空" }
+        require(cleanQuery.isNotBlank()) { context.getString(com.yukisoffd.lyracode.R.string.error_search_keyword_empty) }
         val maxResults = limit.coerceIn(1, 10)
         val engines = listOf(
             SearchEngine("Google", "https://www.google.com/search?hl=zh-CN&q=${Uri.encode(cleanQuery)}"),
             SearchEngine("Bing", "https://www.bing.com/search?q=${Uri.encode(cleanQuery)}"),
-            SearchEngine("必应", "https://cn.bing.com/search?q=${Uri.encode(cleanQuery)}"),
-            SearchEngine("百度", "https://www.baidu.com/s?wd=${Uri.encode(cleanQuery)}"),
+            SearchEngine(context.getString(com.yukisoffd.lyracode.R.string.search_engine_bing), "https://cn.bing.com/search?q=${Uri.encode(cleanQuery)}"),
+            SearchEngine(context.getString(com.yukisoffd.lyracode.R.string.search_engine_baidu), "https://www.baidu.com/s?wd=${Uri.encode(cleanQuery)}"),
         )
         var lastError = ""
         val results = (withTimeoutOrNull(18_000L) { httpSearch(engines, cleanQuery, maxResults * 3) } ?: emptyList())
@@ -70,14 +70,14 @@ class WebViewWebAgent(
             }.orEmpty()
         val blockedHosts = settings.webSearchBlockedHosts()
         if (results.isEmpty()) {
-            val blockedNote = if (blockedHosts.isNotEmpty()) " 已过滤黑名单域名: ${blockedHosts.joinToString(", ")}。" else ""
-            return "未找到可用搜索结果。$blockedNote lastError=$lastError"
+            val blockedNote = if (blockedHosts.isNotEmpty()) context.getString(com.yukisoffd.lyracode.R.string.notice_blocked_domains, blockedHosts.joinToString(", ")) else ""
+            return "${context.getString(com.yukisoffd.lyracode.R.string.search_no_results)}$blockedNote lastError=$lastError"
         }
         return buildString {
             appendLine("WEB_SEARCH_RESULTS schema=lyra_web_search_v2")
             appendLine("query: $cleanQuery")
             if (blockedHosts.isNotEmpty()) appendLine("blocked_hosts: ${blockedHosts.joinToString(", ")}")
-            appendLine("guidance: 已按关键词匹配度、来源质量和垃圾/聚合页信号排序。优先读取高分、官方/原始/权威来源；低分结果仅作补充，不要把搜索摘要当最终事实。")
+            appendLine("guidance: ${context.getString(com.yukisoffd.lyracode.R.string.search_guidance)}")
             results.take(maxResults).forEachIndexed { index, result ->
                 appendLine()
                 appendLine("result_${index + 1}:")
@@ -98,7 +98,7 @@ class WebViewWebAgent(
                 val results = when (engine.name) {
                     "Bing" -> parseBingRss(httpGet("https://www.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
                         .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
-                    "必应" -> parseBingRss(httpGet("https://cn.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
+                    context.getString(com.yukisoffd.lyracode.R.string.search_engine_bing) -> parseBingRss(httpGet("https://cn.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
                         .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
                     else -> parseLinksFromHtml(httpGet(engine.url), limit)
                 }
@@ -113,9 +113,9 @@ class WebViewWebAgent(
 
     suspend fun readPage(url: String): String {
         val cleanUrl = url.trim()
-        require(cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) { "只支持 http/https 网页 URL" }
+        require(cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) { context.getString(com.yukisoffd.lyracode.R.string.error_only_http_url) }
         blockedHostFor(cleanUrl)?.let { blocked ->
-            return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: blocked_by_user\ntitle: \nurl: $cleanUrl\nnote: 该网站已在联网搜索黑名单中，禁止读取: $blocked\n\n页面未读取。"
+            return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: blocked_by_user\ntitle: \nurl: $cleanUrl\nnote: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_blocked, cleanUrl, blocked)}\n\n页面未读取。"
         }
         var page = runCatching {
             val json = loadAndEvaluate(url = cleanUrl, script = pageScript(), timeoutMs = 10_000L)
@@ -124,7 +124,7 @@ class WebViewWebAgent(
             Log.w(TAG, "WebView read page failed: $cleanUrl", it)
         }.getOrElse {
             withTimeoutOrNull(8_000L) { httpReadFallback(cleanUrl) }
-                ?: WebPageResult("", cleanUrl, "网页读取超时。")
+                ?: WebPageResult("", cleanUrl, context.getString(com.yukisoffd.lyracode.R.string.web_page_timeout))
         }
         if (pageReadStatus(page.text) != "readable") {
             val fallback = withTimeoutOrNull(8_000L) { runCatching { httpReadFallback(cleanUrl) }.getOrNull() }
@@ -132,11 +132,11 @@ class WebViewWebAgent(
         }
         val status = pageReadStatus(page.text)
         val note = when (status) {
-            "blocked_or_dynamic" -> "note: 页面疑似有人机验证、访问防护、登录墙、403/Cloudflare 或正文与真人浏览不一致；不要把该页面作为唯一事实来源。"
-            "limited" -> "note: 页面可读文本较少，可能是动态渲染、摘要页或正文抽取不完整；建议读取其他来源交叉核对。"
-            else -> "note: 页面正文可读取。"
+            "blocked_or_dynamic" -> "note: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_blocked_dynamic)}"
+            "limited" -> "note: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_limited)}"
+            else -> "note: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_ok)}"
         }
-        return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: $status\ntitle: ${page.title}\nurl: ${page.url}\n$note\n\n${page.text.ifBlank { "页面没有可读取文本。" }}"
+        return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: $status\ntitle: ${page.title}\nurl: ${page.url}\n$note\n\n${page.text.ifBlank { context.getString(com.yukisoffd.lyracode.R.string.web_page_no_text) }}"
     }
 
     private fun rankSearchResults(query: String, results: List<WebSearchResult>, limit: Int): List<WebSearchResult> {
@@ -165,16 +165,16 @@ class WebViewWebAgent(
         val matched = tokens.count { token -> token.length >= 2 && haystack.contains(token) }
         var score = 20 + matched * 12
         val reasons = mutableListOf<String>()
-        if (matched > 0) reasons += "关键词匹配 $matched/${tokens.size.coerceAtLeast(1)}"
+        if (matched > 0) reasons += context.getString(com.yukisoffd.lyracode.R.string.search_keyword_match, matched, tokens.size.coerceAtLeast(1))
         if (hostQualityBonus(host, path) > 0) {
             val bonus = hostQualityBonus(host, path)
             score += bonus
-            reasons += "来源较可信 +$bonus"
+            reasons += context.getString(com.yukisoffd.lyracode.R.string.search_source_trusted, bonus)
         }
         val penalty = lowQualityPenalty(host, result.title, result.snippet)
         if (penalty > 0) {
             score -= penalty
-            reasons += "低质量/聚合信号 -$penalty"
+            reasons += context.getString(com.yukisoffd.lyracode.R.string.search_low_quality, penalty)
         }
         if (tokens.isNotEmpty() && matched == 0) {
             score -= 20

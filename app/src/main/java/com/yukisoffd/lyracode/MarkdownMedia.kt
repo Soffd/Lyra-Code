@@ -308,7 +308,7 @@ internal fun splitMarkdownMedia(text: String): List<MarkdownInlinePart> {
     if (result.isNotEmpty()) return result
     val trimmed = text.trim()
     if (isMediaSource(trimmed) || isLikelyRawBase64Media(trimmed)) {
-        return listOf(MarkdownInlinePart.MediaPart("媒体文件", trimmed))
+        return listOf(MarkdownInlinePart.MediaPart(uiText("媒体文件"), trimmed))
     }
     val sourceMatch = mediaSourceRegex().find(text)
     if (sourceMatch != null) {
@@ -317,7 +317,7 @@ internal fun splitMarkdownMedia(text: String): List<MarkdownInlinePart> {
         val after = text.substring(sourceMatch.range.last + 1)
         return buildList {
             if (before.isNotBlank()) add(MarkdownInlinePart.TextPart(before))
-            add(MarkdownInlinePart.MediaPart("媒体文件", source))
+            add(MarkdownInlinePart.MediaPart(uiText("媒体文件"), source))
             if (after.isNotBlank()) add(MarkdownInlinePart.TextPart(after))
         }
     }
@@ -339,14 +339,14 @@ internal fun MarkdownMediaPreview(alt: String, url: String) {
     ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(alt.ifBlank { "媒体文件" }, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text("复制") }
+                Text(alt.ifBlank { uiText("媒体文件") }, modifier = Modifier.weight(1f), style = MaterialTheme.typography.labelMedium)
+                TextButton(onClick = { clipboard.setText(AnnotatedString(url)) }) { Text(uiText("复制")) }
                 TextButton(onClick = {
-                    saveStatus = "正在保存..."
+                    saveStatus = uiText("正在保存...")
                     scope.launch {
-                        saveStatus = withContext(Dispatchers.IO) { saveMediaSource(context, url, decoded) ?: "保存失败" }
+                        saveStatus = withContext(Dispatchers.IO) { saveMediaSource(context, url, decoded) ?: uiText("保存失败") }
                     }
-                }) { Text("保存") }
+                }) { Text(uiText("保存")) }
             }
             if (decoded != null) {
                 DataUrlInlinePreview(decoded)
@@ -368,7 +368,7 @@ internal fun MarkdownMediaPreview(alt: String, url: String) {
 internal fun SourceImagePreview(source: String) {
     val context = LocalContext.current
     var bitmap by remember(source) { mutableStateOf<Bitmap?>(null) }
-    var status by remember(source) { mutableStateOf("加载媒体...") }
+    var status by remember(source) { mutableStateOf(uiText("加载媒体...")) }
     var previewOpen by remember(source) { mutableStateOf(false) }
     LaunchedEffect(source) {
         val loaded = withContext(Dispatchers.IO) {
@@ -378,7 +378,7 @@ internal fun SourceImagePreview(source: String) {
             }.getOrNull()
         }
         bitmap = loaded
-        status = if (loaded == null) "图片加载失败，可复制链接到浏览器打开。" else ""
+        status = if (loaded == null) uiText("图片加载失败，可复制链接到浏览器打开。") else ""
     }
     if (bitmap != null) {
         Image(
@@ -397,7 +397,7 @@ internal fun SourceImagePreview(source: String) {
     }
     if (previewOpen && bitmap != null) {
         FullscreenMediaPreviewDialog(
-            title = "图片预览",
+            title = uiText("图片预览"),
             source = source,
             kind = "image",
             bitmap = bitmap,
@@ -412,7 +412,7 @@ internal fun EmbeddedMediaPlayer(source: String, kind: String) {
     val uri = remember(source) { uriForMediaSource(source) }
     var previewOpen by remember(source) { mutableStateOf(false) }
     if (uri == null) {
-        Text("无法识别媒体地址：$source", color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(uiText("无法识别媒体地址：") + source, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         return
     }
     Box {
@@ -445,13 +445,13 @@ internal fun EmbeddedMediaPlayer(source: String, kind: String) {
                 onClick = { previewOpen = true },
                 modifier = Modifier.align(Alignment.TopEnd).padding(8.dp),
             ) {
-                Text("全屏")
+                Text(uiText("全屏"))
             }
         }
     }
     if (previewOpen) {
         FullscreenMediaPreviewDialog(
-            title = "视频预览",
+            title = uiText("视频预览"),
             source = source,
             kind = kind,
             onDismiss = { previewOpen = false },
@@ -481,7 +481,7 @@ internal fun DataUrlInlinePreview(decoded: DecodedDataUrl) {
             )
             if (previewOpen) {
                 FullscreenMediaPreviewDialog(
-                    title = "图片预览",
+                    title = uiText("图片预览"),
                     source = "",
                     kind = "image",
                     bitmap = bitmap,
@@ -490,16 +490,16 @@ internal fun DataUrlInlinePreview(decoded: DecodedDataUrl) {
                 )
             }
         } else {
-            Text("图片解码失败", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(uiText("图片解码失败"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     } else {
         val kind = mediaKindForSource("", decoded.mimeType)
         Text("${decoded.mimeType} · ${decoded.bytes.size} bytes", color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         if (kind == "video" || kind == "audio") {
-            KimiChip(if (kind == "video") "全屏播放" else "播放", onClick = { previewOpen = true })
+            KimiChip(if (kind == "video") uiText("全屏播放") else uiText("播放"), onClick = { previewOpen = true })
             if (previewOpen) {
                 FullscreenMediaPreviewDialog(
-                    title = "媒体预览",
+                    title = uiText("媒体预览"),
                     source = "",
                     kind = kind,
                     decoded = decoded,
@@ -509,10 +509,10 @@ internal fun DataUrlInlinePreview(decoded: DecodedDataUrl) {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        KimiChip("保存文件", onClick = {
-            status = "正在保存..."
+        KimiChip(uiText("保存文件"), onClick = {
+            status = uiText("正在保存...")
             scope.launch {
-                status = withContext(Dispatchers.IO) { saveDecodedDataUrl(context, decoded) ?: "保存失败" }
+                status = withContext(Dispatchers.IO) { saveDecodedDataUrl(context, decoded) ?: uiText("保存失败") }
             }
         })
     }
@@ -558,10 +558,10 @@ internal fun FullscreenMediaPreviewDialog(
             when (resolvedKind) {
                 "image" -> FullscreenImageContent(source = source, bitmap = bitmap, decoded = resolvedDecoded)
                 "video", "audio" -> FullscreenVideoContent(source = source, decoded = resolvedDecoded, kind = resolvedKind)
-                else -> Text("无法预览此媒体", modifier = Modifier.align(Alignment.Center), color = Color.White)
+                else -> Text(uiText("无法预览此媒体"), modifier = Modifier.align(Alignment.Center), color = Color.White)
             }
             Text(
-                title.ifBlank { "媒体预览" },
+                title.ifBlank { uiText("媒体预览") },
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(end = 56.dp),
@@ -574,7 +574,7 @@ internal fun FullscreenMediaPreviewDialog(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.TopEnd),
             ) {
-                Icon(Icons.Default.Close, contentDescription = "关闭预览", tint = Color.White)
+                Icon(Icons.Default.Close, contentDescription = uiText("关闭预览"), tint = Color.White)
             }
         }
     }
@@ -586,7 +586,7 @@ internal fun FullscreenImageContent(source: String, bitmap: Bitmap?, decoded: De
     var loadedBitmap by remember(source, bitmap, decoded?.bytes) {
         mutableStateOf(bitmap ?: decoded?.bytes?.let { BitmapFactory.decodeByteArray(it, 0, it.size) })
     }
-    var status by remember(source) { mutableStateOf(if (loadedBitmap == null) "加载媒体..." else "") }
+    var status by remember(source) { mutableStateOf(if (loadedBitmap == null) uiText("加载媒体...") else "") }
     LaunchedEffect(source, loadedBitmap) {
         if (loadedBitmap == null && source.isNotBlank()) {
             val loaded = withContext(Dispatchers.IO) {
@@ -596,7 +596,7 @@ internal fun FullscreenImageContent(source: String, bitmap: Bitmap?, decoded: De
                 }.getOrNull()
             }
             loadedBitmap = loaded
-            status = if (loaded == null) "图片加载失败" else ""
+            status = if (loaded == null) uiText("图片加载失败") else ""
         }
     }
     if (loadedBitmap != null) {
@@ -622,7 +622,7 @@ internal fun FullscreenVideoContent(source: String, decoded: DecodedDataUrl?, ki
         decoded?.let { cacheDecodedPreviewMedia(context, it) } ?: uriForMediaSource(source)
     }
     if (uri == null) {
-        Text("无法打开媒体", modifier = Modifier.fillMaxWidth().padding(top = 80.dp), color = Color.White)
+        Text(uiText("无法打开媒体"), modifier = Modifier.fillMaxWidth().padding(top = 80.dp), color = Color.White)
         return
     }
     AndroidView(
@@ -820,7 +820,7 @@ internal fun CodeBlock(block: MarkdownBlock.Code) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(block.language.ifBlank { "code" }, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
                 TextButton(onClick = { clipboard.setText(AnnotatedString(block.code)) }) {
-                    Text("复制代码")
+                    Text(uiText("复制代码"))
                 }
             }
             Text(
@@ -1837,7 +1837,7 @@ internal fun DataUrlPreviewDialog(dataUrl: String, onDismiss: () -> Unit, onCopy
     val decoded = remember(dataUrl) { decodeDataUrl(dataUrl) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Base64 文件") },
+        title = { Text(uiText("Base64 文件")) },
         text = {
             Column(
                 Modifier
@@ -1847,7 +1847,7 @@ internal fun DataUrlPreviewDialog(dataUrl: String, onDismiss: () -> Unit, onCopy
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (decoded == null) {
-                    Text("无法解析 data URL。", color = MaterialTheme.colorScheme.error)
+                    Text(uiText("无法解析 data URL。"), color = MaterialTheme.colorScheme.error)
                 } else {
                     Text(decoded.mimeType, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     if (decoded.mimeType.startsWith("image/")) {
@@ -1856,23 +1856,23 @@ internal fun DataUrlPreviewDialog(dataUrl: String, onDismiss: () -> Unit, onCopy
                             Image(bitmap.asImageBitmap(), contentDescription = null, modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp), contentScale = ContentScale.Fit)
                         }
                     } else {
-                        Text("已解码 ${decoded.bytes.size} bytes。音频、视频或其他文件可保存后用外部应用打开。", color = KimiMuted)
+                        Text(uiText("已解码 ") + "${decoded.bytes.size} bytes" + uiText("。音频、视频或其他文件可保存后用外部应用打开。"), color = KimiMuted)
                     }
                     val saveStatus = remember { mutableStateOf("") }
                     if (saveStatus.value.isNotBlank()) Text(saveStatus.value, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        KimiChip("复制原始值", onClick = onCopy)
-                        KimiChip("保存到下载", onClick = {
-                            saveStatus.value = "正在保存..."
+                        KimiChip(uiText("复制原始值"), onClick = onCopy)
+                        KimiChip(uiText("保存到下载"), onClick = {
+                            saveStatus.value = uiText("正在保存...")
                             scope.launch {
-                                saveStatus.value = withContext(Dispatchers.IO) { saveDecodedDataUrl(context, decoded) ?: "保存失败" }
+                                saveStatus.value = withContext(Dispatchers.IO) { saveDecodedDataUrl(context, decoded) ?: uiText("保存失败") }
                             }
                         })
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("关闭") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(uiText("关闭")) } },
     )
 }
 
@@ -1920,7 +1920,7 @@ internal fun saveDecodedDataUrl(context: Context, decoded: DecodedDataUrl): Stri
 }.getOrNull()
 
 internal fun saveMediaSource(context: Context, source: String, decoded: DecodedDataUrl?): String? = runCatching {
-    if (decoded != null) return@runCatching saveDecodedDataUrl(context, decoded) ?: error("保存失败")
+    if (decoded != null) return@runCatching saveDecodedDataUrl(context, decoded) ?: error(uiText("保存失败"))
     val bytes = readMediaBytes(context, source, 200 * 1024 * 1024)
     val mimeType = detectMimeType(bytes) ?: mimeTypeFromSource(source)
     val ext = mediaExtensionFromSource(source, mimeType)
@@ -1937,13 +1937,13 @@ internal fun saveBytesToDownloads(context: Context, bytes: ByteArray, displayNam
             put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
         val resolver = context.contentResolver
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error("无法创建下载文件")
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values) ?: error(uiText("无法创建下载文件"))
         try {
-            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error("无法写入下载文件")
+            resolver.openOutputStream(uri)?.use { it.write(bytes) } ?: error(uiText("无法写入下载文件"))
             values.clear()
             values.put(MediaStore.MediaColumns.IS_PENDING, 0)
             resolver.update(uri, values, null, null)
-            return "已保存到 Download/LyraCode/$safeName"
+            return uiText("已保存到 ") + "Download/LyraCode/$safeName"
         } catch (error: Throwable) {
             resolver.delete(uri, null, null)
             throw error
@@ -1952,7 +1952,7 @@ internal fun saveBytesToDownloads(context: Context, bytes: ByteArray, displayNam
     val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "LyraCode").apply { mkdirs() }
     val file = uniqueFile(dir, safeName)
     FileOutputStream(file).use { it.write(bytes) }
-    return "已保存到 ${file.absolutePath}"
+    return uiText("已保存到 ") + file.absolutePath
 }
 
 internal fun uniqueFile(dir: File, name: String): File {
@@ -2002,7 +2002,7 @@ internal fun readMediaBytes(context: Context, source: String, maxBytes: Int): By
         source.startsWith("http://", true) || source.startsWith("https://", true) -> URL(source).openStream()
         source.startsWith("content://", true) || source.startsWith("file://", true) -> context.contentResolver.openInputStream(Uri.parse(source))
         else -> File(source).inputStream()
-    } ?: error("无法打开媒体")
+    } ?: error(uiText("无法打开媒体"))
     input.use {
         val output = java.io.ByteArrayOutputStream()
         val buffer = ByteArray(8192)
@@ -2011,7 +2011,7 @@ internal fun readMediaBytes(context: Context, source: String, maxBytes: Int): By
             val read = it.read(buffer)
             if (read < 0) break
             total += read
-            require(total <= maxBytes) { "媒体超过 ${maxBytes / 1024 / 1024}MB" }
+            require(total <= maxBytes) { uiText("媒体超过 ") + "${maxBytes / 1024 / 1024}MB" }
             output.write(buffer, 0, read)
         }
         return output.toByteArray()
@@ -2099,4 +2099,6 @@ internal val IMAGE_EXTENSIONS = listOf(".png", ".jpg", ".jpeg", ".gif", ".webp",
 internal val VIDEO_EXTENSIONS = listOf(".mp4", ".webm", ".mov", ".m4v", ".3gp")
 internal val AUDIO_EXTENSIONS = listOf(".mp3", ".wav", ".m4a", ".aac", ".ogg", ".flac")
 internal val MEDIA_EXTENSIONS = IMAGE_EXTENSIONS + VIDEO_EXTENSIONS + AUDIO_EXTENSIONS
+
+
 

@@ -4,6 +4,7 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import com.yukisoffd.lyracode.R
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -33,8 +34,8 @@ data class ChatMessage(
     val createdAt: Long,
 )
 
-class ConversationStore(context: Context) : SQLiteOpenHelper(
-    context.applicationContext,
+class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
+    appContext.applicationContext,
     "lyra_conversations.db",
     null,
     3,
@@ -87,7 +88,7 @@ class ConversationStore(context: Context) : SQLiteOpenHelper(
     fun createConversation(
         profileId: String,
         model: String,
-        title: String = "新对话",
+        title: String = appContext.getString(R.string.default_conversation_title),
         mode: String = MODE_NORMAL,
         roleplayId: String = "",
     ): Long {
@@ -398,7 +399,7 @@ class ConversationStore(context: Context) : SQLiteOpenHelper(
     }
 
     fun importJson(root: JSONObject, mode: String): String {
-        val array = root.optJSONArray("conversations") ?: return "没有兼容的对话数据"
+        val array = root.optJSONArray("conversations") ?: return appContext.getString(R.string.notice_no_compatible_data)
         if (mode == "replace") {
             writableDatabase.delete("messages", null, null)
             writableDatabase.delete("conversations", null, null)
@@ -408,7 +409,7 @@ class ConversationStore(context: Context) : SQLiteOpenHelper(
         var skippedConversations = 0
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
-            val title = item.optString("title").ifBlank { "导入对话" }
+            val title = item.optString("title").ifBlank { appContext.getString(R.string.default_import_title) }
             val exportedCreatedAt = item.optLong("createdAt", System.currentTimeMillis())
             val exportedUpdatedAt = item.optLong("updatedAt", exportedCreatedAt)
             val messages = item.optJSONArray("messages") ?: JSONArray()
@@ -455,8 +456,8 @@ class ConversationStore(context: Context) : SQLiteOpenHelper(
             importedConversations++
         }
         return buildString {
-            append("对话 ${importedConversations} 个，消息 ${importedMessages} 条")
-            if (skippedConversations > 0) append("，跳过重复对话 ${skippedConversations} 个")
+            append(appContext.getString(R.string.import_result_conversations, importedConversations, importedMessages))
+            if (skippedConversations > 0) append(appContext.getString(R.string.import_result_skipped, skippedConversations))
         }
     }
 

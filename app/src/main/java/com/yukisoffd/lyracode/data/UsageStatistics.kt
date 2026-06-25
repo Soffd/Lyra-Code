@@ -1,16 +1,17 @@
 package com.yukisoffd.lyracode.data
 
 import android.content.Context
+import com.yukisoffd.lyracode.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
 
-enum class UsageStatsPeriod(val label: String) {
-    DAY("日"),
-    WEEK("周"),
-    MONTH("月"),
-    YEAR("年"),
-    TOTAL("总共"),
+enum class UsageStatsPeriod(val labelResId: Int) {
+    DAY(R.string.stat_period_day),
+    WEEK(R.string.stat_period_week),
+    MONTH(R.string.stat_period_month),
+    YEAR(R.string.stat_period_year),
+    TOTAL(R.string.stat_period_total),
 }
 
 data class UsageStatsSummary(

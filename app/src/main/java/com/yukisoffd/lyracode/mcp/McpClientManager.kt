@@ -1,5 +1,7 @@
 package com.yukisoffd.lyracode.mcp
 
+import android.content.Context
+import com.yukisoffd.lyracode.R
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
@@ -22,7 +24,7 @@ data class McpCallResult(
     val content: String,
 )
 
-class McpClientManager(private val settings: AppSettings) {
+class McpClientManager(private val context: Context, private val settings: AppSettings) {
     private val job = SupervisorJob()
     private val requestIds = AtomicLong(1L)
     private val sessions = ConcurrentHashMap<String, String>()
@@ -81,7 +83,7 @@ class McpClientManager(private val settings: AppSettings) {
             .put("params", params)
         val response = execute(server, body)
         if (response.has("error")) {
-            error("MCP ${server.name} $method 失败: ${response.optJSONObject("error") ?: response.optString("error")}")
+            error(context.getString(R.string.error_mcp_method_failed, server.name, method, (response.optJSONObject("error") ?: response.optString("error")).toString()))
         }
         return response.optJSONObject("result") ?: response
     }
@@ -89,7 +91,7 @@ class McpClientManager(private val settings: AppSettings) {
     private suspend fun execute(server: McpServerConfig, body: JSONObject): JSONObject = withContext(Dispatchers.IO + job) {
         val endpoint = endpointUrl(server)
         require(endpoint.startsWith("http://", ignoreCase = true) || endpoint.startsWith("https://", ignoreCase = true)) {
-            "MCP URL 必须是 http:// 或 https://"
+            context.getString(R.string.error_mcp_url_invalid)
         }
         val client = OkHttpClient.Builder()
             .connectTimeout(server.timeoutSeconds.toLong(), TimeUnit.SECONDS)
@@ -141,7 +143,7 @@ class McpClientManager(private val settings: AppSettings) {
                 .trim()
             if (data.isNotBlank() && data != "[DONE]") return JSONObject(data)
         }
-        error("无法解析 MCP 响应: ${trimmed.take(500)}")
+        error(context.getString(R.string.error_mcp_parse_failed, trimmed.take(500)))
     }
 
     private fun protocolVersion(server: McpServerConfig): String {

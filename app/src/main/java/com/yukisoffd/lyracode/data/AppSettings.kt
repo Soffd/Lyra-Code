@@ -203,6 +203,14 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getBoolean(KEY_DYNAMIC_COLOR_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DYNAMIC_COLOR_ENABLED, value).apply()
 
+    var languageMode: String
+        get() = normalizeLanguageMode(
+            plainPrefs.getString(KEY_LANGUAGE_MODE, LANGUAGE_SYSTEM)
+                .orEmpty()
+                .ifBlank { LANGUAGE_SYSTEM },
+        )
+        set(value) = plainPrefs.edit().putString(KEY_LANGUAGE_MODE, normalizeLanguageMode(value)).apply()
+
     var refreshRateMode: String
         get() = plainPrefs.getString(KEY_REFRESH_RATE_MODE, REFRESH_RATE_SYSTEM)
             .orEmpty()
@@ -1169,6 +1177,7 @@ class AppSettings(context: Context) {
             .put("schema", "lyra_settings_backup_v1")
             .put("themeMode", themeMode)
             .put("dynamicColorEnabled", dynamicColorEnabled)
+            .put("languageMode", languageMode)
             .put("refreshRateMode", refreshRateMode)
             .put("fontScaleMode", fontScaleMode)
             .put("customFontScale", customFontScale.toDouble())
@@ -1260,6 +1269,7 @@ class AppSettings(context: Context) {
         val messages = mutableListOf<String>()
         root.optString("themeMode").takeIf { it.isNotBlank() }?.let { themeMode = it }
         if (root.has("dynamicColorEnabled")) dynamicColorEnabled = root.optBoolean("dynamicColorEnabled")
+        root.optString("languageMode").takeIf { it.isNotBlank() }?.let { languageMode = it }
         root.optString("refreshRateMode").takeIf { it.isNotBlank() }?.let { refreshRateMode = it }
         root.optString("fontScaleMode").takeIf { it.isNotBlank() }?.let { fontScaleMode = it }
         if (root.has("customFontScale")) customFontScale = root.optDouble("customFontScale", 1.0).toFloat()
@@ -1838,6 +1848,7 @@ class AppSettings(context: Context) {
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_DYNAMIC_COLOR_ENABLED = "dynamic_color_enabled"
+        private const val KEY_LANGUAGE_MODE = "language_mode"
         private const val KEY_REFRESH_RATE_MODE = "refresh_rate_mode"
         private const val KEY_DOWNLOAD_COMPLETION_NOTIFICATIONS = "download_completion_notifications"
         private const val KEY_MINI_SERVER_CONFIG = "mini_server_config"
@@ -1886,6 +1897,9 @@ class AppSettings(context: Context) {
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
+        const val LANGUAGE_SYSTEM = "system"
+        const val LANGUAGE_ZH_CN = "zh-CN"
+        const val LANGUAGE_EN = "en"
         const val REFRESH_RATE_SYSTEM = "system"
         const val REFRESH_RATE_30 = "30"
         const val REFRESH_RATE_60 = "60"
@@ -1922,6 +1936,12 @@ class AppSettings(context: Context) {
         const val FILE_TRANSFER_FTP = "ftp"
         const val FILE_TRANSFER_FTPS = "ftps"
         const val FILE_TRANSFER_SFTP = "sftp"
+
+        fun normalizeLanguageMode(value: String): String = when (value.trim()) {
+            LANGUAGE_ZH_CN -> LANGUAGE_ZH_CN
+            LANGUAGE_EN -> LANGUAGE_EN
+            else -> LANGUAGE_SYSTEM
+        }
 
         fun normalizeFileTransferProtocol(value: String): String = when (value.trim().lowercase()) {
             FILE_TRANSFER_FTPS -> FILE_TRANSFER_FTPS

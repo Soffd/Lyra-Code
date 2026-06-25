@@ -16,6 +16,7 @@ import com.yukisoffd.lyracode.ai.toRecord
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.Conversation
+import android.content.Context
 import com.yukisoffd.lyracode.data.ConversationStore
 import com.yukisoffd.lyracode.workspace.UploadedFile
 import com.yukisoffd.lyracode.workspace.UploadedFileManager
@@ -35,6 +36,7 @@ data class PendingToolApproval(
 )
 
 class ChatController(
+    private val appContext: Context,
     private val settings: AppSettings,
     private val conversationStore: ConversationStore,
     private val uploadedFileManager: UploadedFileManager,
@@ -157,7 +159,7 @@ class ChatController(
         val id = conversationStore.createConversation(
             profileId = profile.id,
             model = activeModel.value.ifBlank { profile.selectedModel },
-            title = if (isRoleplayMode()) settings.roleplayScenarios().firstOrNull { it.id == roleplayId }?.name ?: "沉浸对话" else "新对话",
+            title = if (isRoleplayMode()) settings.roleplayScenarios().firstOrNull { it.id == roleplayId }?.name ?: appContext.getString(R.string.title_immersive_chat) else appContext.getString(R.string.title_new_chat),
             mode = if (isRoleplayMode()) ConversationStore.MODE_ROLEPLAY else ConversationStore.MODE_NORMAL,
             roleplayId = roleplayId,
         )
@@ -250,14 +252,14 @@ class ChatController(
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         val userInput = composeUserInput(text, uploads)
-        if (activeConversation()?.title == "新对话") {
+        if (activeConversation()?.title == appContext.getString(R.string.default_conversation_title)) {
             conversationStore.setConversationMeta(conversationId, title = fallbackConversationTitle(userInput))
             reloadConversations()
         }
         pendingUploads.clear()
         uploadingStatus.value = ""
         jobs[conversationId] = scope.launch {
-            status.value = "运行中"
+            status.value = appContext.getString(R.string.status_running)
             agent.chat(conversationId, userInput, profile, model) {
                 withContext(Dispatchers.Main) {
                     applyChatUpdate(it)
@@ -276,13 +278,13 @@ class ChatController(
         conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_INTERRUPTED)
         pendingToolApproval.value?.takeIf { it.request.conversationId == conversationId }?.let { pending ->
             approvalWaiters.remove(pending.id)?.complete(
-                ToolApprovalDecision(approved = false, feedback = "用户中断了当前任务。"),
+                ToolApprovalDecision(approved = false, feedback = appContext.getString(R.string.label_user_interrupted)),
             )
             pendingToolApproval.value = null
         }
         reloadConversations()
         reloadMessages()
-        status.value = "已中断"
+        status.value = appContext.getString(R.string.status_interrupted)
     }
 
     fun continueActive() {
@@ -291,7 +293,7 @@ class ChatController(
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         jobs[conversationId] = scope.launch {
-            status.value = "继续运行"
+            status.value = appContext.getString(R.string.status_continue)
             agent.continueConversation(conversationId, profile, model) {
                 withContext(Dispatchers.Main) {
                     applyChatUpdate(it)
@@ -317,7 +319,7 @@ class ChatController(
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         jobs[conversationId] = scope.launch {
-            status.value = "重新生成"
+            status.value = appContext.getString(R.string.status_regenerate)
             agent.continueConversation(conversationId, profile, model) {
                 withContext(Dispatchers.Main) {
                     applyChatUpdate(it)
@@ -331,10 +333,10 @@ class ChatController(
     }
 
     private fun markConversationFinished(conversationId: Long) {
-        status.value = "完成"
+        status.value = appContext.getString(R.string.status_done)
         scope.launch {
             delay(2400L)
-            if (activeConversationId.value == conversationId && jobs[conversationId]?.isActive != true && status.value == "完成") {
+            if (activeConversationId.value == conversationId && jobs[conversationId]?.isActive != true && status.value == appContext.getString(R.string.status_done)) {
                 status.value = ""
             }
         }
@@ -342,12 +344,12 @@ class ChatController(
 
     fun attachUploadedFile(uri: Uri) {
         scope.launch {
-            uploadingStatus.value = "读取上传文件"
+            uploadingStatus.value = appContext.getString(R.string.status_reading_upload)
             val result = withContext(Dispatchers.IO) { uploadedFileManager.readText(uri) }
             result.fold(
                 onSuccess = { file ->
                     pendingUploads += file
-                    uploadingStatus.value = "已上传 ${file.name}"
+                    uploadingStatus.value = appContext.getString(R.string.status_uploaded, file.name)
                 },
                 onFailure = { uploadingStatus.value = it.message.orEmpty() },
             )
@@ -356,12 +358,12 @@ class ChatController(
 
     fun attachCapturedImage(bitmap: Bitmap) {
         scope.launch {
-            uploadingStatus.value = "处理拍照图片"
+            uploadingStatus.value = appContext.getString(R.string.status_processing_photo)
             val result = withContext(Dispatchers.IO) { uploadedFileManager.saveCapturedImage(bitmap) }
             result.fold(
                 onSuccess = { file ->
                     pendingUploads += file
-                    uploadingStatus.value = "已上传 ${file.name}"
+                    uploadingStatus.value = appContext.getString(R.string.status_uploaded, file.name)
                 },
                 onFailure = { uploadingStatus.value = it.message.orEmpty() },
             )
@@ -371,7 +373,7 @@ class ChatController(
     fun removePendingUpload(index: Int) {
         pendingUploads.getOrNull(index) ?: return
         pendingUploads.removeAt(index)
-        uploadingStatus.value = if (pendingUploads.isEmpty()) "" else "待发送 ${pendingUploads.size} 个附件"
+        uploadingStatus.value = if (pendingUploads.isEmpty()) "" else appContext.getString(R.string.label_pending_attachments, pendingUploads.size)
     }
 
     private fun composeUserInput(text: String, uploads: List<UploadedFile>): String {
@@ -381,20 +383,20 @@ class ChatController(
             uploads.forEach { file ->
                 if (isNotBlank()) append("\n\n")
                 if (file.mediaKind == "text") {
-                    append("用户上传文件：").append(file.name).append('\n')
-                    append("大小：").append(file.size).append(" bytes\n\n")
+                    append(appContext.getString(R.string.label_upload_file_header)).append(file.name).append('\n')
+                    append(appContext.getString(R.string.label_size)).append(file.size).append(appContext.getString(R.string.label_bytes)).append("\n\n")
                     append("```text\n")
                     append(file.content)
                     append("\n```")
                 } else {
-                    append("用户上传媒体：").append(file.name).append('\n')
-                    append("类型：").append(file.mediaKind).append('\n')
-                    append("MIME：").append(file.mimeType).append('\n')
+                    append(appContext.getString(R.string.label_upload_media_header)).append(file.name).append('\n')
+                    append(appContext.getString(R.string.label_type)).append(file.mediaKind).append('\n')
+                    append(appContext.getString(R.string.label_mime)).append(file.mimeType).append('\n')
                     if (file.content.startsWith("data:", ignoreCase = true)) {
-                        append("DATA_URL：").append(file.content).append('\n')
+                        append(appContext.getString(R.string.label_uri)).append(file.content).append('\n')
                     }
-                    append("URI：").append(file.uri).append('\n')
-                    append("大小：").append(file.size).append(" bytes")
+                    append(appContext.getString(R.string.label_uri)).append(file.uri).append('\n')
+                    append(appContext.getString(R.string.label_size)).append(file.size).append(appContext.getString(R.string.label_bytes))
                 }
             }
         }
@@ -407,13 +409,13 @@ class ChatController(
             .replace(Regex("""\s+"""), " ")
             .trim()
             .take(36)
-            .ifBlank { "新对话" }
+            .ifBlank { appContext.getString(R.string.default_conversation_title) }
     }
 
     fun fetchModels(onDone: (Result<List<String>>) -> Unit) {
         val profile = currentProfile()
         scope.launch {
-            status.value = "获取模型列表"
+            status.value = appContext.getString(R.string.status_fetching_models)
             val result = withContext(Dispatchers.IO) { agent.fetchModels(profile) }
             result.onSuccess { models ->
                 val updated = profiles.map {
@@ -430,7 +432,7 @@ class ChatController(
 
     fun fetchModelsForProfile(profile: ApiProfile, onDone: (Result<List<String>>) -> Unit) {
         scope.launch {
-            status.value = "获取模型列表"
+            status.value = appContext.getString(R.string.status_fetching_models)
             val result = withContext(Dispatchers.IO) { agent.fetchModels(profile) }
             status.value = ""
             onDone(result)
@@ -493,7 +495,7 @@ class ChatController(
             autoApprovedConversations += pending.request.conversationId
         }
         pendingToolApproval.value = null
-        status.value = if (approved) "已批准工具调用" else "已拒绝工具调用"
+        status.value = if (approved) appContext.getString(R.string.status_approved_tool) else appContext.getString(R.string.status_rejected_tool)
     }
 
     private fun currentProfile(): ApiProfile {
@@ -562,13 +564,13 @@ class ChatController(
             val waiter = CompletableDeferred<ToolApprovalDecision>()
             approvalWaiters[id] = waiter
             pendingToolApproval.value = PendingToolApproval(id, request)
-            status.value = "等待确认: ${request.toolName}"
+            status.value = appContext.getString(R.string.status_waiting_confirm, request.toolName)
             waiter
         }.await()
     }
 
     private suspend fun setTodos(conversationId: Long, items: List<TodoItem>): String = withContext(Dispatchers.Main) {
-        val normalized = items.ifEmpty { listOf(TodoItem("1", "完成当前任务", "pending")) }
+        val normalized = items.ifEmpty { listOf(TodoItem("1", appContext.getString(R.string.todo_default_task), "pending")) }
             .mapIndexed { index, item ->
                 item.copy(
                     id = item.id.ifBlank { (index + 1).toString() },
@@ -578,7 +580,7 @@ class ChatController(
             .toMutableList()
         todoByConversation[conversationId] = normalized
         if (activeConversationId.value == conversationId) reloadTodos()
-        "TODO 列表已设置，共 ${normalized.size} 项。"
+        appContext.getString(R.string.todo_list_set, normalized.size)
     }
 
     private suspend fun updateTodo(conversationId: Long, id: String, status: String, note: String): String = withContext(Dispatchers.Main) {
@@ -590,10 +592,10 @@ class ChatController(
                 note = note.ifBlank { list[index].note },
             )
         } else {
-            list += TodoItem(id.ifBlank { (list.size + 1).toString() }, note.ifBlank { "未命名步骤" }, status.ifBlank { "completed" })
+            list += TodoItem(id.ifBlank { (list.size + 1).toString() }, note.ifBlank { appContext.getString(R.string.todo_item_default_name) }, status.ifBlank { appContext.getString(R.string.todo_status_completed) })
         }
         if (activeConversationId.value == conversationId) reloadTodos()
-        "TODO ${id.ifBlank { list.last().id }} 已标记为 ${status.ifBlank { "completed" }}。"
+        appContext.getString(R.string.todo_marked_as, id.ifBlank { list.last().id }, status.ifBlank { appContext.getString(R.string.todo_status_completed) })
     }
 
     private fun markAbandonedRunsInterrupted() {

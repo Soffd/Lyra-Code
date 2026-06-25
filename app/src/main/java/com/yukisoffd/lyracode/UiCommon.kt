@@ -508,7 +508,7 @@ internal fun ConfirmDeleteDialog(
                 Text(message, color = KimiMuted, style = MaterialTheme.typography.bodyMedium)
                 Text(targetName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (remaining > 0) "请等待 $remaining 秒后确认删除。" else "删除后无法自动恢复，请确认。",
+                    if (remaining > 0) uiText("请等待 ") + remaining + uiText(" 秒后确认删除。") else uiText("删除后无法自动恢复，请确认。"),
                     color = if (remaining > 0) KimiMuted else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -523,12 +523,13 @@ internal fun ConfirmDeleteDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
-                Text(if (remaining > 0) "删除 ($remaining)" else "确认删除")
+                Text(if (remaining > 0) uiText("删除") + " ($remaining)" else uiText("确认删除"))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("取消") }
+            TextButton(onClick = onDismiss) { Text(uiText("取消")) }
         },
     )
 }
+
 

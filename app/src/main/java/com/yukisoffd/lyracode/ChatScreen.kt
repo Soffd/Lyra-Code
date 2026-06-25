@@ -146,6 +146,7 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
@@ -412,7 +413,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             onFetchModels = {
                 attachmentMenuOpen = false
                 controller.fetchModels {
-                    fetchStatus = it.fold({ "已获取 ${it.size} 个模型" }, { error -> error.message.orEmpty() })
+                    fetchStatus = it.fold({ uiText("已获取 ${it.size} 个模型") }, { error -> error.message.orEmpty() })
                 }
             },
         )
@@ -579,12 +580,12 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                         .size(48.dp)
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), CircleShape),
                 ) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = "回到底部")
+                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = uiText("回到底部"))
                 }
             }
         }
         val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, fetchStatus)
-            .filter { it.isNotBlank() && it != "完成" }
+            .filter { it.isNotBlank() && it != uiText("完成") }
             .joinToString(" ")
         if (statusLine.isNotBlank()) {
             Text(statusLine, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
@@ -613,7 +614,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             contentPadding = PaddingValues(0.dp),
                             modifier = Modifier.size(42.dp),
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "添加附件")
+                            Icon(Icons.Default.Add, contentDescription = uiText("添加附件"))
                         }
                     }
                     CapsuleTextField(
@@ -622,7 +623,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                         modifier = Modifier.weight(1f),
                         minLines = 1,
                         maxLines = 4,
-                        placeholder = "输入消息",
+                        placeholder = uiText("输入消息"),
                         enabled = !isRunning,
                     )
                     AnimatedVisibility(isRunning) {
@@ -633,7 +634,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             onClick = { controller.stopActive() },
                         ) {
-                            Icon(Icons.Default.Stop, contentDescription = "停止", tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Default.Stop, contentDescription = uiText("停止"), tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                     AnimatedVisibility(canSend && !isRunning) {
@@ -650,7 +651,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                                 controller.send(text)
                             },
                         ) {
-                            Icon(Icons.Default.Send, contentDescription = "发送", tint = MaterialTheme.colorScheme.onPrimary)
+                            Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
                         }
                     }
                 }
@@ -773,7 +774,7 @@ internal fun RoleplayChatScreen(
                     if (visibleMessages.isEmpty()) {
                         item("roleplay-empty") {
                             Text(
-                                "好感度 $affection",
+                                uiText("好感度 $affection"),
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(18.dp))
                                     .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.72f))
@@ -804,7 +805,7 @@ internal fun RoleplayChatScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Text("好感度 $affection", style = MaterialTheme.typography.labelMedium)
+                    Text(uiText("好感度 $affection"), style = MaterialTheme.typography.labelMedium)
                     AnimatedVisibility(affectionDelta.isNotBlank()) {
                         Text(
                             affectionDelta,
@@ -834,7 +835,7 @@ internal fun RoleplayChatScreen(
                             contentPadding = PaddingValues(0.dp),
                             modifier = Modifier.size(42.dp),
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = "添加")
+                            Icon(Icons.Default.Add, contentDescription = uiText("添加"))
                         }
                         CapsuleTextField(
                             value = input,
@@ -842,7 +843,7 @@ internal fun RoleplayChatScreen(
                             modifier = Modifier.weight(1f),
                             minLines = 1,
                             maxLines = 4,
-                            placeholder = "输入消息",
+                            placeholder = uiText("输入消息"),
                             enabled = !isRunning,
                         )
                         AnimatedVisibility(isRunning) {
@@ -853,7 +854,7 @@ internal fun RoleplayChatScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 onClick = onStop,
                             ) {
-                                Icon(Icons.Default.Stop, contentDescription = "停止", tint = MaterialTheme.colorScheme.onPrimary)
+                                Icon(Icons.Default.Stop, contentDescription = uiText("停止"), tint = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
                         AnimatedVisibility(canSend && !isRunning) {
@@ -865,7 +866,7 @@ internal fun RoleplayChatScreen(
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                                 onClick = onSend,
                             ) {
-                                Icon(Icons.Default.Send, contentDescription = "发送", tint = MaterialTheme.colorScheme.onPrimary)
+                                Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
                             }
                         }
                     }
@@ -905,7 +906,7 @@ internal fun RoleplayMessageBubble(
         }
         if (isUser) {
             Spacer(Modifier.width(8.dp))
-            UserAvatar(settings.userAvatarPath, settings.userNickname.take(1).ifBlank { "你" }, Modifier.size(38.dp))
+            UserAvatar(settings.userAvatarPath, settings.userNickname.take(1).ifBlank { uiText("你") }, Modifier.size(38.dp))
         }
     }
 }
@@ -1029,12 +1030,12 @@ internal fun AttachmentActionBottomSheet(
                 ) {
                     when (targetPage) {
                         "providers" -> {
-                            SheetBackTitle("选择服务商") { onPageChange("root") }
+                            SheetBackTitle(uiText(stringResource(R.string.label_choose_provider))) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "搜索服务商",
+                                placeholder = uiText(stringResource(R.string.search_provider_placeholder)),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredProfiles = profiles.filter { search.isBlank() || it.name.contains(search, ignoreCase = true) }
@@ -1054,12 +1055,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "models" -> {
-                            SheetBackTitle("选择模型") { onPageChange("root") }
+                            SheetBackTitle(uiText(stringResource(R.string.label_choose_model))) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "搜索模型",
+                                placeholder = uiText(stringResource(R.string.search_model_placeholder)),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredModels = activeProfile?.savedModels.orEmpty()
@@ -1080,12 +1081,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "prompts" -> {
-                            SheetBackTitle("切换提示词") { onPageChange("root") }
+                            SheetBackTitle(uiText(stringResource(R.string.label_switch_prompt))) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = "搜索提示词",
+                                placeholder = uiText(stringResource(R.string.search_prompt_placeholder)),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredPrompts = prompts.filter {
@@ -1109,7 +1110,7 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "reasoning" -> {
-                            SheetBackTitle("推理深度") { onPageChange("root") }
+                            SheetBackTitle(uiText(stringResource(R.string.label_reasoning_depth))) { onPageChange("root") }
                             val values = AppSettings.reasoningDepthValues
                             val current = settings.reasoningDepth.takeIf { it in values } ?: AppSettings.REASONING_AUTO
                             var sliderPosition by remember(current) { mutableStateOf(values.indexOf(current).coerceAtLeast(0).toFloat()) }
@@ -1124,7 +1125,7 @@ internal fun AttachmentActionBottomSheet(
                                 Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
                                 Text(reasoningDepthLabel(selected), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                                 Text(
-                                    "并非所有模型都支持深度调整；不支持时会自动保持服务商原始参数，避免请求失败。",
+                                    uiText(stringResource(R.string.reasoning_depth_hint)),
                                     color = KimiMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -1149,16 +1150,16 @@ internal fun AttachmentActionBottomSheet(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                ActionSheetTile(Icons.Default.PhotoLibrary, "相册", Modifier.weight(1f), onPickImage)
-                                ActionSheetTile(Icons.Default.PhotoCamera, "相机", Modifier.weight(1f), onTakePhoto)
-                                ActionSheetTile(Icons.Default.AttachFile, "文件", Modifier.weight(1f), onPickFile)
+                                ActionSheetTile(Icons.Default.PhotoLibrary, uiText(stringResource(R.string.action_album)), Modifier.weight(1f), onPickImage)
+                                ActionSheetTile(Icons.Default.PhotoCamera, uiText(stringResource(R.string.action_camera)), Modifier.weight(1f), onTakePhoto)
+                                ActionSheetTile(Icons.Default.AttachFile, uiText(stringResource(R.string.action_file)), Modifier.weight(1f), onPickFile)
                             }
                             if (controller.isRoleplayMode()) {
                                 KimiDivider()
                                 ActionSheetRow(
                                     icon = Icons.Default.AddComment,
-                                    title = "新建沉浸对话",
-                                    subtitle = "保留当前角色记忆和好感度",
+                                    title = uiText(stringResource(R.string.title_new_immersive_chat)),
+                                    subtitle = uiText(stringResource(R.string.subtitle_new_immersive_chat)),
                                     onClick = {
                                         controller.newConversation()
                                         onDismiss()
@@ -1168,34 +1169,34 @@ internal fun AttachmentActionBottomSheet(
                             KimiDivider()
                             ActionSheetRow(
                                 icon = Icons.Default.Cloud,
-                                title = "服务商",
-                                subtitle = activeProfile?.name ?: "未配置",
+                                title = uiText(stringResource(R.string.label_provider)),
+                                subtitle = activeProfile?.name ?: uiText(stringResource(R.string.label_not_configured)),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("providers") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.SmartToy,
-                                title = "模型",
-                                subtitle = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { "未选择" } },
+                                title = uiText(stringResource(R.string.label_model)),
+                                subtitle = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { uiText(stringResource(R.string.label_not_selected)) } },
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("models") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.Sync,
-                                title = "获取当前平台模型",
-                                subtitle = "从 models 端点刷新可用模型",
+                                title = uiText(stringResource(R.string.action_fetch_models)),
+                                subtitle = uiText(stringResource(R.string.subtitle_fetch_models)),
                                 onClick = onFetchModels,
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.EditNote,
-                                title = "提示词",
-                                subtitle = activePrompt?.name ?: "默认助手",
+                                title = uiText(stringResource(R.string.label_prompt)),
+                                subtitle = activePrompt?.name ?: uiText(stringResource(R.string.label_default_assistant)),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("prompts") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.Tune,
-                                title = "推理深度",
+                                title = uiText(stringResource(R.string.label_reasoning)),
                                 subtitle = reasoningDepthLabel(settings.reasoningDepth),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("reasoning") },
@@ -1208,19 +1209,20 @@ internal fun AttachmentActionBottomSheet(
     }
 }
 
+@Composable
 private fun reasoningDepthLabel(value: String): String = when (value) {
-    AppSettings.REASONING_LOW -> "低"
-    AppSettings.REASONING_MEDIUM -> "中"
-    AppSettings.REASONING_HIGH -> "高"
-    AppSettings.REASONING_ULTRA -> "超高"
-    else -> "自动"
+    AppSettings.REASONING_LOW -> uiText(stringResource(R.string.reasoning_low))
+    AppSettings.REASONING_MEDIUM -> uiText(stringResource(R.string.reasoning_medium))
+    AppSettings.REASONING_HIGH -> uiText(stringResource(R.string.reasoning_high))
+    AppSettings.REASONING_ULTRA -> uiText(stringResource(R.string.reasoning_ultra))
+    else -> uiText(stringResource(R.string.reasoning_auto))
 }
 
 @Composable
 internal fun SheetBackTitle(title: String, onBack: () -> Unit) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = onBack) {
-            Icon(Icons.Default.ArrowBack, contentDescription = "返回")
+            Icon(Icons.Default.ArrowBack, contentDescription = stringResource(R.string.cd_back))
         }
         Text(title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
     }
@@ -1351,7 +1353,7 @@ internal fun MediaThumb(name: String, uri: String, kind: String, onRemove: (() -
                 modifier = Modifier.align(Alignment.TopEnd).size(28.dp),
                 contentPadding = PaddingValues(0.dp),
             ) {
-                Icon(Icons.Default.Close, contentDescription = "移除", modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Close, contentDescription = uiText("移除"), modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1378,12 +1380,12 @@ internal fun MediaPlaceholder(name: String, kind: String, source: String = "", o
             .padding(8.dp),
     ) {
         Column(Modifier.align(Alignment.CenterStart)) {
-            Text(if (kind == "video") "视频" else "音频", style = MaterialTheme.typography.labelMedium)
+            Text(if (kind == "video") uiText("视频") else uiText("音频"), style = MaterialTheme.typography.labelMedium)
             Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
         }
         if (onRemove != null) {
             TextButton(onClick = onRemove, modifier = Modifier.align(Alignment.TopEnd).size(28.dp), contentPadding = PaddingValues(0.dp)) {
-                Icon(Icons.Default.Close, contentDescription = "移除", modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Close, contentDescription = uiText("移除"), modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1461,9 +1463,9 @@ internal fun AgentProcessSummary(
     val startedAt = messages.minOfOrNull { it.createdAt } ?: fallbackNow
     val finishedAt = completedAt ?: messages.maxOfOrNull { it.createdAt } ?: fallbackNow
     val collapsedText = if (expanded) {
-        "过程记录已展开"
+        uiText("过程记录已展开")
     } else {
-        "过程记录已收起 · thinking $thinkingCount / 工具 $toolCount"
+        uiText("过程记录已收起 · thinking $thinkingCount / 工具 $toolCount")
     }
     Card(
         Modifier.fillMaxWidth(),
@@ -1499,7 +1501,7 @@ internal fun ProcessDurationHeader(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = if (active) "任务处理中 · " else "任务耗时 · ",
+            text = if (active) uiText("任务处理中 · ") else uiText("任务耗时 · "),
             color = KimiMuted,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -1543,7 +1545,7 @@ internal fun ToolApprovalDialog(
     var feedback by rememberSaveable(pending.id) { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = {},
-        title = { Text("确认工具调用") },
+        title = { Text(uiText("确认工具调用")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(pending.request.summary, style = MaterialTheme.typography.titleSmall)
@@ -1565,18 +1567,18 @@ internal fun ToolApprovalDialog(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
-                    label = { Text("拒绝时给 AI 的修改要求") },
+                    label = { Text(uiText("拒绝时给 AI 的修改要求")) },
                 )
             }
         },
         confirmButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onApprove(true) }) { Text("本会话无需确认") }
-                Button(onClick = { onApprove(false) }) { Text("同意") }
+                TextButton(onClick = { onApprove(true) }) { Text(uiText("本会话无需确认")) }
+                Button(onClick = { onApprove(false) }) { Text(uiText("同意")) }
             }
         },
         dismissButton = {
-            TextButton(onClick = { onReject(feedback) }) { Text("不同意") }
+            TextButton(onClick = { onReject(feedback) }) { Text(uiText("不同意")) }
         },
     )
 }
@@ -1625,7 +1627,7 @@ internal fun TodoProgressPanel(settings: AppSettings, conversationId: Long, item
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("TODO $completed/${items.size}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                     TextButton(onClick = { expanded = !expanded }) {
-                        Text(if (expanded) "收纳" else "展开")
+                        Text(if (expanded) uiText("收纳") else uiText("展开"))
                     }
                 }
                 AnimatedVisibility(expanded) {
@@ -1724,12 +1726,12 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
       ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("文件变更 ${events.size}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(uiText("文件变更 ${events.size}"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                 Text("+$totalAdded", color = Color(0xFF188038), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.width(8.dp))
                 Text("-$totalRemoved", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
                 TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) "收纳" else "展开")
+                    Text(if (expanded) uiText("收纳") else uiText("展开"))
                 }
             }
             AnimatedVisibility(expanded) {
@@ -1761,7 +1763,7 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
                                 Text("-${change.removed}", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
                             }
                             Text(
-                                if (openedKey == event.key) "收起变更详情" else "点击审视变更前后代码",
+                                if (openedKey == event.key) uiText("收起变更详情") else uiText("点击审视变更前后代码"),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -1786,7 +1788,7 @@ internal fun ModelToolbar(controller: ChatController) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(0.9f)) {
             OutlinedButton(onClick = { profileExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(profile?.name ?: "平台", maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(profile?.name ?: uiText("平台"), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = profileExpanded, onDismissRequest = { profileExpanded = false }) {
                 profiles.forEach {
@@ -1799,7 +1801,7 @@ internal fun ModelToolbar(controller: ChatController) {
         }
         Box(Modifier.weight(1.1f)) {
             OutlinedButton(onClick = { modelExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(controller.activeModel.value.ifBlank { "模型" }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(controller.activeModel.value.ifBlank { uiText("模型") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
                 profile?.savedModels.orEmpty().forEach { model ->
@@ -1848,7 +1850,7 @@ internal fun MessageCard(
     if (editDialogOpen) {
         AlertDialog(
             onDismissRequest = { editDialogOpen = false },
-            title = { Text("编辑并重新生成") },
+            title = { Text(uiText("编辑并重新生成")) },
             text = {
                 OutlinedTextField(
                     value = editText,
@@ -1865,12 +1867,12 @@ internal fun MessageCard(
                         onEditAndRegenerate?.invoke(message.id, editText)
                     },
                 ) {
-                    Text("重新生成")
+                    Text(uiText("重新生成"))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editDialogOpen = false }) {
-                    Text("取消")
+                    Text(uiText("取消"))
                 }
             },
         )
@@ -1912,11 +1914,11 @@ internal fun MessageCard(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
                             if (!isUser && message.role != "assistant") {
-                                Text("工具结果", color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                                Text(uiText("工具结果"), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                             }
                             if (message.thinking.isNotBlank()) {
                                 CollapsedStatusLine(
-                                    text = if (showThinking) "思考详情已展开" else if (message.content.isBlank()) "thinking..." else "思考完毕",
+                                    text = if (showThinking) uiText("思考详情已展开") else if (message.content.isBlank()) "thinking..." else uiText("思考完毕"),
                                     expanded = showThinking,
                                     onClick = { showThinking = !showThinking },
                                 )
@@ -1966,7 +1968,7 @@ internal fun MessageCard(
                                             ) {
                                                 Icon(
                                                     Icons.Default.ContentCopy,
-                                                    contentDescription = "复制",
+                                                    contentDescription = uiText("复制"),
                                                     tint = KimiMuted,
                                                     modifier = Modifier.size(20.dp),
                                                 )
@@ -1974,14 +1976,14 @@ internal fun MessageCard(
                                         }
                                     }
                                 } else if (message.role == "assistant" && !inProcessRecord) {
-                                    Text("正在组织输出...", color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                                    Text(uiText("正在组织输出..."), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
                     }
                     if (isUser) DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
                         DropdownMenuItem(
-                            text = { Text("复制") },
+                            text = { Text(uiText("复制")) },
                             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
                             onClick = {
                                 clipboard.setText(AnnotatedString(message.content))
@@ -1989,7 +1991,7 @@ internal fun MessageCard(
                             },
                         )
                         DropdownMenuItem(
-                            text = { Text("选择文本") },
+                            text = { Text(uiText("选择文本")) },
                             leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
                             onClick = {
                                 selectable = true
@@ -1998,7 +2000,7 @@ internal fun MessageCard(
                         )
                         if (isUser && onEditAndRegenerate != null) {
                             DropdownMenuItem(
-                                text = { Text("修改并重新生成") },
+                                text = { Text(uiText("修改并重新生成")) },
                                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                                 onClick = {
                                     editText = message.content
@@ -2007,7 +2009,7 @@ internal fun MessageCard(
                                 },
                             )
                             DropdownMenuItem(
-                                text = { Text("重新生成") },
+                                text = { Text(uiText("重新生成")) },
                                 leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                                 onClick = {
                                     menuExpanded = false
@@ -2028,9 +2030,9 @@ internal fun formatProcessDuration(durationMs: Long): String {
     val minutes = (totalSeconds % 3600L) / 60L
     val seconds = totalSeconds % 60L
     return when {
-        hours > 0L -> "${hours}小时${minutes}分${seconds}秒"
-        minutes > 0L -> "${minutes}分${seconds}秒"
-        else -> "${seconds}秒"
+        hours > 0L -> uiText("${hours}小时${minutes}分${seconds}秒")
+        minutes > 0L -> uiText("${minutes}分${seconds}秒")
+        else -> uiText("${seconds}秒")
     }
 }
 
@@ -2052,7 +2054,7 @@ internal fun CollapsedStatusLine(
         Text(text, modifier = Modifier.weight(1f), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
         Icon(
             if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = if (expanded) "收起" else "展开",
+            contentDescription = if (expanded) uiText("收起") else uiText("展开"),
             tint = MaterialTheme.colorScheme.primary,
         )
     }
@@ -2066,7 +2068,7 @@ internal fun ContinueInterruptedRow(onContinue: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)))
-        KimiChip("继续对话", onClick = onContinue)
+        KimiChip(uiText("继续对话"), onClick = onContinue)
         Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)))
     }
 }
@@ -2179,7 +2181,7 @@ internal fun uploadedMediaPreviews(content: String): List<UploadedMediaPreview> 
 internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
     val regex = Regex("用户上传文件：([^\\n]+)\\n大小：(\\d+) bytes", RegexOption.MULTILINE)
     return regex.findAll(content).map {
-        val name = it.groupValues[1].trim().ifBlank { "未命名文件" }
+        val name = it.groupValues[1].trim().ifBlank { uiText("未命名文件") }
         UploadedFilePreview(
             name = name,
             sizeBytes = it.groupValues[2].toLongOrNull(),
@@ -2204,12 +2206,12 @@ internal fun stripUploadedMediaBlocks(content: String): String {
 internal fun ToolResultContent(content: String, expanded: Boolean, onToggle: () -> Unit) {
     val previewLimit = 12_000
     val preview = remember(content) {
-        content.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().ifBlank { "空结果" }.take(180)
+        content.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().ifBlank { uiText("空结果") }.take(180)
     }
     val renderedPreview = remember(content) {
         content.ifBlank { "..." }.let { value ->
             if (value.length > previewLimit) {
-                value.take(previewLimit) + "\n\n... 已截断预览，完整工具结果共 ${value.length} 字符。"
+                value.take(previewLimit) + uiText("\n\n... 已截断预览，完整工具结果共 ${value.length} 字符。")
             } else {
                 value
             }
@@ -2218,14 +2220,14 @@ internal fun ToolResultContent(content: String, expanded: Boolean, onToggle: () 
     val changes = remember(content) { parseFileChanges(content) }
     var expandedChangePath by rememberSaveable(content) { mutableStateOf<String?>(null) }
     CollapsedStatusLine(
-        text = if (expanded) "工具调用详情已展开" else "使用工具中... / 工具结果已收起",
+        text = if (expanded) uiText("工具调用详情已展开") else uiText("使用工具中... / 工具结果已收起"),
         expanded = expanded,
         onClick = onToggle,
     )
     if (!expanded) return
     if (expanded) {
         Text(
-            "工具返回 ${content.length} 字符：$preview",
+            uiText("工具返回 ${content.length} 字符：$preview"),
             style = MaterialTheme.typography.bodySmall,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -2244,7 +2246,7 @@ internal fun ToolResultContent(content: String, expanded: Boolean, onToggle: () 
                     Text("-${change.removed}", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
                 }
                 TextButton(onClick = { expandedChangePath = if (expandedChangePath == change.path) null else change.path }) {
-                    Text(if (expandedChangePath == change.path) "收起变更" else "审视变更")
+                    Text(if (expandedChangePath == change.path) uiText("收起变更") else uiText("审视变更"))
                 }
                 AnimatedVisibility(expandedChangePath == change.path) {
                     FileChangeDetail(change)
@@ -2277,7 +2279,7 @@ internal data class FileChangeView(
 )
 
 internal fun fileNameForDisplay(path: String): String {
-    return path.trim().replace('\\', '/').substringAfterLast('/').ifBlank { path.ifBlank { "未命名文件" } }
+    return path.trim().replace('\\', '/').substringAfterLast('/').ifBlank { path.ifBlank { uiText("未命名文件") } }
 }
 
 internal fun stripUploadedFileBlocks(content: String): String {
@@ -2293,13 +2295,13 @@ internal fun stripUploadedFileBlocks(content: String): String {
 internal fun uploadedFileTypeLabel(name: String): String {
     val ext = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
     return when (ext) {
-        "" -> "文件"
-        "txt", "md", "json", "xml", "csv", "log" -> ext.uppercase() + " 文本"
-        "kt", "java", "py", "js", "ts", "html", "css", "go", "rs", "cpp", "c", "h" -> ext.uppercase() + " 代码"
-        "zip", "7z", "rar", "tar", "gz" -> ext.uppercase() + " 压缩包"
-        "pdf" -> "PDF 文档"
-        "doc", "docx", "xls", "xlsx", "ppt", "pptx" -> ext.uppercase() + " 文档"
-        else -> ext.uppercase() + " 文件"
+        "" -> uiText("文件")
+        "txt", "md", "json", "xml", "csv", "log" -> ext.uppercase() + uiText(" 文本")
+        "kt", "java", "py", "js", "ts", "html", "css", "go", "rs", "cpp", "c", "h" -> ext.uppercase() + uiText(" 代码")
+        "zip", "7z", "rar", "tar", "gz" -> ext.uppercase() + uiText(" 压缩包")
+        "pdf" -> uiText("PDF 文档")
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx" -> ext.uppercase() + uiText(" 文档")
+        else -> ext.uppercase() + uiText(" 文件")
     }
 }
 
@@ -2326,16 +2328,16 @@ internal fun FileChangeDetail(change: FileChangeView) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text("差异", style = MaterialTheme.typography.labelMedium)
-        DiffView(change.diff.ifBlank { "(无行级差异)" })
+        Text(uiText("差异"), style = MaterialTheme.typography.labelMedium)
+        DiffView(change.diff.ifBlank { uiText("(无行级差异)") })
         CodeSnapshot(
-            title = "变更前",
+            title = uiText("变更前"),
             content = change.before,
             color = Color(0xFFD93025),
             modifier = Modifier.fillMaxWidth(),
         )
         CodeSnapshot(
-            title = "变更后",
+            title = uiText("变更后"),
             content = change.after,
             color = Color(0xFF188038),
             modifier = Modifier.fillMaxWidth(),
@@ -2354,7 +2356,7 @@ internal fun CodeSnapshot(title: String, content: String, color: Color, modifier
         Text(title, color = color, style = MaterialTheme.typography.labelMedium)
         SelectionContainer {
             Text(
-                content.ifBlank { "(空)" },
+                content.ifBlank { uiText("(空)") },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 220.dp)
@@ -2447,5 +2449,10 @@ internal sealed class MarkdownBlock {
     data class Math(val formula: String, val display: Boolean) : MarkdownBlock()
     object Spacer : MarkdownBlock()
 }
+
+
+
+
+
 
 

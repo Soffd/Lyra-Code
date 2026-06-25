@@ -360,7 +360,7 @@ private fun RichCodeBlock(code: String, language: String = "text") {
                 onClick = { clipboard.setText(AnnotatedString(code)) },
                 modifier = Modifier.size(34.dp),
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "复制代码", modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制代码"), modifier = Modifier.size(18.dp))
             }
         }
         Text(
@@ -397,13 +397,13 @@ private fun RichTable(node: ASTNode, content: String) {
                 val result = saveCsvToDownloads(context, name, csv)
                 Toast.makeText(
                     context,
-                    result.fold({ "已导出到 Download/$name" }, { "导出失败: ${it.message.orEmpty()}" }),
+                    result.fold({ uiText("已导出到 Download/") + name }, { uiText("导出失败: ") + it.message.orEmpty() }),
                     Toast.LENGTH_SHORT,
                 ).show()
             },
             modifier = Modifier.size(36.dp),
         ) {
-            Icon(Icons.Default.FileDownload, contentDescription = "导出 CSV", modifier = Modifier.size(19.dp))
+            Icon(Icons.Default.FileDownload, contentDescription = uiText("导出 CSV"), modifier = Modifier.size(19.dp))
         }
     }
     RichDataTable(
@@ -540,7 +540,7 @@ private fun RichImage(node: ASTNode, content: String) {
     val alt = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_TEXT)?.getTextInNode(content)?.trim('[', ']').orEmpty()
     val url = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_DESTINATION)?.getTextInNode(content).orEmpty()
     if (url.isNotBlank()) {
-        MarkdownMediaPreview(alt.ifBlank { "媒体文件" }, url)
+        MarkdownMediaPreview(alt.ifBlank { uiText("媒体文件") }, url)
     }
 }
 
@@ -833,9 +833,9 @@ private fun saveCsvToDownloads(context: Context, fileName: String, csv: String):
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error("无法创建下载文件")
+            ?: error(uiText("无法创建下载文件"))
         context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-            ?: error("无法写入下载文件")
+            ?: error(uiText("无法写入下载文件"))
     } else {
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!dir.exists()) dir.mkdirs()
@@ -872,3 +872,4 @@ private fun List<ASTNode>.trimMarkdownMarkers(type: IElementType, size: Int): Li
     }
     return subList(start, end)
 }
+
