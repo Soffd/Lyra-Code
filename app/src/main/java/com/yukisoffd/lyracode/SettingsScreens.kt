@@ -279,7 +279,7 @@ internal fun SettingsScreen(
     fun navigateBackFromDetail() {
         detail = when (detail) {
             "device" -> "about"
-            "theme_mode", "language", "font", "refresh_rate" -> "theme"
+            "theme_mode", "language", "font", "refresh_rate", "chat_background" -> "theme"
             "mini_server_logs" -> "mini_server"
             else -> null
         }
@@ -297,8 +297,8 @@ internal fun SettingsScreen(
             val forward = when {
                 initialState == "device" && targetState == "about" -> false
                 initialState == "about" && targetState == "device" -> true
-                initialState in setOf("theme_mode", "language", "font", "refresh_rate") && targetState == "theme" -> false
-                initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate") -> true
+                initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background") && targetState == "theme" -> false
+                initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background") -> true
                 initialState == "mini_server_logs" && targetState == "mini_server" -> false
                 initialState == "mini_server" && targetState == "mini_server_logs" -> true
                 targetState == null -> false
@@ -331,6 +331,7 @@ internal fun SettingsScreen(
                         onOpenLanguageSettings = { detail = "language" },
                         onOpenFontSettings = { detail = "font" },
                         onOpenRefreshRateSettings = { detail = "refresh_rate" },
+                        onOpenChatBackgroundSettings = { detail = "chat_background" },
                     )
                     "theme_mode" -> ThemeModeSettings(
                         themeMode = themeMode,
@@ -344,6 +345,7 @@ internal fun SettingsScreen(
                         refreshRateMode = refreshRateMode,
                         onRefreshRateModeChange = onRefreshRateModeChange,
                     )
+                    "chat_background" -> ChatBackgroundSettings(settings)
                     "font" -> FontSizeSettings(
                         fontScaleMode = fontScaleMode,
                         customFontScale = customFontScale,
@@ -508,6 +510,7 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "language" -> context.getString(R.string.detail_language)
     "font" -> context.getString(R.string.detail_font)
     "refresh_rate" -> context.getString(R.string.detail_refresh_rate)
+    "chat_background" -> context.getString(R.string.detail_chat_background)
     "permissions" -> context.getString(R.string.detail_permissions)
     "system_permissions" -> context.getString(R.string.detail_system_permissions)
     "tools" -> context.getString(R.string.detail_tools)
@@ -1161,7 +1164,40 @@ internal fun ThemeSettings(
     onOpenLanguageSettings: () -> Unit,
     onOpenFontSettings: () -> Unit,
     onOpenRefreshRateSettings: () -> Unit,
+    onOpenChatBackgroundSettings: () -> Unit,
 ) {
+    val hasBackground = !settings.chatBackgroundPath.isNullOrBlank()
+    KimiCardBox {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.AutoAwesome,
+                contentDescription = null,
+                modifier = Modifier.width(36.dp).size(24.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(uiText("Material You 动态配色"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+            Switch(checked = dynamicColorEnabled, onCheckedChange = onDynamicColorChange)
+        }
+        KimiDivider()
+        KimiMenuRow(Icons.Default.Palette, uiText("主题模式"), themeName(themeMode), onOpenThemeModeSettings)
+        KimiDivider()
+        KimiMenuRow(Icons.Default.Language, uiText("文本语言"), languageName(languageMode), onOpenLanguageSettings)
+        KimiDivider()
+        KimiMenuRow(Icons.Default.FormatSize, uiText("字体大小"), fontScaleName(fontScaleMode, customFontScale), onOpenFontSettings)
+        KimiDivider()
+        KimiMenuRow(Icons.Default.Speed, uiText("刷新率"), refreshRateName(refreshRateMode), onOpenRefreshRateSettings)
+        KimiDivider()
+        KimiMenuRow(
+            Icons.Default.Image,
+            uiText("聊天背景"),
+            if (hasBackground) uiText("已设置自定义背景") else uiText("纯色背景"),
+            onOpenChatBackgroundSettings,
+        )
+    }
+}
+
+@Composable
+internal fun ChatBackgroundSettings(settings: AppSettings) {
     val context = LocalContext.current
     var backgroundRevision by remember { mutableIntStateOf(0) }
     var notice by remember { mutableStateOf("") }
@@ -1208,29 +1244,11 @@ internal fun ThemeSettings(
     var maskOpacity by remember(backgroundPath, backgroundRevision) {
         mutableStateOf(settings.chatBackgroundMaskOpacity.coerceIn(0f, 1f))
     }
+
     KimiCardBox {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                Icons.Default.AutoAwesome,
-                contentDescription = null,
-                modifier = Modifier.width(36.dp).size(24.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Text(uiText("Material You 动态配色"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-            Switch(checked = dynamicColorEnabled, onCheckedChange = onDynamicColorChange)
-        }
-        KimiDivider()
-        KimiMenuRow(Icons.Default.Palette, uiText("主题模式"), themeName(themeMode), onOpenThemeModeSettings)
-        KimiDivider()
-        KimiMenuRow(Icons.Default.Language, uiText("文本语言"), languageName(languageMode), onOpenLanguageSettings)
-        KimiDivider()
-        KimiMenuRow(Icons.Default.FormatSize, uiText("字体大小"), fontScaleName(fontScaleMode, customFontScale), onOpenFontSettings)
-        KimiDivider()
-        KimiMenuRow(Icons.Default.Speed, uiText("刷新率"), refreshRateName(refreshRateMode), onOpenRefreshRateSettings)
-        KimiDivider()
         KimiMenuRow(
             Icons.Default.Image,
-            uiText("聊天背景"),
+            uiText("上传背景"),
             if (hasBackground) uiText("已设置自定义背景") else uiText("纯色背景"),
         ) {
             backgroundLauncher.launch("image/*")

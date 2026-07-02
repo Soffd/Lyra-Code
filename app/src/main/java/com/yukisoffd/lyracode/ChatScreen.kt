@@ -1845,7 +1845,6 @@ internal fun MessageCard(
     val isUser = message.role == "user"
     val shouldRenderBubble = !isUser ||
         visibleContent.isNotBlank() ||
-        mediaPreviews.isNotEmpty() ||
         message.thinking.isNotBlank()
     if (editDialogOpen) {
         AlertDialog(
@@ -1882,6 +1881,9 @@ internal fun MessageCard(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (isUser && mediaPreviews.isNotEmpty()) {
+                UploadedMediaGrid(mediaPreviews)
+            }
             if (isUser && filePreviews.isNotEmpty()) {
                 UploadedFileCardColumn(filePreviews)
             }
@@ -1941,9 +1943,6 @@ internal fun MessageCard(
                                     onToggle = { showToolResult = !showToolResult },
                                 )
                             } else {
-                                if (isUser && mediaPreviews.isNotEmpty()) {
-                                    UploadedMediaGrid(mediaPreviews)
-                                }
                                 if (visibleContent.isNotBlank()) {
                                     key(selectionResetKey) {
                                         if (isUser) {
@@ -2167,8 +2166,18 @@ internal fun UploadedMediaGrid(media: List<UploadedMediaPreview>) {
 }
 
 internal fun uploadedMediaPreviews(content: String): List<UploadedMediaPreview> {
-    val regex = Regex("用户上传媒体：([^\\n]+)\\n类型：([^\\n]+)\\nMIME：([^\\n]*)\\n(?:DATA_URL：([^\\n]*)\\n)?URI：([^\\n]*)", RegexOption.MULTILINE)
-    return regex.findAll(content).map {
+    val markerPreviews = uploadedAttachmentPayloads(content)
+        .filter { payload -> payload.optString("kind") in setOf("image", "video", "audio") }
+        .map { payload ->
+            UploadedMediaPreview(
+                name = payload.optString("name").ifBlank { uiText("未命名文件") },
+                kind = payload.optString("kind"),
+                mimeType = payload.optString("mime_type"),
+                uri = payload.optString("data_url").ifBlank { payload.optString("uri") },
+            )
+        }
+    val legacyRegex = Regex("用户上传媒体：([^\\n]+)\\n类型：([^\\n]+)\\nMIME：([^\\n]*)\\n(?:DATA_URL：([^\\n]*)\\n)?URI：([^\\n]*)", RegexOption.MULTILINE)
+    val legacyPreviews = legacyRegex.findAll(content).map {
         UploadedMediaPreview(
             name = it.groupValues[1].trim(),
             kind = it.groupValues[2].trim(),
@@ -2176,11 +2185,22 @@ internal fun uploadedMediaPreviews(content: String): List<UploadedMediaPreview> 
             uri = it.groupValues[4].trim().ifBlank { it.groupValues[5].trim() },
         )
     }.toList()
+    return markerPreviews + legacyPreviews
 }
 
 internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
-    val regex = Regex("用户上传文件：([^\\n]+)\\n大小：(\\d+) bytes", RegexOption.MULTILINE)
-    return regex.findAll(content).map {
+    val markerPreviews = uploadedAttachmentPayloads(content)
+        .filter { payload -> payload.optString("kind").ifBlank { "text" } == "text" }
+        .map { payload ->
+            val name = payload.optString("name").ifBlank { uiText("未命名文件") }
+            UploadedFilePreview(
+                name = name,
+                sizeBytes = payload.optLong("size", -1L).takeIf { it >= 0L },
+                type = uploadedFileTypeLabel(name),
+            )
+        }
+    val legacyRegex = Regex("用户上传文件：([^\\n]+)\\n大小：(\\d+) bytes", RegexOption.MULTILINE)
+    val legacyPreviews = legacyRegex.findAll(content).map {
         val name = it.groupValues[1].trim().ifBlank { uiText("未命名文件") }
         UploadedFilePreview(
             name = name,
@@ -2188,11 +2208,26 @@ internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
             type = uploadedFileTypeLabel(name),
         )
     }.toList()
+    return markerPreviews + legacyPreviews
+}
+
+internal fun uploadedAttachmentPayloads(content: String): List<JSONObject> {
+    val regex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
+    return regex.findAll(content).mapNotNull { match ->
+        runCatching { JSONObject(match.groupValues[1]) }.getOrNull()
+    }.toList()
 }
 
 internal fun displayMessageContent(message: ChatRecord): String {
     if (message.role != "user") return message.content
-    return stripUploadedFileBlocks(stripUploadedMediaBlocks(message.content)).trim()
+    return stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(message.content))).trim()
+}
+
+internal fun stripUploadedAttachmentBlocks(content: String): String {
+    return content.replace(
+        Regex("\\n*<lyra_attachment_v1>[\\s\\S]*?</lyra_attachment_v1>\\n*"),
+        "\n",
+    ).trim()
 }
 
 internal fun stripUploadedMediaBlocks(content: String): String {
@@ -2201,7 +2236,6 @@ internal fun stripUploadedMediaBlocks(content: String): String {
         "\n",
     ).trim()
 }
-
 @Composable
 internal fun ToolResultContent(content: String, expanded: Boolean, onToggle: () -> Unit) {
     val previewLimit = 12_000

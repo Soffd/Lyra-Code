@@ -534,6 +534,7 @@
     <string name="detail_language">文本语言</string>
     <string name="detail_font">字体大小</string>
     <string name="detail_refresh_rate">刷新率</string>
+    <string name="detail_chat_background">聊天背景</string>
     <string name="detail_permissions">应用权限</string>
     <string name="detail_system_permissions">系统权限</string>
     <string name="detail_tools">AI Agent 工具</string>

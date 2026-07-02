@@ -779,10 +779,10 @@ class OpenAiAgent(
     }
 
     private fun anthropicUserContent(content: String): JSONArray {
-        if (!content.contains("用户上传媒体：")) {
+        if (!hasUploadedAttachments(content)) {
             return JSONArray().put(JSONObject().put("type", "text").put("text", content.ifBlank { " " }))
         }
-        val openAi = userPromptWithMedia(content)
+        val openAi = userPromptWithAttachments(content)
         val parts = openAi.optJSONArray("content") ?: JSONArray()
         return JSONArray().also { output ->
             for (index in 0 until parts.length()) {
@@ -863,8 +863,8 @@ class OpenAiAgent(
     }
 
     private fun geminiUserParts(content: String): JSONArray {
-        if (!content.contains("用户上传媒体：")) return JSONArray().put(JSONObject().put("text", content.ifBlank { " " }))
-        val openAi = userPromptWithMedia(content)
+        if (!hasUploadedAttachments(content)) return JSONArray().put(JSONObject().put("text", content.ifBlank { " " }))
+        val openAi = userPromptWithAttachments(content)
         val parts = openAi.optJSONArray("content") ?: JSONArray()
         return JSONArray().also { output ->
             for (index in 0 until parts.length()) {
@@ -2976,8 +2976,8 @@ class OpenAiAgent(
     private fun ChatMessage.toPromptJson(): JSONObject {
         val raw = rawJson?.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.also { sanitizeAssistantRaw(it) }
-        if (raw == null && role == "user" && content.contains("用户上传媒体：")) {
-            return userPromptWithMedia(content)
+        if (raw == null && role == "user" && hasUploadedAttachments(content)) {
+            return userPromptWithAttachments(content)
         }
         return raw ?: JSONObject()
             .put("role", role)
@@ -2989,15 +2989,21 @@ class OpenAiAgent(
             }
     }
 
-    private fun userPromptWithMedia(rawContent: String): JSONObject {
+    private fun hasUploadedAttachments(content: String): Boolean {
+        return content.contains("<lyra_attachment_v1>") ||
+            content.contains("用户上传媒体：") ||
+            content.contains("用户上传文件：")
+    }
+
+    private fun userPromptWithAttachments(rawContent: String): JSONObject {
         val parts = JSONArray()
-        val media = parseUploadedMedia(rawContent)
-        val textPart = stripUploadedMediaBlocks(rawContent).trim()
-        parts.put(JSONObject().put("type", "text").put("text", textPart.ifBlank { "请根据上传的媒体文件回答。" }))
-        media.forEach { item ->
-            val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
+        val attachments = parseUploadedAttachments(rawContent)
+        val textPart = stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(rawContent))).trim()
+        parts.put(JSONObject().put("type", "text").put("text", textPart.ifBlank { "请根据用户上传的附件回答。" }))
+        attachments.forEach { item ->
             when (item.kind) {
                 "image" -> {
+                    val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
                     if (dataUrl != null) {
                         parts.put(
                             JSONObject()
@@ -3009,6 +3015,7 @@ class OpenAiAgent(
                     }
                 }
                 "audio" -> {
+                    val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
                     if (dataUrl != null) {
                         parts.put(
                             JSONObject()
@@ -3025,6 +3032,7 @@ class OpenAiAgent(
                     }
                 }
                 "video" -> {
+                    val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
                     if (dataUrl != null) {
                         parts.put(
                             JSONObject()
@@ -3038,33 +3046,90 @@ class OpenAiAgent(
                             .put("text", "用户上传了视频媒体：${item.name}，MIME=${item.mimeType}。如果当前模型或平台不支持 video_url，请说明限制。"),
                     )
                 }
+                "text" -> {
+                    val body = buildString {
+                        append("用户上传文件：").append(item.name).append('\n')
+                        append("MIME：").append(item.mimeType).append('\n')
+                        append("大小：").append(item.size).append(" bytes\n\n")
+                        if (item.text.isNotBlank()) {
+                            append("```text\n")
+                            append(item.text)
+                            append("\n```")
+                        } else {
+                            append("文件内容为空或无法读取。")
+                        }
+                    }
+                    parts.put(JSONObject().put("type", "text").put("text", body))
+                }
                 else -> {
-                    parts.put(JSONObject().put("type", "text").put("text", "用户上传了${item.kind}媒体：${item.name}，MIME=${item.mimeType}，URI=${item.uri}。如果当前模型不支持该媒体类型，请说明限制并给出可行替代方案。"))
+                    parts.put(JSONObject().put("type", "text").put("text", "用户上传了附件：${item.name}，类型=${item.kind}，MIME=${item.mimeType}，URI=${item.uri}。如果当前模型不支持该附件类型，请说明限制并给出可行替代方案。"))
                 }
             }
         }
         return JSONObject().put("role", "user").put("content", parts)
     }
 
-    private data class UploadedMediaPrompt(
+    private data class UploadedAttachmentPrompt(
         val name: String,
         val kind: String,
         val mimeType: String,
         val dataUrl: String,
         val uri: String,
+        val size: Long,
+        val text: String,
     )
 
-    private fun parseUploadedMedia(content: String): List<UploadedMediaPrompt> {
-        val regex = Regex("用户上传媒体：([^\\n]+)\\n类型：([^\\n]+)\\nMIME：([^\\n]*)\\n(?:DATA_URL：([^\\n]*)\\n)?URI：([^\\n]*)", RegexOption.MULTILINE)
-        return regex.findAll(content).map {
-            UploadedMediaPrompt(
+    private fun parseUploadedAttachments(content: String): List<UploadedAttachmentPrompt> {
+        val attachments = mutableListOf<UploadedAttachmentPrompt>()
+        val markerRegex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
+        markerRegex.findAll(content).forEach { match ->
+            val payload = runCatching { JSONObject(match.groupValues[1]) }.getOrNull() ?: return@forEach
+            attachments += UploadedAttachmentPrompt(
+                name = payload.optString("name").ifBlank { "未命名文件" },
+                kind = payload.optString("kind").ifBlank { "text" },
+                mimeType = payload.optString("mime_type"),
+                dataUrl = payload.optString("data_url"),
+                uri = payload.optString("uri"),
+                size = payload.optLong("size", 0L),
+                text = payload.optString("text"),
+            )
+        }
+        val legacyMediaRegex = Regex("用户上传媒体：([^\\n]+)\\n类型：([^\\n]+)\\nMIME：([^\\n]*)\\n(?:DATA_URL：([^\\n]*)\\n)?URI：([^\\n]*)", RegexOption.MULTILINE)
+        legacyMediaRegex.findAll(content).forEach {
+            attachments += UploadedAttachmentPrompt(
                 name = it.groupValues[1].trim(),
                 kind = it.groupValues[2].trim(),
                 mimeType = it.groupValues[3].trim(),
                 dataUrl = it.groupValues[4].trim(),
                 uri = it.groupValues[5].trim(),
+                size = 0L,
+                text = "",
             )
-        }.toList()
+        }
+        val legacyFileRegex = Regex("用户上传文件：([^\\n]+)\\n大小：(\\d+) bytes\\n\\n```text\\n([\\s\\S]*?)\\n```", RegexOption.MULTILINE)
+        legacyFileRegex.findAll(content).forEach {
+            attachments += UploadedAttachmentPrompt(
+                name = it.groupValues[1].trim().ifBlank { "未命名文件" },
+                kind = "text",
+                mimeType = "text/plain",
+                dataUrl = "",
+                uri = "",
+                size = it.groupValues[2].toLongOrNull() ?: 0L,
+                text = it.groupValues[3],
+            )
+        }
+        return attachments
+    }
+
+    private fun stripUploadedAttachmentBlocks(content: String): String {
+        return content.replace(Regex("\\n*<lyra_attachment_v1>[\\s\\S]*?</lyra_attachment_v1>\\n*"), "\n").trim()
+    }
+
+    private fun stripUploadedFileBlocks(content: String): String {
+        return content
+            .replace(Regex("\\n*用户上传文件：[^\\n]+\\n大小：\\d+ bytes\\n\\n```text\\n[\\s\\S]*?\\n```\\n?"), "\n")
+            .replace(Regex("\\n*用户上传文件：[^\\n]+\\n大小：\\d+ bytes\\n?"), "\n")
+            .trim()
     }
 
     private fun stripUploadedMediaBlocks(content: String): String {
@@ -3073,7 +3138,6 @@ class OpenAiAgent(
             "\n",
         ).trim()
     }
-
     private fun mediaDataUrl(uriText: String, mimeType: String): String? = runCatching {
         val uri = Uri.parse(uriText)
         val bytes = context.contentResolver.openInputStream(uri)?.use { input ->

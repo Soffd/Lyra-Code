@@ -29,6 +29,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 data class PendingToolApproval(
     val id: Long,
@@ -382,34 +383,45 @@ class ChatController(
             if (cleanText.isNotBlank()) append(cleanText)
             uploads.forEach { file ->
                 if (isNotBlank()) append("\n\n")
-                if (file.mediaKind == "text") {
-                    append(appContext.getString(R.string.label_upload_file_header)).append(file.name).append('\n')
-                    append(appContext.getString(R.string.label_size)).append(file.size).append(appContext.getString(R.string.label_bytes)).append("\n\n")
-                    append("```text\n")
-                    append(file.content)
-                    append("\n```")
-                } else {
-                    append(appContext.getString(R.string.label_upload_media_header)).append(file.name).append('\n')
-                    append(appContext.getString(R.string.label_type)).append(file.mediaKind).append('\n')
-                    append(appContext.getString(R.string.label_mime)).append(file.mimeType).append('\n')
-                    if (file.content.startsWith("data:", ignoreCase = true)) {
-                        append(appContext.getString(R.string.label_uri)).append(file.content).append('\n')
-                    }
-                    append(appContext.getString(R.string.label_uri)).append(file.uri).append('\n')
-                    append(appContext.getString(R.string.label_size)).append(file.size).append(appContext.getString(R.string.label_bytes))
-                }
+                append(uploadedAttachmentMarker(file))
             }
         }
     }
 
+    private fun uploadedAttachmentMarker(file: UploadedFile): String {
+        val payload = JSONObject()
+            .put("name", file.name)
+            .put("kind", file.mediaKind)
+            .put("mime_type", file.mimeType)
+            .put("size", file.size)
+            .put("uri", file.uri)
+        if (file.mediaKind == "text") {
+            payload.put("text", file.content)
+        } else if (file.content.startsWith("data:", ignoreCase = true)) {
+            payload.put("data_url", file.content)
+        }
+        return "$ATTACHMENT_MARKER_START$payload$ATTACHMENT_MARKER_END"
+    }
+
+    private companion object {
+        const val ATTACHMENT_MARKER_START = "<lyra_attachment_v1>"
+        const val ATTACHMENT_MARKER_END = "</lyra_attachment_v1>"
+    }
     private fun fallbackConversationTitle(userInput: String): String {
-        return userInput.lineSequence()
+        val markerRegex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
+        val attachmentTitle = markerRegex.find(userInput)?.let { match ->
+            runCatching { JSONObject(match.groupValues[1]).optString("name") }.getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "上传附件：$it" }
+        }
+        return markerRegex.replace(userInput, "")
+            .lineSequence()
             .firstOrNull()
             .orEmpty()
             .replace(Regex("""\s+"""), " ")
             .trim()
             .take(36)
-            .ifBlank { appContext.getString(R.string.default_conversation_title) }
+            .ifBlank { attachmentTitle ?: appContext.getString(R.string.default_conversation_title) }
     }
 
     fun fetchModels(onDone: (Result<List<String>>) -> Unit) {

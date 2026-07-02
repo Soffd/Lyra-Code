@@ -513,6 +513,7 @@
     <string name="detail_language">Text language</string>
     <string name="detail_font">Font size</string>
     <string name="detail_refresh_rate">Refresh rate</string>
+    <string name="detail_chat_background">Chat background</string>
     <string name="detail_permissions">App permissions</string>
     <string name="detail_system_permissions">System permissions</string>
     <string name="detail_tools">AI Agent tools</string>

@@ -12,6 +12,9 @@ captures/
 *.ap_
 *.dex
 *.class
+.vs
+.vs.*
+*.vs
 
 # Local SDK and machine-specific files
 local.properties
