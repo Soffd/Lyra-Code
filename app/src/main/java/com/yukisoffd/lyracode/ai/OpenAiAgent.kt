@@ -20,6 +20,7 @@ import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
 import com.yukisoffd.lyracode.data.MiniServerConfig
 import com.yukisoffd.lyracode.data.SkillPack
+import com.yukisoffd.lyracode.data.SubAgentConfig
 import com.yukisoffd.lyracode.data.SshServerConfig
 import com.yukisoffd.lyracode.data.WebDavServerConfig
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
@@ -200,6 +201,7 @@ class OpenAiAgent(
         userInput: String,
         profile: ApiProfile,
         model: String,
+        userMessagePersisted: Boolean = false,
         propagateErrors: Boolean = false,
         onUpdate: suspend (ChatUpdate) -> Unit,
     ) = withContext(Dispatchers.IO) {
@@ -210,7 +212,9 @@ class OpenAiAgent(
             profileId = profile.id,
             model = model,
         )
-        conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
+        if (!userMessagePersisted) {
+            conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
+        }
         onUpdate(ChatUpdate("", "", uiText("已发送")))
         runLoop(conversationId, profile, model, onUpdate, propagateErrors)
     }
@@ -361,7 +365,9 @@ class OpenAiAgent(
                 }
                 result.toolCalls.forEach { call ->
                     onUpdate(ChatUpdate(result.content, result.thinking, uiText("调用工具：") + call.name, assistantId))
-                    val toolResult = executeTool(conversationId, call)
+                    val toolResult = executeTool(conversationId, call) { toolStatus ->
+                        onUpdate(ChatUpdate(result.content, result.thinking, toolStatus, assistantId))
+                    }
                     conversationStore.addMessage(
                         conversationId,
                         "tool",
@@ -408,7 +414,7 @@ class OpenAiAgent(
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
         val requestJson = JSONObject()
             .put("model", model)
-            .put("tools", toolDefinitions())
+            .put("tools", toolDefinitions(allowSubAgentsFor(conversationId)))
             .put("tool_choice", "auto")
             .put("messages", promptMessages(conversationId, excludeMessageId))
             .put("temperature", 0.2)
@@ -545,7 +551,7 @@ class OpenAiAgent(
             .put("temperature", 0.2)
             .put("system", providerSystemText())
             .put("messages", anthropicMessages(conversationId, excludeMessageId))
-            .put("tools", anthropicTools())
+            .put("tools", anthropicTools(allowSubAgentsFor(conversationId)))
             .put("stream", true)
         val request = Request.Builder()
             .url(profile.chatEndpoint)
@@ -665,7 +671,7 @@ class OpenAiAgent(
             .put("contents", geminiContents(conversationId, excludeMessageId))
             .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", providerSystemText()))))
             .put("generationConfig", JSONObject().put("temperature", 0.2))
-            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", geminiFunctionDeclarations())))
+            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", geminiFunctionDeclarations(allowSubAgentsFor(conversationId)))))
         val request = Request.Builder()
             .url(profile.geminiGenerateContentEndpoint(model))
             .addHeader("x-goog-api-key", profile.apiKey)
@@ -1115,7 +1121,7 @@ class OpenAiAgent(
     }
 
     private fun staticToolFingerprint(): String {
-        return sha256(toolDefinitions().toString()).take(PROMPT_CACHE_KEY_HASH_CHARS)
+        return sha256(toolDefinitions(false).toString()).take(PROMPT_CACHE_KEY_HASH_CHARS)
     }
 
     private fun AiCachedResponse.toStreamingResult(): StreamingResult {
@@ -1165,7 +1171,12 @@ class OpenAiAgent(
         }
     }
 
-    private suspend fun executeTool(conversationId: Long, call: ToolCall, skipApproval: Boolean = false): String {
+    private suspend fun executeTool(
+        conversationId: Long,
+        call: ToolCall,
+        skipApproval: Boolean = false,
+        onStatus: suspend (String) -> Unit = {},
+    ): String {
         val args = call.arguments
         val startedAt = System.currentTimeMillis()
         Log.d(
@@ -1395,6 +1406,7 @@ class OpenAiAgent(
                 "read_web_page" -> ToolExecution(webAgent.readPage(args.getString("url")))
                 "mark_web_sources" -> ToolExecution(webSourceMarkResult(args))
                 "manage_app_config" -> ToolExecution(manageAppConfig(args))
+                "run_sub_agents" -> ToolExecution(runSubAgents(conversationId, args, onStatus))
                 "set_todo_list" -> ToolExecution(todoSetHandler(conversationId, parseTodoItems(args)))
                 "update_todo_item" -> ToolExecution(
                     todoUpdateHandler(
@@ -1453,6 +1465,181 @@ class OpenAiAgent(
             SimpleDateFormat("EEE, dd MMM yyyy HH:mm:ss z", Locale.US).parse(value)?.time ?: 0L
         }.getOrDefault(0L)
     }
+
+    private suspend fun runSubAgents(parentConversationId: Long, args: JSONObject, onStatus: suspend (String) -> Unit = {}): String {
+        if (!settings.subAgentOrchestrationEnabled) return "ERROR: SUB_AGENT_DISABLED\n用户未开启子代理编排。"
+        val candidates = settings.enabledSubAgents()
+        if (candidates.isEmpty()) return "ERROR: NO_SUB_AGENT_MODELS\n请先在设置 > 子代理编排中添加并启用子代理模型。"
+        val tasks = parseSubAgentTasks(args).take(MAX_SUB_AGENT_TASKS)
+        if (tasks.isEmpty()) return "ERROR: NO_SUB_AGENT_TASKS\ntasks 不能为空。"
+        val results = JSONArray()
+        val assignmentCounts = mutableMapOf<String, Int>()
+        tasks.forEachIndexed { index, task ->
+            currentCoroutineContext().ensureActive()
+            val agentConfig = chooseSubAgent(candidates, task, index, assignmentCounts)
+            assignmentCounts[agentConfig.id] = (assignmentCounts[agentConfig.id] ?: 0) + 1
+            onStatus(uiText("正在执行子代理任务") + " ${index + 1}/${tasks.size}: ${agentConfig.name}")
+            val profile = settings.profiles().firstOrNull { it.id == agentConfig.profileId }
+            if (profile == null) {
+                results.put(subAgentError(index, agentConfig, task, "模型服务不存在: ${agentConfig.profileId}"))
+                return@forEachIndexed
+            }
+            val model = agentConfig.model.ifBlank { profile.selectedModel }
+            val childConversationId = conversationStore.createConversation(
+                profileId = profile.id,
+                model = model,
+                title = "子代理 ${index + 1}: ${task.task.take(32)}",
+                mode = ConversationStore.MODE_SUBAGENT,
+            )
+            val prompt = buildSubAgentPrompt(parentConversationId, task, agentConfig)
+            conversationStore.addMessage(childConversationId, "user", prompt, profileId = profile.id, model = model)
+            runLoop(
+                childConversationId,
+                profile,
+                model,
+                onUpdate = { update ->
+                    if (update.status.isNotBlank()) {
+                        onStatus(uiText("正在执行子代理任务") + " ${index + 1}/${tasks.size}: ${agentConfig.name} · ${update.status}")
+                    }
+                },
+                propagateErrors = false,
+            )
+            val assistant = conversationStore.messages(childConversationId).lastOrNull { it.role == "assistant" }
+            results.put(
+                JSONObject()
+                    .put("index", index + 1)
+                    .put("agent", agentConfig.name)
+                    .put("profile_id", profile.id)
+                    .put("model", model)
+                    .put("task", task.task)
+                    .put("capability_hint", task.capabilityHint)
+                    .put("expected_output", task.expectedOutput)
+                    .put("result", assistant?.content.orEmpty())
+                    .put("status", conversationStore.conversation(childConversationId)?.status ?: "unknown"),
+            )
+        }
+        onStatus(uiText("子代理任务完成"))
+        return JSONObject()
+            .put("schema", "lyra_sub_agent_results_v1")
+            .put("parent_conversation_id", parentConversationId)
+            .put("results", results)
+            .toString()
+    }
+
+    private fun parseSubAgentTasks(args: JSONObject): List<SubAgentTask> {
+        val array = args.optJSONArray("tasks") ?: return emptyList()
+        return buildList {
+            for (index in 0 until array.length()) {
+                val item = array.opt(index)
+                when (item) {
+                    is JSONObject -> {
+                        val task = item.optString("task").ifBlank { item.optString("description") }
+                        if (task.isNotBlank()) {
+                            add(
+                                SubAgentTask(
+                                    task = task,
+                                    capabilityHint = item.optString("capability_hint").ifBlank { item.optString("capability") },
+                                    expectedOutput = item.optString("expected_output"),
+                                    preferredAgent = item.optString("sub_agent_id")
+                                        .ifBlank { item.optString("agent_id") }
+                                        .ifBlank { item.optString("agent") }
+                                        .ifBlank { item.optString("model") },
+                                ),
+                            )
+                        }
+                    }
+                    is String -> if (item.isNotBlank()) add(SubAgentTask(item, "", "", ""))
+                }
+            }
+        }
+    }
+
+    private fun chooseSubAgent(
+        candidates: List<SubAgentConfig>,
+        task: SubAgentTask,
+        taskIndex: Int,
+        assignmentCounts: Map<String, Int>,
+    ): SubAgentConfig {
+        val preferred = task.preferredAgent.trim().lowercase(Locale.US)
+        if (preferred.isNotBlank()) {
+            candidates.firstOrNull { agent ->
+                listOf(agent.id, agent.name, agent.model, agent.profileId).any { it.lowercase(Locale.US) == preferred }
+            }?.let { return it }
+        }
+        val hint = listOf(task.capabilityHint, task.task).joinToString(" ")
+        val tokens = hint.lowercase(Locale.US).split(Regex("[^a-z0-9\\u4e00-\\u9fa5]+"))
+            .filter { it.length >= 2 }
+            .toSet()
+        fun usage(agent: SubAgentConfig): Int = assignmentCounts[agent.id] ?: 0
+        if (tokens.isNotEmpty()) {
+            val scored = candidates.map { agent ->
+                val text = "${agent.name} ${agent.model} ${agent.description}".lowercase(Locale.US)
+                agent to tokens.count { token -> token in text }
+            }
+            val bestScore = scored.maxOf { it.second }
+            if (bestScore > 0) {
+                return scored
+                    .filter { it.second == bestScore }
+                    .minWith(compareBy<Pair<SubAgentConfig, Int>> { usage(it.first) }.thenBy { candidates.indexOf(it.first) })
+                    .first
+            }
+        }
+        val leastUsed = candidates.minOf { usage(it) }
+        val leastUsedAgents = candidates.filter { usage(it) == leastUsed }
+        return leastUsedAgents[taskIndex % leastUsedAgents.size]
+    }
+
+    private fun buildSubAgentPrompt(parentConversationId: Long, task: SubAgentTask, agent: SubAgentConfig): String {
+        return """
+        LYRA_SUB_AGENT_TASK_V1
+        你是主对话临时委派的子代理。只完成下面的独立子任务，不要向用户寒暄，不要输出你的 thinking。
+        主会话 ID: $parentConversationId
+        子代理说明: ${agent.description.ifBlank { "无" }}
+        子任务: ${task.task}
+        能力提示: ${task.capabilityHint.ifBlank { "自动判断" }}
+        期望输出: ${task.expectedOutput.ifBlank { "给出可供主模型复核和整合的结论、证据、风险与必要文件/命令结果。" }}
+
+        工作规则：
+        - 可独立调用当前可用工具；需要用户确认的工具照常申请确认。
+        - 只返回最终可见结果，不要包含隐藏思考过程。
+        - 如果信息不足或工具被拒绝，明确说明缺口和已完成的检查。
+        - 不要尝试再次调用子代理编排。
+        """.trimIndent()
+    }
+
+    private fun subAgentError(index: Int, agent: SubAgentConfig, task: SubAgentTask, error: String): JSONObject {
+        return JSONObject()
+            .put("index", index + 1)
+            .put("agent", agent.name)
+            .put("task", task.task)
+            .put("error", error)
+    }
+
+    private fun allowSubAgentsFor(conversationId: Long): Boolean {
+        return settings.subAgentOrchestrationEnabled && conversationStore.conversation(conversationId)?.mode != ConversationStore.MODE_SUBAGENT
+    }
+
+    private fun subAgentPromptJson(): JSONArray {
+        val array = JSONArray()
+        settings.enabledSubAgents().forEach { agent ->
+            array.put(
+                JSONObject()
+                    .put("id", agent.id)
+                    .put("name", agent.name)
+                    .put("profile_id", agent.profileId)
+                    .put("model", agent.model)
+                    .put("description", agent.description),
+            )
+        }
+        return array
+    }
+
+    private data class SubAgentTask(
+        val task: String,
+        val capabilityHint: String,
+        val expectedOutput: String,
+        val preferredAgent: String,
+    )
 
     private fun parseTodoItems(args: JSONObject): List<TodoItem> {
         val array = args.optJSONArray("items")
@@ -3203,6 +3390,8 @@ class OpenAiAgent(
             .put("global_file_rule", "需要访问非工作区共享存储文件时使用 global_* 文件工具；Download/Downloads 表示 /storage/emulated/0/Download。写入、删除、移动会请求用户确认。")
             .put("termux_rule", "run_command 默认在工作目录运行；不要传 Termux 私有目录；不要运行不会退出的长期驻留命令。")
             .put("tool_output_rule", "工具输出为 lyra_tool_output_v2 JSON；动态结果位于对话末尾。")
+            .put("sub_agent_orchestration_enabled", settings.subAgentOrchestrationEnabled)
+            .put("sub_agents", subAgentPromptJson())
         return JSONObject()
             .put("role", "system")
             .put(
@@ -3262,6 +3451,7 @@ class OpenAiAgent(
             如果工具、MCP 或代码执行生成图片、音频、视频等媒体结果，优先用 Markdown 媒体语法输出，方便 Lyra Code 直接预览：图片使用 ![说明](data:image/png;base64,...) 或 ![说明](https://.../file.png)；视频/音频可输出 ![说明](https://.../file.mp4) 或 ![说明](file:///.../file.mp3)。如果只有原始 base64，尽量补成 data:<mime>;base64,<内容>；如果只有本地路径或远程 URL，直接输出完整路径/URL，不要只写“已生成”。
             媒体文件较大时不要把完整 base64 重复粘贴多次；优先输出可访问 URL 或本地文件路径。只有用户明确需要内联文件，或工具只返回 base64 时，才输出 data URL。
             SSH 工具用于用户已配置的远程服务器。调用 ssh_exec 前必须先调用 list_ssh_servers 获取 server_id；任何 ssh_exec 都会请求用户确认。安装软件、编译服务、修改系统配置前必须先检查目标服务器系统、CPU/GPU、内存、磁盘和权限，避免安装不兼容或超出服务器承载能力的软件。禁止直接读取 /var/log 或 *.log；先查看文件属性和行数，确认范围安全后只读取小片段。不要尝试 vim、top、交互式 ssh 等复杂交互 shell。
+            如果用户在对话动作菜单开启了子代理编排，工具列表会提供 run_sub_agents。面对复杂困难任务、需要独立调查/审查/验证/多方案比较时，应先拆分为若干边界清晰的子任务并调用 run_sub_agents；每项任务可用 sub_agent_id/agent/model 指定目标子代理。若多个启用子代理都适合，应把任务分配给不同模型以发挥各自优势；根据子代理返回结果自行复核，结果不足时可重新分配或亲自验证。简单问答、单步编辑或用户明确要求不要分工时不要调用。
             在进行多步骤任务，尤其是修改文件或执行命令前，必须先调用 set_todo_list 制定 TODO 列表；每完成一个步骤，必须调用 update_todo_item 标记 running/completed/blocked，让用户能看到进度。
             用户上传的文本文件会以普通 user 消息提供；图片、音频、视频等媒体会由 Lyra Code 本地转成 data:<mime>;base64,...，并按 OpenAI 兼容多模态 JSON content parts 放入请求体。
             写入文件前先读取相关上下文；危险命令会被应用拒绝。需要切换平台或模型时按当前会话选择的配置执行。
@@ -3280,7 +3470,7 @@ class OpenAiAgent(
             """.trimIndent(),
         )
 
-    private fun toolDefinitions(): JSONArray {
+    private fun toolDefinitions(allowSubAgents: Boolean = false): JSONArray {
         val definitions = JSONArray()
         .put(function("list_directory", "列出工作目录下的文件和子目录。path 必须是相对路径；根目录用 . 或空字符串。", "path" to "string"))
         .put(function("read_file", "读取工作目录内 1MB 以下文本文件。path 必须是相对路径，不要传 Termux 私有目录。", "path" to "string"))
@@ -3576,6 +3766,16 @@ class OpenAiAgent(
                 optional = listOf("server_id" to "string", "remote_path" to "string", "local_path" to "string", "global_path" to "string"),
             ),
         )
+        if (allowSubAgents && settings.subAgentOrchestrationEnabled && settings.enabledSubAgents().isNotEmpty()) {
+            definitions.put(
+                function(
+                    "run_sub_agents",
+                    "子代理编排工具。仅在用户任务复杂、需要并行研究、独立代码审查、多方案验证或跨领域分工时调用。tasks 为数组，每项包含 task、capability_hint、expected_output，可选 sub_agent_id/agent/model 指定目标子代理；未指定时系统会按能力匹配并在无明显匹配时均衡分配到不同启用模型。子代理会独立调用可用工具并请求必要审批；完成后只返回最终结果，不返回 thinking。",
+                    "tasks" to "array",
+                ),
+            )
+        }
+        definitions
         .put(function("set_todo_list", "设置当前任务 TODO 列表。修改文件或执行命令前必须先调用。items 为数组，每项包含 id、text、status、note。", "items" to "array"))
         .put(function("update_todo_item", "更新 TODO 项状态。status 可用 pending、running、completed、blocked。", "id" to "string", "status" to "string", "note" to "string"))
         settings.enabledMcpTools().forEach { (server, tool) ->
@@ -3595,8 +3795,8 @@ class OpenAiAgent(
         }
     }
 
-    private fun anthropicTools(): JSONArray {
-        val tools = toolDefinitions()
+    private fun anthropicTools(allowSubAgents: Boolean = false): JSONArray {
+        val tools = toolDefinitions(allowSubAgents)
         return JSONArray().also { output ->
             for (index in 0 until tools.length()) {
                 val function = tools.optJSONObject(index)?.optJSONObject("function") ?: continue
@@ -3610,8 +3810,8 @@ class OpenAiAgent(
         }
     }
 
-    private fun geminiFunctionDeclarations(): JSONArray {
-        val tools = toolDefinitions()
+    private fun geminiFunctionDeclarations(allowSubAgents: Boolean = false): JSONArray {
+        val tools = toolDefinitions(allowSubAgents)
         return JSONArray().also { output ->
             for (index in 0 until tools.length()) {
                 val function = tools.optJSONObject(index)?.optJSONObject("function") ?: continue
@@ -3877,6 +4077,7 @@ class OpenAiAgent(
         private const val ANTHROPIC_VERSION = "2023-06-01"
         private const val LOG_ARGUMENT_CHARS = 1_000
         private const val MAX_TOOL_RESULT_CHARS = 500_000
+        private const val MAX_SUB_AGENT_TASKS = 6
         private const val PROMPT_RECENT_GROUPS = 36
         private const val PROMPT_SUMMARY_CHUNK_GROUPS = 12
         private const val SUMMARY_LINE_CHARS = 240

@@ -152,6 +152,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -192,6 +193,7 @@ import com.yukisoffd.lyracode.data.RoleplayScenario
 import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.data.SshServerConfig
 import com.yukisoffd.lyracode.data.SystemPromptPreset
+import com.yukisoffd.lyracode.data.SubAgentConfig
 import com.yukisoffd.lyracode.data.AppUpdateInfo
 import com.yukisoffd.lyracode.data.UpdateDownloadProgress
 import com.yukisoffd.lyracode.data.UpdateManager
@@ -316,6 +318,7 @@ internal fun SettingsScreen(
                 when (target) {
                     "profile" -> ProfileSettingsSummary(settings)
                     "model" -> ModelServiceSettings(settings, controller)
+                    "sub_agents" -> SubAgentSettings(settings, controller)
                     "workspace" -> WorkspaceSettings(workspaceDisplayName, workspaceManager, onPickWorkspace)
                     "theme" -> ThemeSettings(
                         settings = settings,
@@ -422,6 +425,8 @@ internal fun SettingsScreen(
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Cloud, context.getString(R.string.menu_model_service), context.getString(R.string.menu_model_service_desc)) { detail = "model" }
                 KimiDivider()
+                KimiMenuRow(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc)) { detail = "sub_agents" }
+                KimiDivider()
                 KimiMenuRow(Icons.Default.Search, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc)) { detail = "web_search" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Folder, context.getString(R.string.menu_workspace), context.getString(R.string.menu_workspace_current, workspaceDisplayName)) { detail = "workspace" }
@@ -503,6 +508,7 @@ internal fun SettingsDetailPage(
 internal fun settingsDetailTitle(context: Context, detail: String): String = when (detail) {
     "profile" -> context.getString(R.string.detail_profile)
     "model" -> context.getString(R.string.detail_model)
+    "sub_agents" -> context.getString(R.string.detail_sub_agents)
     "web_search" -> context.getString(R.string.detail_web_search)
     "workspace" -> context.getString(R.string.detail_workspace)
     "theme" -> context.getString(R.string.detail_theme)
@@ -1069,6 +1075,239 @@ internal fun ModelServiceSettings(
     }
 }
 
+@Composable
+internal fun SubAgentSettings(settings: AppSettings, controller: ChatController) {
+    var revision by remember { mutableIntStateOf(0) }
+    var agents by remember(revision, controller.settingsRevision.intValue) { mutableStateOf(settings.subAgents()) }
+    val profiles = controller.profiles.toList()
+    val context = LocalContext.current
+    var editing by remember { mutableStateOf<SubAgentConfig?>(null) }
+    var deleteTarget by remember { mutableStateOf<SubAgentConfig?>(null) }
+    var notice by remember { mutableStateOf("") }
+    fun save(updated: List<SubAgentConfig>) {
+        settings.saveSubAgents(updated)
+        agents = updated
+        controller.settingsRevision.intValue++
+        revision++
+    }
+    Box(Modifier.fillMaxSize()) {
+        Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            KimiCardBox {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text(uiText(stringResource(R.string.title_sub_agent_orchestration)), style = MaterialTheme.typography.titleMedium)
+                        Text(uiText(stringResource(R.string.sub_agent_settings_desc)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Switch(
+                        checked = settings.subAgentOrchestrationEnabled,
+                        onCheckedChange = {
+                            settings.subAgentOrchestrationEnabled = it
+                            controller.settingsRevision.intValue++
+                            revision++
+                        },
+                    )
+                }
+            }
+            KimiCardBox {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(uiText(stringResource(R.string.label_sub_agent_models)), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Button(
+                        enabled = profiles.isNotEmpty(),
+                        onClick = {
+                            val profile = profiles.firstOrNull()
+                            editing = SubAgentConfig(
+                                id = AppSettings.newId(),
+                                name = uiText(context.getString(R.string.label_sub_agent_default_name)),
+                                profileId = profile?.id.orEmpty(),
+                                model = profile?.selectedModel.orEmpty(),
+                                description = uiText(context.getString(R.string.sub_agent_default_desc)),
+                                enabled = true,
+                            )
+                        },
+                        shape = KimiPillShape,
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(uiText(stringResource(R.string.action_new)))
+                    }
+                }
+                if (agents.isEmpty()) {
+                    Text(uiText(stringResource(R.string.sub_agent_empty_hint)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    agents.forEach { agent ->
+                        val profile = profiles.firstOrNull { it.id == agent.profileId }
+                        SubAgentRow(
+                            agent = agent,
+                            profileName = profile?.name ?: uiText(stringResource(R.string.label_not_configured)),
+                            onEdit = { editing = agent },
+                            onToggle = { enabled -> save(agents.map { if (it.id == agent.id) it.copy(enabled = enabled) else it }) },
+                            onDelete = { deleteTarget = agent },
+                        )
+                        if (agent != agents.last()) KimiDivider()
+                    }
+                }
+            }
+        }
+        editing?.let { agent ->
+            SubAgentEditDialog(
+                initial = agent,
+                profiles = profiles,
+                onDismiss = { editing = null },
+                onSave = { saved ->
+                    val updated = if (agents.any { it.id == saved.id }) agents.map { if (it.id == saved.id) saved else it } else agents + saved
+                    save(updated)
+                    editing = null
+                    notice = uiText(context.getString(R.string.notice_sub_agent_saved))
+                },
+            )
+        }
+        deleteTarget?.let { agent ->
+            AlertDialog(
+                onDismissRequest = { deleteTarget = null },
+                title = { Text(uiText(stringResource(R.string.title_delete_sub_agent))) },
+                text = { Text(uiText(stringResource(R.string.confirm_delete_sub_agent, agent.name))) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            save(agents.filterNot { it.id == agent.id })
+                            deleteTarget = null
+                            notice = uiText(context.getString(R.string.notice_sub_agent_deleted))
+                        },
+                    ) { Text(uiText(stringResource(R.string.action_delete))) }
+                },
+                dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(uiText(stringResource(R.string.action_cancel))) } },
+            )
+        }
+        TransientNotice(message = notice, modifier = Modifier.align(Alignment.Center).padding(24.dp), onDismiss = { notice = "" })
+    }
+}
+
+@Composable
+internal fun SubAgentRow(agent: SubAgentConfig, profileName: String, onEdit: () -> Unit, onToggle: (Boolean) -> Unit, onDelete: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(onClick = onEdit).padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Icon(Icons.Default.Hub, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(agent.name, style = MaterialTheme.typography.titleSmall)
+            Text("$profileName · ${agent.model}", color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (agent.description.isNotBlank()) Text(agent.description, color = KimiMuted, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        }
+        Switch(checked = agent.enabled, onCheckedChange = onToggle)
+        IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = uiText(stringResource(R.string.action_delete))) }
+    }
+}
+
+@Composable
+internal fun SubAgentEditDialog(initial: SubAgentConfig, profiles: List<ApiProfile>, onDismiss: () -> Unit, onSave: (SubAgentConfig) -> Unit) {
+    val context = LocalContext.current
+    var name by remember(initial.id) { mutableStateOf(initial.name) }
+    var profileId by remember(initial.id) { mutableStateOf(initial.profileId.ifBlank { profiles.firstOrNull()?.id.orEmpty() }) }
+    val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    var model by remember(initial.id, profileId) { mutableStateOf(initial.model.ifBlank { selectedProfile?.selectedModel.orEmpty() }) }
+    var description by remember(initial.id) { mutableStateOf(initial.description) }
+    var enabled by remember(initial.id) { mutableStateOf(initial.enabled) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(uiText(stringResource(R.string.title_edit_sub_agent))) },
+        text = {
+            Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_sub_agent_name))) }, singleLine = true)
+                SubAgentDropdownPicker(
+                    label = uiText(stringResource(R.string.label_provider)),
+                    value = selectedProfile?.name ?: uiText(stringResource(R.string.label_not_configured)),
+                    subtitle = selectedProfile?.selectedModel.orEmpty(),
+                    items = profiles,
+                    itemTitle = { it.name },
+                    itemSubtitle = { it.selectedModel },
+                    isSelected = { it.id == profileId },
+                    onSelect = { profile ->
+                        profileId = profile.id
+                        model = profile.selectedModel
+                    },
+                )
+                SubAgentDropdownPicker(
+                    label = uiText(stringResource(R.string.label_model)),
+                    value = model.ifBlank { uiText(stringResource(R.string.label_not_selected)) },
+                    items = selectedProfile?.savedModels.orEmpty(),
+                    itemTitle = { it },
+                    isSelected = { it == model },
+                    onSelect = { model = it },
+                )
+                OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_model))) }, singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_sub_agent_desc))) }, minLines = 3, maxLines = 6)
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(uiText(stringResource(R.string.action_enable)), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    Switch(checked = enabled, onCheckedChange = { enabled = it })
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = profileId.isNotBlank() && model.isNotBlank(),
+                onClick = { onSave(initial.copy(name = name.trim().ifBlank { uiText(context.getString(R.string.label_sub_agent_default_name)) }, profileId = profileId, model = model.trim(), description = description.trim(), enabled = enabled)) },
+                shape = KimiPillShape,
+            ) { Text(uiText(stringResource(R.string.action_save))) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(stringResource(R.string.action_cancel))) } },
+    )
+}
+@Composable
+internal fun <T> SubAgentDropdownPicker(
+    label: String,
+    value: String,
+    subtitle: String = "",
+    items: List<T>,
+    itemTitle: (T) -> String,
+    itemSubtitle: (T) -> String = { "" },
+    isSelected: (T) -> Boolean,
+    onSelect: (T) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.fillMaxWidth()) {
+            OutlinedButton(
+                onClick = { expanded = true },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(18.dp),
+                contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+            ) {
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp), horizontalAlignment = Alignment.Start) {
+                    Text("$label: $value", maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
+                    if (subtitle.isNotBlank()) Text(subtitle, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(Icons.Default.ArrowDropDown, contentDescription = null)
+            }
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false },
+                modifier = Modifier.widthIn(min = 280.dp).heightIn(max = 320.dp),
+            ) {
+                items.forEach { item ->
+                    DropdownMenuItem(
+                        text = {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text(itemTitle(item), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                    val childSubtitle = itemSubtitle(item)
+                                    if (childSubtitle.isNotBlank()) Text(childSubtitle, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                                }
+                                if (isSelected(item)) Icon(Icons.Default.Check, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            }
+                        },
+                        onClick = {
+                            onSelect(item)
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+    }
+}
 @Composable
 internal fun ApiFormatOption(label: String, value: String, selected: String, onSelect: (String) -> Unit) {
     MaterialChoiceButton(label = label, selected = selected == value, onClick = { onSelect(value) })

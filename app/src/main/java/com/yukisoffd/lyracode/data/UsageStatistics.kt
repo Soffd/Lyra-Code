@@ -43,7 +43,7 @@ class UsageStatisticsRepository(
         var toolMessageCount = 0
         var modelRequestCount = 0
 
-        conversationStore.conversations().forEach { conversation ->
+        conversationStore.conversations(includeSubAgents = true).forEach { conversation ->
             var repeatedContextTokens = 0L
             conversationStore.messages(conversation.id).forEach { message ->
                 val inRange = message.createdAt >= range.first && message.createdAt < range.second

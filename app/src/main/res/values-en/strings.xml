@@ -122,6 +122,9 @@
     <string name="label_prompt">Prompt</string>
     <string name="label_default_assistant">Default assistant</string>
     <string name="label_reasoning">Reasoning depth</string>
+    <string name="label_sub_agent_orchestration">Sub-agent orchestration</string>
+    <string name="subtitle_sub_agent_orchestration">Allow the main model to delegate complex work</string>
+    <string name="subtitle_sub_agent_no_models">Add and enable a sub-agent model in Settings first</string>
     <string name="reasoning_low">Low</string>
     <string name="reasoning_medium">Medium</string>
     <string name="reasoning_high">High</string>
@@ -459,6 +462,8 @@
     <string name="menu_profile_desc">Nickname, avatar, and display information</string>
     <string name="menu_model_service">Model services</string>
     <string name="menu_model_service_desc">Configure AI providers, API keys, and default models</string>
+    <string name="menu_sub_agents">Sub-agent orchestration</string>
+    <string name="menu_sub_agents_desc">Choose sub-agent models and describe their strengths</string>
     <string name="menu_web_search">Web search</string>
     <string name="menu_web_search_desc">Configure domain blacklist and filter unreliable sources</string>
     <string name="menu_workspace">Workspace</string>
@@ -506,6 +511,7 @@
     <string name="menu_about_desc">Version, package name, and security notes</string>
     <string name="detail_profile">Profile</string>
     <string name="detail_model">Model services</string>
+    <string name="detail_sub_agents">Sub-agent orchestration</string>
     <string name="detail_web_search">Web search</string>
     <string name="detail_workspace">Workspace</string>
     <string name="detail_theme">Theme</string>
@@ -1043,6 +1049,19 @@
     <string name="label_auth_key_optional">Auth Key Optional</string>
     <string name="notice_auth_key_risk">Auth Key Risk</string>
     <string name="label_save_and_enable">Save And Enable</string>
+    <string name="title_sub_agent_orchestration">Sub-agent orchestration</string>
+    <string name="sub_agent_settings_desc">When enabled, the main model can call run_sub_agents for complex tasks and delegate independent work to enabled sub-agent models. Sub-agent chats stay out of normal history and return only final results.</string>
+    <string name="label_sub_agent_models">Sub-agent models</string>
+    <string name="label_sub_agent_default_name">Sub-agent model</string>
+    <string name="sub_agent_default_desc">Good at code review, bug checks, source verification, or independent solution analysis.</string>
+    <string name="sub_agent_empty_hint">No sub-agent models yet. Choose a model from existing model services and describe what it is good at.</string>
+    <string name="notice_sub_agent_deleted">Sub-agent deleted</string>
+    <string name="notice_sub_agent_saved">Sub-agent saved</string>
+    <string name="title_delete_sub_agent">Delete sub-agent model</string>
+    <string name="confirm_delete_sub_agent">Delete "%1$s"? This will not delete the original model service.</string>
+    <string name="title_edit_sub_agent">Edit sub-agent model</string>
+    <string name="label_sub_agent_name">Sub-agent name</string>
+    <string name="label_sub_agent_desc">Capability description</string>
     <string name="title_domain_blacklist">Domain Blacklist</string>
     <string name="blacklist_desc">Blacklist Desc</string>
     <string name="label_one_domain_per_line">One Domain Per Line</string>

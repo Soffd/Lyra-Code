@@ -1201,6 +1201,22 @@ internal fun AttachmentActionBottomSheet(
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("reasoning") },
                             )
+                            val hasSubAgents = settings.enabledSubAgents().isNotEmpty()
+                            ActionSheetSwitchRow(
+                                icon = Icons.Default.AccountTree,
+                                title = uiText(stringResource(R.string.label_sub_agent_orchestration)),
+                                subtitle = if (hasSubAgents) {
+                                    uiText(stringResource(R.string.subtitle_sub_agent_orchestration))
+                                } else {
+                                    uiText(stringResource(R.string.subtitle_sub_agent_no_models))
+                                },
+                                checked = settings.subAgentOrchestrationEnabled && hasSubAgents,
+                                enabled = hasSubAgents,
+                                onCheckedChange = { enabled ->
+                                    settings.subAgentOrchestrationEnabled = enabled
+                                    controller.settingsRevision.intValue++
+                                },
+                            )
                         }
                     }
                 }
@@ -1271,6 +1287,36 @@ internal fun ActionSheetRow(
             }
         }
         trailing?.let { Icon(it, contentDescription = null, tint = MaterialTheme.colorScheme.primary) }
+    }
+}
+
+@Composable
+internal fun ActionSheetSwitchRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String = "",
+    checked: Boolean,
+    enabled: Boolean = true,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(enabled = enabled) { onCheckedChange(!checked) }
+            .padding(horizontal = 4.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        val alpha = if (enabled) 1f else 0.48f
+        Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = alpha))
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface.copy(alpha = alpha))
+            if (subtitle.isNotBlank()) {
+                Text(subtitle, color = KimiMuted.copy(alpha = alpha), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Switch(checked = checked, enabled = enabled, onCheckedChange = onCheckedChange)
     }
 }
 

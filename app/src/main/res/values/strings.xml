@@ -123,6 +123,9 @@
     <string name="label_prompt">提示词</string>
     <string name="label_default_assistant">默认助手</string>
     <string name="label_reasoning">推理深度</string>
+    <string name="label_sub_agent_orchestration">子代理编排</string>
+    <string name="subtitle_sub_agent_orchestration">复杂任务允许主模型分派独立子代理</string>
+    <string name="subtitle_sub_agent_no_models">请先在设置中添加并启用子代理模型</string>
     <string name="reasoning_low">低</string>
     <string name="reasoning_medium">中</string>
     <string name="reasoning_high">高</string>
@@ -478,6 +481,8 @@
     <string name="menu_profile_desc">昵称、头像与用户显示信息</string>
     <string name="menu_model_service">模型服务</string>
     <string name="menu_model_service_desc">配置 AI 服务商、API Key 与默认模型</string>
+    <string name="menu_sub_agents">子代理编排</string>
+    <string name="menu_sub_agents_desc">选择子代理模型并描述各自擅长的任务</string>
     <string name="menu_web_search">联网搜索</string>
     <string name="menu_web_search_desc">配置网站黑名单，过滤垃圾或不可信来源</string>
     <string name="menu_workspace">工作目录</string>
@@ -527,6 +532,7 @@
     <!-- Settings Detail Titles -->
     <string name="detail_profile">个人资料</string>
     <string name="detail_model">模型服务</string>
+    <string name="detail_sub_agents">子代理编排</string>
     <string name="detail_web_search">联网搜索</string>
     <string name="detail_workspace">工作目录</string>
     <string name="detail_theme">主题设置</string>
@@ -1108,6 +1114,21 @@
     <string name="label_auth_key_optional">认证 Key，可空</string>
     <string name="notice_auth_key_risk">未设置认证 Key 时，同网络内能访问该端口的客户端都可请求工具调用。</string>
     <string name="label_save_and_enable">保存后立即启用</string>
+
+    <!-- Sub Agents -->
+    <string name="title_sub_agent_orchestration">子代理编排</string>
+    <string name="sub_agent_settings_desc">开启后，主模型可在复杂任务中调用 run_sub_agents，将独立子任务交给已启用的子代理模型执行。子代理对话不进入普通历史，只把最终结果返回主模型。</string>
+    <string name="label_sub_agent_models">子代理模型</string>
+    <string name="label_sub_agent_default_name">子代理模型</string>
+    <string name="sub_agent_default_desc">擅长代码审查、Bug 检查、资料核验或独立方案分析。</string>
+    <string name="sub_agent_empty_hint">暂无子代理模型。请从已添加的模型服务中选择模型，并填写它擅长的任务说明。</string>
+    <string name="notice_sub_agent_deleted">子代理已删除</string>
+    <string name="notice_sub_agent_saved">子代理已保存</string>
+    <string name="title_delete_sub_agent">删除子代理模型</string>
+    <string name="confirm_delete_sub_agent">确定删除“%1$s”吗？该操作不会删除原模型服务。</string>
+    <string name="title_edit_sub_agent">编辑子代理模型</string>
+    <string name="label_sub_agent_name">子代理名称</string>
+    <string name="label_sub_agent_desc">能力说明</string>
 
     <!-- Web Search -->
     <string name="title_domain_blacklist">网站黑名单</string>

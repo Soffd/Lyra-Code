@@ -61,6 +61,15 @@ data class SkillPack(
     val fileCount: Int,
 )
 
+data class SubAgentConfig(
+    val id: String,
+    val name: String,
+    val profileId: String,
+    val model: String,
+    val description: String,
+    val enabled: Boolean,
+)
+
 data class RoleplayScenario(
     val id: String,
     val name: String,
@@ -330,6 +339,34 @@ class AppSettings(context: Context) {
             KEY_REASONING_DEPTH,
             value.takeIf { it in reasoningDepthValues } ?: REASONING_AUTO,
         ).apply()
+
+    var subAgentOrchestrationEnabled: Boolean
+        get() = plainPrefs.getBoolean(KEY_SUB_AGENT_ORCHESTRATION_ENABLED, false)
+        set(value) = plainPrefs.edit().putBoolean(KEY_SUB_AGENT_ORCHESTRATION_ENABLED, value).apply()
+
+    fun subAgents(): List<SubAgentConfig> {
+        val raw = plainPrefs.getString(KEY_SUB_AGENT_CONFIGS, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching { parseSubAgents(JSONArray(raw)) }.getOrDefault(emptyList())
+    }
+
+    fun enabledSubAgents(): List<SubAgentConfig> = subAgents().filter { it.enabled }
+
+    fun saveSubAgents(agents: List<SubAgentConfig>) {
+        val array = JSONArray()
+        agents.forEach { agent ->
+            array.put(
+                JSONObject()
+                    .put("id", agent.id)
+                    .put("name", agent.name)
+                    .put("profileId", agent.profileId)
+                    .put("model", agent.model)
+                    .put("description", agent.description)
+                    .put("enabled", agent.enabled),
+            )
+        }
+        plainPrefs.edit().putString(KEY_SUB_AGENT_CONFIGS, array.toString()).apply()
+    }
 
     var webSearchBlacklistText: String
         get() = plainPrefs.getString(KEY_WEB_SEARCH_BLACKLIST, "").orEmpty()
@@ -1200,6 +1237,20 @@ class AppSettings(context: Context) {
             .put("customSystemPrompts", JSONObject(plainPrefs.getString(KEY_CUSTOM_SYSTEM_PROMPTS, "{}").orEmpty().ifBlank { "{}" }))
             .put("systemPromptConfigs", JSONArray(plainPrefs.getString(KEY_SYSTEM_PROMPT_CONFIGS, "[]").orEmpty().ifBlank { "[]" }))
             .put("reasoningDepth", reasoningDepth)
+            .put("subAgentOrchestrationEnabled", subAgentOrchestrationEnabled)
+            .put("subAgents", JSONArray().also { array ->
+                subAgents().forEach { agent ->
+                    array.put(
+                        JSONObject()
+                            .put("id", agent.id)
+                            .put("name", agent.name)
+                            .put("profileId", agent.profileId)
+                            .put("model", agent.model)
+                            .put("description", agent.description)
+                            .put("enabled", agent.enabled),
+                    )
+                }
+            })
             .put("webSearchBlacklist", webSearchBlacklistText)
             .put("selectedApiProfileId", selectedApiProfileId)
             .put("profiles", JSONArray().also { array ->
@@ -1308,6 +1359,12 @@ class AppSettings(context: Context) {
             messages += "系统提示词 ${imported.size} 项"
         }
         root.optString("reasoningDepth").takeIf { it in reasoningDepthValues }?.let { reasoningDepth = it }
+        if (root.has("subAgentOrchestrationEnabled")) subAgentOrchestrationEnabled = root.optBoolean("subAgentOrchestrationEnabled")
+        root.optJSONArray("subAgents")?.let { array ->
+            val imported = parseSubAgents(array)
+            saveSubAgents(if (supplement) mergeBy(subAgents(), imported) { it.id } else imported)
+            messages += "子代理 ${imported.size} 项"
+        }
         root.optString("webSearchBlacklist").takeIf { it.isNotBlank() }?.let { imported ->
             webSearchBlacklistText = if (supplement) {
                 listOf(webSearchBlacklistText, imported).joinToString("\n")
@@ -1566,6 +1623,25 @@ class AppSettings(context: Context) {
                     apiFormat = apiFormat,
                     selectedModel = item.optString("selectedModel").ifBlank { DEFAULT_MODEL },
                     savedModels = savedModels,
+                ),
+            )
+        }
+    }
+
+    private fun parseSubAgents(array: JSONArray): List<SubAgentConfig> = buildList {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val profileId = item.optString("profileId")
+            val model = item.optString("model")
+            if (profileId.isBlank() || model.isBlank()) continue
+            add(
+                SubAgentConfig(
+                    id = item.optString("id").ifBlank { newId() },
+                    name = item.optString("name").ifBlank { "子代理模型" },
+                    profileId = profileId,
+                    model = model,
+                    description = item.optString("description"),
+                    enabled = if (item.has("enabled")) item.optBoolean("enabled") else true,
                 ),
             )
         }
@@ -1871,6 +1947,8 @@ class AppSettings(context: Context) {
         private const val KEY_CUSTOM_SYSTEM_PROMPTS = "custom_system_prompts"
         private const val KEY_SYSTEM_PROMPT_CONFIGS = "system_prompt_configs"
         private const val KEY_REASONING_DEPTH = "reasoning_depth"
+        private const val KEY_SUB_AGENT_ORCHESTRATION_ENABLED = "sub_agent_orchestration_enabled"
+        private const val KEY_SUB_AGENT_CONFIGS = "sub_agent_configs"
         private const val KEY_WEB_SEARCH_BLACKLIST = "web_search_blacklist"
         private const val KEY_MCP_SERVERS = "mcp_servers"
         private const val KEY_LOCAL_MCP_SERVER = "local_mcp_server"

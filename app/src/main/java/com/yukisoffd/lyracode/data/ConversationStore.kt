@@ -137,12 +137,16 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         )
     }
 
-    fun conversations(mode: String? = null, roleplayId: String? = null): List<Conversation> {
+    fun conversations(mode: String? = null, roleplayId: String? = null, includeSubAgents: Boolean = false): List<Conversation> {
         val clauses = mutableListOf<String>()
         val args = mutableListOf<String>()
         mode?.let {
             clauses += "mode=?"
             args += it
+        }
+        if (mode == null && !includeSubAgents) {
+            clauses += "mode<>?"
+            args += MODE_SUBAGENT
         }
         roleplayId?.let {
             clauses += "roleplay_id=?"
@@ -624,6 +628,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         const val STATUS_INTERRUPTED = "interrupted"
         const val MODE_NORMAL = "normal"
         const val MODE_ROLEPLAY = "roleplay"
+        const val MODE_SUBAGENT = "subagent"
         const val MODE_TASK = "task"
     }
 }

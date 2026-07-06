@@ -226,6 +226,23 @@ internal object UiTextBridge {
         "无法创建下载文件" to "Unable to create download file",
         "无法写入下载文件" to "Unable to write download file",
         // Resource-backed translations kept in sync with values-en/strings.xml.
+        "子代理编排" to "Sub-agent orchestration",
+        "复杂任务允许主模型分派独立子代理" to "Allow the main model to delegate complex work",
+        "请先在设置中添加并启用子代理模型" to "Add and enable a sub-agent model in Settings first",
+        "选择子代理模型并描述各自擅长的任务" to "Choose sub-agent models and describe their strengths",
+        "开启后，主模型可在复杂任务中调用 run_sub_agents，将独立子任务交给已启用的子代理模型执行。子代理对话不进入普通历史，只把最终结果返回主模型。" to "When enabled, the main model can call run_sub_agents for complex tasks and delegate independent work to enabled sub-agent models. Sub-agent chats stay out of normal history and return only final results.",
+        "子代理模型" to "Sub-agent model",
+        "擅长代码审查、Bug 检查、资料核验或独立方案分析。" to "Good at code review, bug checks, source verification, or independent solution analysis.",
+        "暂无子代理模型。请从已添加的模型服务中选择模型，并填写它擅长的任务说明。" to "No sub-agent models yet. Choose a model from existing model services and describe what it is good at.",
+        "子代理已删除" to "Sub-agent deleted",
+        "子代理已保存" to "Sub-agent saved",
+        "编辑子代理模型" to "Edit sub-agent model",
+        "删除子代理模型" to "Delete sub-agent model",
+        "确定删除“%1\$s”吗？该操作不会删除原模型服务。" to "Delete \"%1\$s\"? This will not delete the original model service.",
+        "正在执行子代理任务" to "Running sub-agent task",
+        "子代理任务完成" to "Sub-agent tasks complete",
+        "子代理名称" to "Sub-agent name",
+        "能力说明" to "Capability description",
         "AI 对话" to "Chat",
         "日志" to "Logs",
         "统计" to "Statistics",
@@ -1013,7 +1030,11 @@ internal object UiTextBridge {
             t.startsWith("下次执行：") -> t.replace("下次执行：", "Next run: ")
             t.startsWith("最近失败：") -> t.replace("最近失败：", "Last failure: ")
             t.startsWith("最近结果：") -> t.replace("最近结果：", "Last result: ")
-            t.startsWith("确定删除“") -> t.replace("确定删除“", "Delete \"").replace("”吗？", "\"?")
+            t.startsWith("确定删除“") -> t
+                .replace("确定删除“", "Delete \"")
+                .replace("”吗？", "\"? ")
+                .replace("该操作不会删除原模型服务。", "This will not delete the original model service.")
+            t.startsWith("正在执行子代理任务") -> t.replace("正在执行子代理任务", "Running sub-agent task")
             t.startsWith("状态：") -> t
                 .replace("状态：", "Status: ")
                 .replace("频率：", "Schedule: ")

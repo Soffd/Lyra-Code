@@ -253,15 +253,25 @@ class ChatController(
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         val userInput = composeUserInput(text, uploads)
-        if (activeConversation()?.title == appContext.getString(R.string.default_conversation_title)) {
-            conversationStore.setConversationMeta(conversationId, title = fallbackConversationTitle(userInput))
-            reloadConversations()
-        }
+        conversationStore.setConversationMeta(
+            conversationId,
+            title = if (activeConversation()?.title == appContext.getString(R.string.default_conversation_title)) {
+                fallbackConversationTitle(userInput)
+            } else {
+                null
+            },
+            status = ConversationStore.STATUS_RUNNING,
+            profileId = profile.id,
+            model = model,
+        )
+        conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
+        reloadMessages()
+        reloadConversations()
         pendingUploads.clear()
         uploadingStatus.value = ""
         jobs[conversationId] = scope.launch {
             status.value = appContext.getString(R.string.status_running)
-            agent.chat(conversationId, userInput, profile, model) {
+            agent.chat(conversationId, userInput, profile, model, userMessagePersisted = true) {
                 withContext(Dispatchers.Main) {
                     applyChatUpdate(it)
                     status.value = it.status
