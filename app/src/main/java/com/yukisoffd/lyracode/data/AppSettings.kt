@@ -20,15 +20,13 @@ data class ApiProfile(
     val name: String,
     val apiKey: String,
     val baseUrl: String,
+    val chatPath: String = DEFAULT_OPENAI_CHAT_PATH,
     val apiFormat: String = API_FORMAT_OPENAI,
     val selectedModel: String,
     val savedModels: List<String>,
 ) {
     val chatEndpoint: String
-        get() = when (apiFormat) {
-            API_FORMAT_ANTHROPIC -> "${baseUrl.trimEnd('/')}/messages"
-            else -> "${baseUrl.trimEnd('/')}/chat/completions"
-        }
+        get() = "${baseUrl.trimEnd('/')}${normalizedChatPath(apiFormat, chatPath)}"
 
     val modelsEndpoint: String
         get() = "${baseUrl.trimEnd('/')}/models"
@@ -39,9 +37,23 @@ data class ApiProfile(
     }
 
     companion object {
+        const val DEFAULT_OPENAI_CHAT_PATH = "/chat/completions"
+        const val DEFAULT_ANTHROPIC_CHAT_PATH = "/messages"
         const val API_FORMAT_OPENAI = "openai"
         const val API_FORMAT_ANTHROPIC = "anthropic_messages"
         const val API_FORMAT_GEMINI = "gemini_generate_content"
+
+        fun defaultChatPath(apiFormat: String): String = when (apiFormat) {
+            API_FORMAT_ANTHROPIC -> DEFAULT_ANTHROPIC_CHAT_PATH
+            API_FORMAT_GEMINI -> "/models/{model}:generateContent"
+            else -> DEFAULT_OPENAI_CHAT_PATH
+        }
+
+        fun normalizedChatPath(apiFormat: String, value: String): String {
+            val fallback = defaultChatPath(apiFormat)
+            val trimmed = value.trim().ifBlank { fallback }
+            return if (trimmed.startsWith("/")) trimmed else "/$trimmed"
+        }
     }
 }
 
@@ -515,6 +527,7 @@ class AppSettings(context: Context) {
                             name = item.optString("name").ifBlank { "OpenAI" },
                             apiKey = item.optString("apiKey"),
                             baseUrl = item.optString("baseUrl").ifBlank { DEFAULT_BASE_URL },
+                            chatPath = ApiProfile.normalizedChatPath(apiFormat, item.optString("chatPath")),
                             apiFormat = apiFormat,
                             selectedModel = item.optString("selectedModel").ifBlank { DEFAULT_MODEL },
                             savedModels = savedModels,
@@ -534,6 +547,7 @@ class AppSettings(context: Context) {
                     .put("name", profile.name)
                     .put("apiKey", profile.apiKey)
                     .put("baseUrl", profile.baseUrl)
+                    .put("chatPath", ApiProfile.normalizedChatPath(profile.apiFormat, profile.chatPath))
                     .put("apiFormat", profile.apiFormat)
                     .put("selectedModel", profile.selectedModel)
                     .put("savedModels", JSONArray(profile.savedModels.distinct()))
@@ -1434,6 +1448,7 @@ class AppSettings(context: Context) {
             name = "OpenAI",
             apiKey = apiKey,
             baseUrl = apiEndpoint.removeSuffix("/chat/completions").ifBlank { DEFAULT_BASE_URL },
+            chatPath = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
             apiFormat = ApiProfile.API_FORMAT_OPENAI,
             selectedModel = model,
             savedModels = listOf(model).filter { it.isNotBlank() }.distinct(),
@@ -1620,6 +1635,7 @@ class AppSettings(context: Context) {
                     name = item.optString("name").ifBlank { "API" },
                     apiKey = item.optString("apiKey"),
                     baseUrl = item.optString("baseUrl").ifBlank { DEFAULT_BASE_URL },
+                    chatPath = ApiProfile.normalizedChatPath(apiFormat, item.optString("chatPath")),
                     apiFormat = apiFormat,
                     selectedModel = item.optString("selectedModel").ifBlank { DEFAULT_MODEL },
                     savedModels = savedModels,

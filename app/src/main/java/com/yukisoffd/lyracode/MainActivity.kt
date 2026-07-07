@@ -248,7 +248,7 @@ class MainActivity : ComponentActivity() {
         val agent = OpenAiAgent(this, settings, conversationStore, nativeFileManager, globalFileManager, termuxExecutor, workspaceManager, webAgent, mcpClientManager, sshExecutor, systemCommandExecutor, webDavClient, fileTransferClient, backupManager, miniServerManager, downloadTaskManager, scheduledTaskManager, responseCache)
         localMcpServerManager.attachAgent(agent)
         localMcpServerManager.syncWithSettings()
-        val chatController = ChatController(this, settings, conversationStore, uploadedFileManager, agent)
+        val chatController = ChatController(this, settings, conversationStore, uploadedFileManager, workspaceManager, agent)
         controller = chatController
 
         setContent {

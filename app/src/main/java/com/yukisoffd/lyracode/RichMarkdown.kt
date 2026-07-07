@@ -115,8 +115,9 @@ private val richMarkdownParser by lazy {
 
 private val inlineLatexRegex = Regex("\\\\\\((.+?)\\\\\\)")
 private val blockLatexRegex = Regex("\\\\\\[(.+?)\\\\\\]", RegexOption.DOT_MATCHES_ALL)
+private val displayLatexRegex = Regex("""\$\$([\s\S]+?)\$\$""")
 private val codeBlockRegex = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
-private val latexBlockLineBreakRegex = Regex("""[ \t]*\r?\n[ \t]*""")
+private const val latexDrawablePaddingPx = 2
 
 private data class RichMarkdownParseResult(
     val content: String,
@@ -160,20 +161,31 @@ private fun parseRichMarkdown(content: String, fallback: Boolean = false): RichM
 
 private fun preProcessMarkdownLatex(content: String): String {
     val codeRanges = codeBlockRegex.findAll(content).map { it.range }.toList()
-    fun inCodeBlock(index: Int): Boolean = codeRanges.any { index in it }
-    var result = inlineLatexRegex.replace(content) { match ->
-        if (inCodeBlock(match.range.first)) {
-            match.value
-        } else {
-            "$" + match.groupValues[1] + "$"
+    if (codeRanges.isEmpty()) return preProcessMarkdownLatexChunk(content)
+    val result = StringBuilder(content.length)
+    var cursor = 0
+    codeRanges.forEach { range ->
+        if (range.first > cursor) {
+            result.append(preProcessMarkdownLatexChunk(content.substring(cursor, range.first)))
         }
+        result.append(content.substring(range.first, range.last + 1))
+        cursor = range.last + 1
+    }
+    if (cursor < content.length) {
+        result.append(preProcessMarkdownLatexChunk(content.substring(cursor)))
+    }
+    return result.toString()
+}
+
+private fun preProcessMarkdownLatexChunk(content: String): String {
+    var result = displayLatexRegex.replace(content) { match ->
+        "\n$$\n" + match.groupValues[1].trim() + "\n$$\n"
+    }
+    result = inlineLatexRegex.replace(result) { match ->
+        "$" + match.groupValues[1] + "$"
     }
     result = blockLatexRegex.replace(result) { match ->
-        if (inCodeBlock(match.range.first)) {
-            match.value
-        } else {
-            "$$" + match.groupValues[1].trim().replace(latexBlockLineBreakRegex, " ") + "$$"
-        }
+        "\n$$\n" + match.groupValues[1].trim() + "\n$$\n"
     }
     return result
 }
@@ -546,6 +558,38 @@ private fun RichImage(node: ASTNode, content: String) {
 
 @Composable
 private fun RichInlineText(nodes: List<ASTNode>, content: String) {
+    if (nodesContainDisplayInlineMath(nodes, content)) {
+        RichInlineTextWithDisplayMath(nodes, content)
+        return
+    }
+    RichInlineTextLine(nodes, content)
+}
+
+@Composable
+private fun RichInlineTextWithDisplayMath(nodes: List<ASTNode>, content: String) {
+    val lineBuffer = mutableListOf<ASTNode>()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        @Composable
+        fun flushLine() {
+            if (lineBuffer.isNotEmpty()) {
+                RichInlineTextLine(lineBuffer.toList(), content)
+                lineBuffer.clear()
+            }
+        }
+        nodes.fastForEach { node ->
+            if (node.type == GFMElementTypes.INLINE_MATH && shouldDisplayInlineMath(node.getTextInNode(content))) {
+                flushLine()
+                RichMathBlock(node.getTextInNode(content))
+            } else {
+                lineBuffer += node
+            }
+        }
+        flushLine()
+    }
+}
+
+@Composable
+private fun RichInlineTextLine(nodes: List<ASTNode>, content: String) {
     val colorScheme = MaterialTheme.colorScheme
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
@@ -620,7 +664,7 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
             val fontSize = resolvedFontSize(style)
             val size = with(density) {
                 assumeLatexSize(formula, fontSize.toPx()).let {
-                    (it.width() + 12).toSp() to (it.height() + 8).toSp()
+                    (it.width() + 14).toSp() to (it.height() + 12).toSp()
                 }
             }
             inlineContents[id] = InlineTextContent(
@@ -674,7 +718,7 @@ private fun RichMathBlock(formula: String) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = 10.dp)
             .horizontalScroll(rememberScrollState()),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -682,7 +726,7 @@ private fun RichMathBlock(formula: String) {
             latex = formula,
             color = LocalContentColor.current,
             fontSize = MaterialTheme.typography.bodyLarge.fontSize,
-            modifier = Modifier.padding(vertical = 6.dp),
+            modifier = Modifier.padding(vertical = 8.dp),
         )
     }
 }
@@ -707,7 +751,7 @@ private fun RichLatexText(
                     .textSize(resolvedStyle.fontSize.toPx())
                     .color(resolvedStyle.color.toArgb())
                     .background(Color.Transparent.toArgb())
-                    .padding(0)
+                    .padding(latexDrawablePaddingPx)
                     .align(JLatexMathDrawable.ALIGN_LEFT)
                     .build()
             }
@@ -733,7 +777,7 @@ private fun assumeLatexSize(latex: String, fontSizePx: Float): Rect = runCatchin
     val processed = processLatex(latex)
     val bounds = JLatexMathDrawable.builder(processed)
         .textSize(fontSizePx)
-        .padding(0)
+        .padding(latexDrawablePaddingPx)
         .build()
         .bounds
     if (bounds.width() > 0 && bounds.height() > 0) {
@@ -744,15 +788,194 @@ private fun assumeLatexSize(latex: String, fontSizePx: Float): Rect = runCatchin
 }.getOrDefault(Rect(0, 0, 0, 0))
 
 private fun processLatex(raw: String): String {
-    val text = raw.trim()
-    return when {
+    var text = raw.trim()
+    text = when {
         text.startsWith("$$") && text.endsWith("$$") -> text.removeSurrounding("$$").trim()
         text.startsWith("$") && text.endsWith("$") -> text.removeSurrounding("$").trim()
         text.startsWith("\\(") && text.endsWith("\\)") -> text.removeSurrounding("\\(", "\\)").trim()
         text.startsWith("\\[") && text.endsWith("\\]") -> text.removeSurrounding("\\[", "\\]").trim()
         else -> text
     }
+    text = text
+        .replace(Regex("""\\\\(?=[A-Za-z])"""), "\\")
+        .replace("\\\\(", "\\(")
+        .replace("\\\\)", "\\)")
+        .replace("\\\\[", "\\[")
+        .replace("\\\\]", "\\]")
+    return replaceLatexCommandBody(text, "\\ce") { renderChemicalFormulaForLatex(it) }
 }
+
+private fun nodesContainDisplayInlineMath(nodes: List<ASTNode>, content: String): Boolean {
+    return nodes.any { node ->
+        if (node.type == GFMElementTypes.INLINE_MATH && shouldDisplayInlineMath(node.getTextInNode(content))) {
+            true
+        } else {
+            nodesContainDisplayInlineMath(node.children, content)
+        }
+    }
+}
+
+private fun shouldDisplayInlineMath(formula: String): Boolean {
+    val processed = processLatex(formula)
+    if (processed.contains("\\begin{matrix}") ||
+        processed.contains("\\begin{pmatrix}") ||
+        processed.contains("\\begin{bmatrix}") ||
+        processed.contains("\\begin{vmatrix}") ||
+        processed.contains("\\begin{Vmatrix}") ||
+        processed.contains("\\begin{array}") ||
+        processed.contains("\\dfrac") ||
+        processed.contains("\\displaystyle")
+    ) {
+        return true
+    }
+    val bounds = assumeLatexSize(processed, 16f)
+    return bounds.height() > 38 || bounds.width() > 520
+}
+
+private fun replaceLatexCommandBody(
+    input: String,
+    command: String,
+    transform: (String) -> String,
+): String {
+    if (!input.contains(command)) return input
+    val output = StringBuilder(input.length)
+    var index = 0
+    while (index < input.length) {
+        val commandIndex = input.indexOf(command, startIndex = index)
+        if (commandIndex < 0) {
+            output.append(input, index, input.length)
+            break
+        }
+        output.append(input, index, commandIndex)
+        var cursor = commandIndex + command.length
+        while (cursor < input.length && input[cursor].isWhitespace()) cursor++
+        if (cursor >= input.length || input[cursor] != '{') {
+            output.append(command)
+            index = commandIndex + command.length
+            continue
+        }
+        val bodyStart = cursor + 1
+        var depth = 1
+        cursor++
+        while (cursor < input.length && depth > 0) {
+            when (input[cursor]) {
+                '{' -> depth++
+                '}' -> depth--
+            }
+            cursor++
+        }
+        if (depth != 0) {
+            output.append(input, commandIndex, input.length)
+            break
+        }
+        val body = input.substring(bodyStart, cursor - 1)
+        output.append(transform(body))
+        index = cursor
+    }
+    return output.toString()
+}
+
+private fun renderChemicalFormulaForLatex(raw: String): String {
+    val text = raw.trim()
+    val output = StringBuilder(text.length * 2)
+    var index = 0
+    var atTermStart = true
+    while (index < text.length) {
+        when {
+            text.startsWith("<->", index) || text.startsWith("<=>", index) -> {
+                output.append(" \\leftrightarrow ")
+                index += 3
+                atTermStart = true
+            }
+            text.startsWith("->", index) || text.startsWith("=>", index) -> {
+                output.append(" \\rightarrow ")
+                index += 2
+                atTermStart = true
+            }
+            text[index].isWhitespace() -> {
+                if (output.isNotEmpty() && !output.endsWithSpace()) output.append(' ')
+                index++
+            }
+            text[index] == '+' -> {
+                output.append(" + ")
+                index++
+                atTermStart = true
+            }
+            text[index] == '-' -> {
+                output.append(" - ")
+                index++
+                atTermStart = true
+            }
+            text[index] == '^' || text[index] == '_' -> {
+                val marker = text[index]
+                val parsed = parseChemScript(text, index + 1)
+                output.append(marker).append('{').append(parsed.first).append('}')
+                index = parsed.second
+                atTermStart = false
+            }
+            text[index].isDigit() -> {
+                val start = index
+                while (index < text.length && text[index].isDigit()) index++
+                val digits = text.substring(start, index)
+                if (atTermStart) {
+                    output.append(digits)
+                } else {
+                    output.append("_{").append(digits).append('}')
+                }
+                atTermStart = false
+            }
+            text[index].isLetter() -> {
+                val start = index
+                while (index < text.length && text[index].isLetter()) index++
+                output.append("\\mathrm{").append(text.substring(start, index)).append('}')
+                atTermStart = false
+            }
+            text[index] == '(' -> {
+                val end = text.indexOf(')', startIndex = index + 1)
+                if (end > index) {
+                    output.append("\\mathrm{").append(text.substring(index, end + 1)).append('}')
+                    index = end + 1
+                } else {
+                    output.append("\\mathrm{(}")
+                    index++
+                }
+                atTermStart = false
+            }
+            text[index] == '\\' -> {
+                val start = index
+                index++
+                while (index < text.length && text[index].isLetter()) index++
+                output.append(text.substring(start, index))
+                atTermStart = false
+            }
+            else -> {
+                output.append(text[index])
+                atTermStart = false
+                index++
+            }
+        }
+    }
+    return output.toString().trim()
+}
+
+private fun parseChemScript(text: String, start: Int): Pair<String, Int> {
+    if (start >= text.length) return "" to start
+    if (text[start] == '{') {
+        var depth = 1
+        var cursor = start + 1
+        while (cursor < text.length && depth > 0) {
+            when (text[cursor]) {
+                '{' -> depth++
+                '}' -> depth--
+            }
+            cursor++
+        }
+        if (depth == 0) return text.substring(start + 1, cursor - 1) to cursor
+    }
+    return text[start].toString() to (start + 1)
+}
+
+private fun StringBuilder.endsWithSpace(): Boolean = isNotEmpty() && this[length - 1].isWhitespace()
 
 private fun resolvedFontSize(style: TextStyle, override: TextUnit = TextUnit.Unspecified): TextUnit {
     if (override.isSpecified) return override

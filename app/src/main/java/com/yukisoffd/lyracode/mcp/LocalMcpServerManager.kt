@@ -114,7 +114,7 @@ class LocalMcpServerManager(private val settings: AppSettings) {
         serverSocket = null
         message = "已停止"
         if (saveDisabled) {
-            val disabled = currentConfig.copy(enabled = false)
+            val disabled = settings.localMcpServerConfig().copy(enabled = false)
             currentConfig = disabled
             settings.saveLocalMcpServerConfig(disabled)
         }
@@ -251,8 +251,17 @@ class LocalMcpServerManager(private val settings: AppSettings) {
         val key = config.authKey.trim()
         if (key.isBlank()) return true
         val authorization = headers["authorization"].orEmpty()
+        val bearerKey = authorization.substringAfter(' ', "").trim().takeIf {
+            authorization.substringBefore(' ').equals("Bearer", ignoreCase = true)
+        }.orEmpty()
         val xKey = headers["x-lyra-mcp-key"].orEmpty()
-        return authorization == key || authorization.equals("Bearer $key", ignoreCase = true) || xKey == key
+        val xApiKey = headers["x-api-key"].orEmpty()
+        val apiKey = headers["api-key"].orEmpty()
+        return authorization == key ||
+            bearerKey == key ||
+            xKey == key ||
+            xApiKey == key ||
+            apiKey == key
     }
 
     private fun writeJson(output: OutputStream, json: JSONObject, status: Int = 200) {
@@ -274,7 +283,7 @@ class LocalMcpServerManager(private val settings: AppSettings) {
                 append("HTTP/1.1 $status $reason\r\n")
                 append("Content-Type: application/json; charset=utf-8\r\n")
                 append("Access-Control-Allow-Origin: *\r\n")
-                append("Access-Control-Allow-Headers: Content-Type, Authorization, X-Lyra-MCP-Key, Mcp-Protocol-Version\r\n")
+                append("Access-Control-Allow-Headers: Content-Type, Authorization, X-Lyra-MCP-Key, X-API-Key, Api-Key, Mcp-Protocol-Version\r\n")
                 append("Access-Control-Allow-Methods: GET, POST, OPTIONS\r\n")
                 append("Content-Length: ${bytes.size}\r\n")
                 append("Connection: close\r\n\r\n")

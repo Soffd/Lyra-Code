@@ -20,6 +20,7 @@ import android.content.Context
 import com.yukisoffd.lyracode.data.ConversationStore
 import com.yukisoffd.lyracode.workspace.UploadedFile
 import com.yukisoffd.lyracode.workspace.UploadedFileManager
+import com.yukisoffd.lyracode.workspace.WorkspaceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -41,6 +42,7 @@ class ChatController(
     private val settings: AppSettings,
     private val conversationStore: ConversationStore,
     private val uploadedFileManager: UploadedFileManager,
+    private val workspaceManager: WorkspaceManager,
     private val agent: OpenAiAgent,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -63,6 +65,8 @@ class ChatController(
     private var approvalId = 0L
     private val approvalWaiters = mutableMapOf<Long, CompletableDeferred<ToolApprovalDecision>>()
     private val autoApprovedConversations = mutableSetOf<Long>()
+    private var transientWorkspaceUri = ""
+    private var transientAutoApprovalEnabled = false
     private val todoByConversation = mutableMapOf<Long, MutableList<TodoItem>>()
 
     init {
@@ -163,8 +167,10 @@ class ChatController(
             title = if (isRoleplayMode()) settings.roleplayScenarios().firstOrNull { it.id == roleplayId }?.name ?: appContext.getString(R.string.title_immersive_chat) else appContext.getString(R.string.title_new_chat),
             mode = if (isRoleplayMode()) ConversationStore.MODE_ROLEPLAY else ConversationStore.MODE_NORMAL,
             roleplayId = roleplayId,
+            workspaceUri = transientWorkspaceUri,
         )
         todoByConversation[id] = mutableListOf()
+        if (transientAutoApprovalEnabled) autoApprovedConversations += id
         reloadConversations()
         selectConversation(id)
         return id
@@ -177,6 +183,10 @@ class ChatController(
         pendingUploads.clear()
         uploadingStatus.value = ""
         status.value = ""
+        transientWorkspaceUri = ""
+        transientAutoApprovalEnabled = false
+        workspaceManager.setActiveWorkspaceUri("")
+        settingsRevision.intValue++
     }
 
     fun requestNewConversation(): Boolean {
@@ -193,6 +203,7 @@ class ChatController(
         if (conversation != null) {
             activeProfileId.value = conversation.profileId.ifBlank { activeProfileId.value }
             activeModel.value = conversation.model.ifBlank { activeModel.value }
+            workspaceManager.setActiveWorkspaceUri(conversation.workspaceUri)
         }
         reloadMessages()
         reloadTodos()
@@ -215,6 +226,36 @@ class ChatController(
     fun renameConversation(id: Long, title: String) {
         conversationStore.setConversationMeta(id, title = title)
         reloadConversations()
+    }
+
+    fun persistWorkspaceForActiveSession(uri: Uri): String {
+        val workspaceUri = workspaceManager.persistWorkspace(uri)
+        val conversationId = activeConversationId.value
+        if (conversationId > 0L) {
+            conversationStore.setConversationMeta(conversationId, workspaceUri = workspaceUri)
+            reloadConversations()
+        } else {
+            transientWorkspaceUri = workspaceUri
+        }
+        settingsRevision.intValue++
+        return workspaceManager.displayName()
+    }
+
+    fun workspaceDisplayName(): String = workspaceManager.displayName()
+
+    fun isAutoApprovalEnabledForActiveSession(): Boolean {
+        val conversationId = activeConversationId.value
+        return if (conversationId > 0L) conversationId in autoApprovedConversations else transientAutoApprovalEnabled
+    }
+
+    fun setAutoApprovalForActiveSession(enabled: Boolean) {
+        val conversationId = activeConversationId.value
+        if (conversationId > 0L) {
+            if (enabled) autoApprovedConversations += conversationId else autoApprovedConversations -= conversationId
+        } else {
+            transientAutoApprovalEnabled = enabled
+        }
+        settingsRevision.intValue++
     }
 
     fun setConversationPinned(id: Long, pinned: Boolean) {
@@ -249,8 +290,9 @@ class ChatController(
         val uploads = pendingUploads.toList()
         if (text.isBlank() && uploads.isEmpty()) return
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: createPersistedConversation()
+        conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         if (jobs[conversationId]?.isActive == true) return
-        val profile = currentProfile()
+       val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         val userInput = composeUserInput(text, uploads)
         conversationStore.setConversationMeta(
@@ -301,6 +343,7 @@ class ChatController(
     fun continueActive() {
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: return
         if (jobs[conversationId]?.isActive == true) return
+        conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         jobs[conversationId] = scope.launch {
@@ -322,6 +365,7 @@ class ChatController(
         if (jobs[conversationId]?.isActive == true) return
         val message = conversationStore.message(messageId) ?: return
         if (message.conversationId != conversationId || message.role != "user") return
+        conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         val content = newContent.trim().ifBlank { message.content }
         conversationStore.updateMessage(messageId, content = content, thinking = "")
         conversationStore.deleteMessagesAfter(conversationId, messageId)
@@ -474,6 +518,7 @@ class ChatController(
             if (next == null) {
                 activeConversationId.value = 0L
                 _messages.value = emptyList()
+                workspaceManager.setActiveWorkspaceUri("")
             } else {
                 selectConversation(next)
             }

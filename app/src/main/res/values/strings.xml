@@ -120,6 +120,15 @@
     <string name="label_not_selected">未选择</string>
     <string name="action_fetch_models">获取当前平台模型</string>
     <string name="subtitle_fetch_models">从 models 端点刷新可用模型</string>
+    <string name="label_workspace_session">当前会话工作区</string>
+    <string name="label_no_workspace">未选择工作区</string>
+    <string name="notice_workspace_selected_current_chat">已为当前会话选择工作区：%1$s</string>
+    <string name="label_auto_approve">无审批</string>
+    <string name="subtitle_auto_approve_off">仅当前会话生效，开启前需要确认风险</string>
+    <string name="subtitle_auto_approve_on">已开启：需要审批的操作将自动同意</string>
+    <string name="title_enable_auto_approve">开启无审批</string>
+    <string name="auto_approve_warning">开启后，AI 执行需要用户审批的操作时将自动同意。可能导致文件被修改、命令被执行或远程服务被调用，请只在信任当前任务时开启。该设置仅对当前会话生效。</string>
+    <string name="action_enable_auto_approve">确认开启</string>
     <string name="label_prompt">提示词</string>
     <string name="label_default_assistant">默认助手</string>
     <string name="label_reasoning">推理深度</string>

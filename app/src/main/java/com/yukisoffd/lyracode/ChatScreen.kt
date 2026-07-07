@@ -999,6 +999,22 @@ internal fun AttachmentActionBottomSheet(
         settings.systemPromptPresets().filterNot { it.id == "roleplay" }
     }
     val activePrompt = prompts.firstOrNull { it.id == settings.selectedSystemPromptId } ?: prompts.firstOrNull()
+    var autoApproveConfirmOpen by rememberSaveable { mutableStateOf(false) }
+    val autoApprovalEnabled = controller.isAutoApprovalEnabledForActiveSession()
+    if (autoApproveConfirmOpen) {
+        AlertDialog(
+            onDismissRequest = { autoApproveConfirmOpen = false },
+            title = { Text(uiText(stringResource(R.string.title_enable_auto_approve))) },
+            text = { Text(uiText(stringResource(R.string.auto_approve_warning))) },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.setAutoApprovalForActiveSession(true)
+                    autoApproveConfirmOpen = false
+                }) { Text(uiText(stringResource(R.string.action_enable_auto_approve))) }
+            },
+            dismissButton = { TextButton(onClick = { autoApproveConfirmOpen = false }) { Text(uiText(stringResource(R.string.action_cancel))) } },
+        )
+    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1154,6 +1170,15 @@ internal fun AttachmentActionBottomSheet(
                                 ActionSheetTile(Icons.Default.PhotoCamera, uiText(stringResource(R.string.action_camera)), Modifier.weight(1f), onTakePhoto)
                                 ActionSheetTile(Icons.Default.AttachFile, uiText(stringResource(R.string.action_file)), Modifier.weight(1f), onPickFile)
                             }
+                            ActionSheetSwitchRow(
+                                icon = Icons.Default.AdminPanelSettings,
+                                title = uiText(stringResource(R.string.label_auto_approve)),
+                                subtitle = uiText(stringResource(if (autoApprovalEnabled) R.string.subtitle_auto_approve_on else R.string.subtitle_auto_approve_off)),
+                                checked = autoApprovalEnabled,
+                                onCheckedChange = { enabled ->
+                                    if (enabled) autoApproveConfirmOpen = true else controller.setAutoApprovalForActiveSession(false)
+                                },
+                            )
                             if (controller.isRoleplayMode()) {
                                 KimiDivider()
                                 ActionSheetRow(

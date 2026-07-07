@@ -19,6 +19,7 @@ data class Conversation(
     val pinnedAt: Long,
     val mode: String = ConversationStore.MODE_NORMAL,
     val roleplayId: String = "",
+    val workspaceUri: String = "",
 )
 
 data class ChatMessage(
@@ -38,7 +39,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    3,
+    4,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -53,7 +54,8 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 updated_at INTEGER NOT NULL,
                 pinned_at INTEGER NOT NULL DEFAULT 0,
                 mode TEXT NOT NULL DEFAULT 'normal',
-                roleplay_id TEXT NOT NULL DEFAULT ''
+                roleplay_id TEXT NOT NULL DEFAULT '',
+                workspace_uri TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent(),
         )
@@ -83,6 +85,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             db.execSQL("ALTER TABLE conversations ADD COLUMN mode TEXT NOT NULL DEFAULT 'normal'")
             db.execSQL("ALTER TABLE conversations ADD COLUMN roleplay_id TEXT NOT NULL DEFAULT ''")
         }
+        if (oldVersion < 4) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN workspace_uri TEXT NOT NULL DEFAULT ''")
+        }
     }
 
     fun createConversation(
@@ -91,6 +96,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         title: String = appContext.getString(R.string.default_conversation_title),
         mode: String = MODE_NORMAL,
         roleplayId: String = "",
+        workspaceUri: String = "",
     ): Long {
         val now = System.currentTimeMillis()
         return writableDatabase.insert(
@@ -105,6 +111,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("updated_at", now)
                 put("mode", mode)
                 put("roleplay_id", roleplayId)
+                put("workspace_uri", workspaceUri)
             },
         )
     }
@@ -119,6 +126,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         pinnedAt: Long,
         mode: String,
         roleplayId: String,
+        workspaceUri: String,
     ): Long {
         return writableDatabase.insert(
             "conversations",
@@ -133,6 +141,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("pinned_at", pinnedAt)
                 put("mode", mode)
                 put("roleplay_id", roleplayId)
+                put("workspace_uri", workspaceUri)
             },
         )
     }
@@ -154,7 +163,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         }
         val cursor = readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id", "workspace_uri"),
             clauses.joinToString(" AND ").ifBlank { null },
             args.toTypedArray().ifEmpty { null },
             null,
@@ -176,6 +185,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             pinnedAt = it.getLong(7),
                             mode = it.getString(8),
                             roleplayId = it.getString(9),
+                            workspaceUri = it.getString(10),
                         ),
                     )
                 }
@@ -186,7 +196,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun conversation(id: Long): Conversation? {
         return readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id", "workspace_uri"),
             "id=?",
             arrayOf(id.toString()),
             null,
@@ -194,7 +204,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             null,
         ).use {
             if (!it.moveToFirst()) return null
-            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getString(8), it.getString(9))
+            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getString(8), it.getString(9), it.getString(10))
         }
     }
 
@@ -216,12 +226,13 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         conversations(MODE_ROLEPLAY, roleplayId).forEach { deleteConversation(it.id) }
     }
 
-    fun setConversationMeta(id: Long, title: String? = null, status: String? = null, profileId: String? = null, model: String? = null) {
+    fun setConversationMeta(id: Long, title: String? = null, status: String? = null, profileId: String? = null, model: String? = null, workspaceUri: String? = null) {
         val values = ContentValues().apply {
             title?.let { put("title", it.take(120)) }
             status?.let { put("status", it) }
             profileId?.let { put("profile_id", it) }
             model?.let { put("model", it) }
+            workspaceUri?.let { put("workspace_uri", it) }
             put("updated_at", System.currentTimeMillis())
         }
         writableDatabase.update("conversations", values, "id=?", arrayOf(id.toString()))
@@ -382,6 +393,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             .put("pinnedAt", conversation.pinnedAt)
                             .put("mode", conversation.mode)
                             .put("roleplayId", conversation.roleplayId)
+                            .put("workspaceUri", conversation.workspaceUri)
                             .put("messages", JSONArray().also { messages ->
                                 messages(conversation.id).forEach { message ->
                                     messages.put(
@@ -441,6 +453,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 pinnedAt = item.optLong("pinnedAt", 0L),
                 mode = item.optString("mode").ifBlank { MODE_NORMAL },
                 roleplayId = item.optString("roleplayId"),
+                workspaceUri = item.optString("workspaceUri"),
             )
             for (messageIndex in 0 until messages.length()) {
                 val message = messages.optJSONObject(messageIndex) ?: continue

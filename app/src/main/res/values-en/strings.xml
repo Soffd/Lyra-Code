@@ -119,6 +119,15 @@
     <string name="label_not_selected">Not selected</string>
     <string name="action_fetch_models">Fetch models</string>
     <string name="subtitle_fetch_models">Refresh available models from the models endpoint</string>
+    <string name="label_workspace_session">Workspace for this chat</string>
+    <string name="label_no_workspace">No workspace selected</string>
+    <string name="notice_workspace_selected_current_chat">Workspace selected for this chat: %1$s</string>
+    <string name="label_auto_approve">No approval</string>
+    <string name="subtitle_auto_approve_off">Current chat only; confirmation required before enabling</string>
+    <string name="subtitle_auto_approve_on">Enabled: approval requests will be accepted automatically</string>
+    <string name="title_enable_auto_approve">Enable no approval</string>
+    <string name="auto_approve_warning">After enabling this, AI actions that normally require your approval will be approved automatically. This may modify files, run commands, or call remote services. Enable it only when you trust the current task. This setting only applies to the current chat.</string>
+    <string name="action_enable_auto_approve">Enable</string>
     <string name="label_prompt">Prompt</string>
     <string name="label_default_assistant">Default assistant</string>
     <string name="label_reasoning">Reasoning depth</string>

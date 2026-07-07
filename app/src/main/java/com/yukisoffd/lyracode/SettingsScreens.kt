@@ -246,7 +246,6 @@ internal fun SettingsScreen(
     backupManager: BackupManager,
     miniServerManager: MiniServerManager,
     localMcpServerManager: LocalMcpServerManager,
-    workspaceDisplayName: String,
     skills: List<SkillPack>,
     skillStatus: String,
     backupStatus: String,
@@ -262,7 +261,6 @@ internal fun SettingsScreen(
     customFontScale: Float,
     onFontScaleModeChange: (String) -> Unit,
     onCustomFontScaleChange: (Float) -> Unit,
-    onPickWorkspace: () -> Unit,
     onImportSkillFile: () -> Unit,
     onImportSkillRepository: (String) -> Unit,
     onImportSkillMarkdown: (String) -> Unit,
@@ -319,7 +317,7 @@ internal fun SettingsScreen(
                     "profile" -> ProfileSettingsSummary(settings)
                     "model" -> ModelServiceSettings(settings, controller)
                     "sub_agents" -> SubAgentSettings(settings, controller)
-                    "workspace" -> WorkspaceSettings(workspaceDisplayName, workspaceManager, onPickWorkspace)
+
                     "theme" -> ThemeSettings(
                         settings = settings,
                         themeMode = themeMode,
@@ -428,8 +426,6 @@ internal fun SettingsScreen(
                 KimiMenuRow(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc)) { detail = "sub_agents" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Search, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc)) { detail = "web_search" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Folder, context.getString(R.string.menu_workspace), context.getString(R.string.menu_workspace_current, workspaceDisplayName)) { detail = "workspace" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Terminal, context.getString(R.string.menu_termux), context.getString(R.string.menu_termux_desc)) { detail = "termux" }
                 KimiDivider()
@@ -844,6 +840,7 @@ internal fun ModelServiceSettings(
     var key by remember(editKey) { mutableStateOf(current?.apiKey.orEmpty()) }
     var baseUrl by remember(editKey) { mutableStateOf(current?.baseUrl.orEmpty()) }
     var apiFormat by remember(editKey) { mutableStateOf(current?.apiFormat ?: ApiProfile.API_FORMAT_OPENAI) }
+    var chatPath by remember(editKey) { mutableStateOf(current?.chatPath ?: ApiProfile.defaultChatPath(apiFormat)) }
     var model by remember(editKey) { mutableStateOf(current?.selectedModel.orEmpty()) }
     var savedModels by remember(editKey) { mutableStateOf(current?.savedModels.orEmpty().joinToString("\n")) }
     var status by remember { mutableStateOf("") }
@@ -857,6 +854,7 @@ internal fun ModelServiceSettings(
             name = name.ifBlank { uiText("未命名平台") },
             apiKey = key,
             baseUrl = baseUrl.ifBlank { defaultBaseUrlForApiFormat(apiFormat) },
+            chatPath = ApiProfile.normalizedChatPath(apiFormat, chatPath),
             apiFormat = apiFormat,
             selectedModel = selected.ifBlank { "gpt-4o-mini" },
             savedModels = models.ifEmpty { listOf(selected.ifBlank { "gpt-4o-mini" }) }.distinct(),
@@ -929,6 +927,7 @@ internal fun ModelServiceSettings(
                                 name = uiText("新平台"),
                                 apiKey = "",
                                 baseUrl = "https://api.openai.com/v1",
+                                chatPath = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
                                 apiFormat = ApiProfile.API_FORMAT_OPENAI,
                                 selectedModel = "gpt-4o-mini",
                                 savedModels = listOf("gpt-4o-mini"),
@@ -982,14 +981,17 @@ internal fun ModelServiceSettings(
                         ApiFormatOption("OpenAI SDK", ApiProfile.API_FORMAT_OPENAI, apiFormat) {
                             apiFormat = it
                             if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
                         }
                         ApiFormatOption("Anthropic Messages", ApiProfile.API_FORMAT_ANTHROPIC, apiFormat) {
                             apiFormat = it
                             if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
                         }
                         ApiFormatOption("Gemini GenerateContent", ApiProfile.API_FORMAT_GEMINI, apiFormat) {
                             apiFormat = it
                             if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
                         }
                     }
                     Text(
@@ -1000,6 +1002,19 @@ internal fun ModelServiceSettings(
                     OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("服务商名称")) }, singleLine = true)
                     OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), label = { Text(apiKeyLabel(apiFormat)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                     OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("基础 URL")) }, singleLine = true)
+                    OutlinedTextField(
+                        value = chatPath,
+                        onValueChange = { chatPath = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(uiText("请求路径")) },
+                        placeholder = { Text(ApiProfile.defaultChatPath(apiFormat)) },
+                        singleLine = true,
+                    )
+                    Text(
+                        uiText("用于兼容非默认 OpenAI 路径的服务商。留空时使用当前接口格式的默认请求路径。"),
+                        color = KimiMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     if (baseUrl.trim().startsWith("http://", ignoreCase = true)) {
                         Text(
                             uiText("安全提示：当前基础 URL 使用 HTTP 明文传输，API Key 和对话内容可能被同一网络中的第三方截获。"),
@@ -1008,7 +1023,7 @@ internal fun ModelServiceSettings(
                         )
                     }
                     Text(
-                        endpointHint(apiFormat, baseUrl),
+                        endpointHint(apiFormat, baseUrl, chatPath),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -1065,16 +1080,46 @@ internal fun ModelServiceSettings(
             }
         }
         }
-        TransientNotice(
+        ScreenCenterNotice(
             message = notice,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .padding(24.dp),
             onDismiss = { notice = "" },
         )
     }
 }
 
+
+@Composable
+internal fun ScreenCenterNotice(
+    message: String,
+    durationMillis: Long = 2400L,
+    onDismiss: () -> Unit,
+) {
+    if (message.isBlank()) return
+    LaunchedEffect(message) {
+        kotlinx.coroutines.delay(durationMillis)
+        onDismiss()
+    }
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Surface(
+            modifier = Modifier
+                .padding(24.dp)
+                .widthIn(max = 320.dp),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.inverseSurface.copy(alpha = 0.96f),
+            contentColor = MaterialTheme.colorScheme.inverseOnSurface,
+            tonalElevation = 8.dp,
+        ) {
+            Text(
+                text = message,
+                modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
 @Composable
 internal fun SubAgentSettings(settings: AppSettings, controller: ChatController) {
     var revision by remember { mutableIntStateOf(0) }
@@ -1353,6 +1398,11 @@ internal fun knownProviderBaseUrls(): Set<String> = setOf(
     "https://generativelanguage.googleapis.com/v1beta",
 )
 
+internal fun knownProviderChatPaths(): Set<String> = setOf(
+    ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
+    ApiProfile.DEFAULT_ANTHROPIC_CHAT_PATH,
+    "/models/{model}:generateContent",
+)
 internal fun apiKeyLabel(format: String): String = when (format) {
     ApiProfile.API_FORMAT_ANTHROPIC -> "Anthropic API Key"
     ApiProfile.API_FORMAT_GEMINI -> "Google API Key"
@@ -1365,12 +1415,12 @@ internal fun apiFormatDescription(format: String): String = when (format) {
     else -> uiText("适用于 OpenAI Chat Completions SDK 兼容平台。原有工具调用、流式输出和多模态 image_url 路径保持不变。")
 }
 
-internal fun endpointHint(format: String, baseUrl: String): String {
+internal fun endpointHint(format: String, baseUrl: String, chatPath: String): String {
     val root = baseUrl.trim().trimEnd('/').ifBlank { defaultBaseUrlForApiFormat(format) }
+    val path = ApiProfile.normalizedChatPath(format, chatPath)
     return when (format) {
-        ApiProfile.API_FORMAT_ANTHROPIC -> uiText("请求端点：$root/messages；模型列表：$root/models")
         ApiProfile.API_FORMAT_GEMINI -> uiText("请求端点：$root/models/{model}:generateContent；模型列表：$root/models")
-        else -> uiText("请求端点：$root/chat/completions；模型列表：$root/models")
+        else -> uiText("请求端点：$root$path；模型列表：$root/models")
     }
 }
 
@@ -3980,10 +4030,14 @@ internal fun LocalMcpServerSettings(
     val localStatus = remember(revision, externalRevision) { localMcpServerManager.status() }
     var editing by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf("") }
+    val clipboard = LocalClipboardManager.current
 
     LaunchedEffect(Unit) {
         localMcpServerManager.syncWithSettings()
         revision++
+    }
+    val externalConnectionJson = remember(localConfig, localStatus.url, localStatus.lanUrls) {
+        buildLocalMcpExternalConnectionJson(localConfig, localStatus.url, localStatus.lanUrls)
     }
 
     if (editing) {
@@ -4083,7 +4137,50 @@ internal fun LocalMcpServerSettings(
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
+        Text(uiText("外部连接原始 JSON"), style = MaterialTheme.typography.titleSmall)
+        CommandCopyCard(
+            command = externalConnectionJson,
+            buttonText = uiText("复制外部连接 JSON"),
+            onCopy = { clipboard.setText(AnnotatedString(externalConnectionJson)) },
+        )
+        Text(
+            uiText("复制配置默认只包含 Mcp-Protocol-Version 和 Authorization。X-Lyra-MCP-Key、X-API-Key、Api-Key 是兼容替代写法，不需要同时填写。请求地址必须是 /mcp。"),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
+}
+
+internal fun buildLocalMcpExternalConnectionJson(
+    config: LocalMcpServerConfig,
+    url: String,
+    lanUrls: List<String>,
+): String {
+    val key = config.authKey.trim()
+    val headers = JSONObject()
+        .put("Mcp-Protocol-Version", "2025-06-18")
+    if (key.isNotBlank()) {
+        headers.put("Authorization", if (key.startsWith("Bearer ", ignoreCase = true)) key else "Bearer $key")
+    }
+    val server = JSONObject()
+        .put("type", "streamableHttp")
+        .put("transport", "streamable_http")
+        .put("name", "Lyra Code")
+        .put("url", url)
+        .put("baseUrl", url)
+        .put("headers", headers)
+    val root = JSONObject()
+        .put("protocolVersion", "2025-06-18")
+        .put("mcpServers", JSONObject().put("lyra_code", server))
+        .put(
+            "direct",
+            JSONObject()
+                .put("method", "POST")
+                .put("url", url)
+                .put("headers", headers),
+        )
+    if (lanUrls.isNotEmpty()) root.put("alternativeUrls", JSONArray(lanUrls))
+    return root.toString(2)
 }
 
 @Composable

@@ -254,7 +254,7 @@ internal fun LyraCodeApp(
     val controllerStatus = controller.status.value
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
-    var workspaceName by remember { mutableStateOf(workspaceManager.displayName()) }
+    val workspaceName = remember(controller.activeConversationId.value, controller.settingsRevision.intValue) { controller.workspaceDisplayName() }
     var nickname by remember { mutableStateOf(settings.userNickname) }
     var avatarPath by remember { mutableStateOf(settings.userAvatarPath) }
     var skillsRevision by remember { mutableIntStateOf(0) }
@@ -329,8 +329,8 @@ internal fun LyraCodeApp(
     }
     val treeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
-            workspaceManager.persistWorkspace(uri)
-            workspaceName = workspaceManager.displayName()
+            val selectedName = controller.persistWorkspaceForActiveSession(uri)
+            appNotice = context.getString(R.string.notice_workspace_selected_current_chat, selectedName)
         }
     }
     fun updateSkillImportStatus(result: Result<SkillPack>) {
@@ -566,7 +566,6 @@ internal fun LyraCodeApp(
                             backupManager = backupManager,
                             miniServerManager = miniServerManager,
                             localMcpServerManager = localMcpServerManager,
-                            workspaceDisplayName = workspaceName,
                             skills = skills,
                             skillStatus = skillStatus,
                             backupStatus = backupStatus,
@@ -582,7 +581,6 @@ internal fun LyraCodeApp(
                             customFontScale = customFontScale,
                             onFontScaleModeChange = onFontScaleModeChange,
                             onCustomFontScaleChange = onCustomFontScaleChange,
-                            onPickWorkspace = { treeLauncher.launch(null) },
                             onImportSkillFile = { skillFileLauncher.launch("*/*") },
                             onImportSkillRepository = { url ->
                                 skillStatus = context.getString(R.string.skill_downloading)
