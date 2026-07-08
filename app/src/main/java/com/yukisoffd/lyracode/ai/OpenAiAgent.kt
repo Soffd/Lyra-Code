@@ -15,6 +15,7 @@ import com.yukisoffd.lyracode.data.BackupManager
 import com.yukisoffd.lyracode.data.BackupOptions
 import com.yukisoffd.lyracode.data.ChatMessage
 import com.yukisoffd.lyracode.data.ConversationStore
+import com.yukisoffd.lyracode.data.DeepSeekV3Tokenizer
 import com.yukisoffd.lyracode.data.FileTransferServerConfig
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
@@ -54,6 +55,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
 import java.net.URI
 import java.security.MessageDigest
 import java.text.SimpleDateFormat
@@ -75,6 +77,7 @@ data class ChatRecord(
     val profileId: String = "",
     val model: String = "",
     val createdAt: Long = System.currentTimeMillis(),
+    val tokensPerSecond: Double = 0.0,
 )
 
 data class ChatUpdate(
@@ -82,8 +85,31 @@ data class ChatUpdate(
     val thinking: String,
     val status: String,
     val messageId: Long = 0L,
+    val tokensPerSecond: Double = 0.0,
 )
 
+
+data class ModelReachabilityResult(
+    val model: String,
+    val available: Boolean,
+    val latencyMs: Long,
+    val message: String,
+    val statusCode: Int? = null,
+)
+
+data class ProviderReachabilityResult(
+    val available: Boolean,
+    val latencyMs: Long,
+    val message: String,
+    val statusCode: Int? = null,
+)
+
+data class ProviderReachabilityReport(
+    val providerAvailable: Boolean,
+    val providerLatencyMs: Long,
+    val providerMessage: String,
+    val modelResults: List<ModelReachabilityResult>,
+)
 private data class ToolCall(
     val id: String,
     val name: String,
@@ -108,6 +134,7 @@ private data class StreamingResult(
     val thinking: String,
     val rawMessage: JSONObject,
     val toolCalls: List<ToolCall>,
+    val tokensPerSecond: Double = 0.0,
     val fromCache: Boolean = false,
 )
 
@@ -195,6 +222,11 @@ class OpenAiAgent(
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
+    private val reachabilityClient = client.newBuilder()
+        .readTimeout(20, TimeUnit.SECONDS)
+        .callTimeout(30, TimeUnit.SECONDS)
+        .build()
+    private val tokenizer by lazy { DeepSeekV3Tokenizer.get(context) }
 
     suspend fun chat(
         conversationId: Long,
@@ -256,6 +288,138 @@ class OpenAiAgent(
             }.distinct().sorted()
         }
     }
+
+    fun checkReachability(profile: ApiProfile, models: List<String>): ProviderReachabilityReport {
+        require(profile.apiKey.isNotBlank()) { "API Key 不能为空" }
+        val targets = models
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .ifEmpty { listOf(profile.selectedModel) }
+            .distinct()
+        val providerResult = checkProviderReachability(profile)
+        val modelResults = targets.map { model -> checkModelReachability(profile, model) }
+        return ProviderReachabilityReport(
+            providerAvailable = providerResult.available,
+            providerLatencyMs = providerResult.latencyMs,
+            providerMessage = providerResult.message,
+            modelResults = modelResults,
+        )
+    }
+
+    fun checkProviderReachability(profile: ApiProfile): ProviderReachabilityResult {
+        require(profile.apiKey.isNotBlank()) { "API Key 不能为空" }
+        val probe = executeReachabilityProbe(providerReachabilityRequest(profile))
+        return ProviderReachabilityResult(
+            available = probe.available,
+            latencyMs = probe.latencyMs,
+            message = probe.message,
+            statusCode = probe.statusCode,
+        )
+    }
+
+    fun checkModelReachability(profile: ApiProfile, model: String): ModelReachabilityResult {
+        require(profile.apiKey.isNotBlank()) { "API Key 不能为空" }
+        val target = model.trim().ifBlank { profile.selectedModel }
+        val probe = executeReachabilityProbe(modelReachabilityRequest(profile, target))
+        return ModelReachabilityResult(
+            model = target,
+            available = probe.available,
+            latencyMs = probe.latencyMs,
+            message = probe.message,
+            statusCode = probe.statusCode,
+        )
+    }
+
+    private fun providerReachabilityRequest(profile: ApiProfile): Request {
+        val builder = Request.Builder().url(profile.modelsEndpoint).get()
+        when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> builder
+                .addHeader("x-api-key", profile.apiKey)
+                .addHeader("anthropic-version", ANTHROPIC_VERSION)
+            ApiProfile.API_FORMAT_GEMINI -> builder.addHeader("x-goog-api-key", profile.apiKey)
+            else -> builder.addHeader("Authorization", "Bearer ${profile.apiKey}")
+        }
+        return builder.build()
+    }
+
+    private fun modelReachabilityRequest(profile: ApiProfile, model: String): Request {
+        return when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> {
+                val body = JSONObject()
+                    .put("model", model)
+                    .put("max_tokens", 1)
+                    .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "ping")))
+                    .toString()
+                    .toRequestBody("application/json".toMediaType())
+                Request.Builder()
+                    .url(profile.chatEndpoint)
+                    .addHeader("x-api-key", profile.apiKey)
+                    .addHeader("anthropic-version", ANTHROPIC_VERSION)
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+            }
+            ApiProfile.API_FORMAT_GEMINI -> {
+                val body = JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("parts", JSONArray().put(JSONObject().put("text", "ping")))))
+                    .put("generationConfig", JSONObject().put("maxOutputTokens", 1).put("temperature", 0.0))
+                    .toString()
+                    .toRequestBody("application/json".toMediaType())
+                Request.Builder()
+                    .url(profile.geminiGenerateContentEndpoint(model))
+                    .addHeader("x-goog-api-key", profile.apiKey)
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+            }
+            else -> {
+                val requestJson = JSONObject()
+                    .put("model", model)
+                    .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "ping")))
+                    .put("stream", false)
+                if (modelLooksReasoningCapable(model)) {
+                    requestJson.put("max_completion_tokens", 1)
+                } else {
+                    requestJson.put("max_tokens", 1)
+                }
+                val body = requestJson
+                    .toString()
+                    .toRequestBody("application/json".toMediaType())
+                Request.Builder()
+                    .url(profile.chatEndpoint)
+                    .addHeader("Authorization", "Bearer ${profile.apiKey}")
+                    .addHeader("Content-Type", "application/json")
+                    .post(body)
+                    .build()
+            }
+        }
+    }
+
+    private fun executeReachabilityProbe(request: Request): ReachabilityProbe {
+        val startedAtNanos = System.nanoTime()
+        return try {
+            reachabilityClient.newCall(request).execute().use { response ->
+                val latencyMs = elapsedMs(startedAtNanos)
+                val body = response.body?.string().orEmpty()
+                if (response.isSuccessful) {
+                    ReachabilityProbe(true, response.code, latencyMs, uiText("可用"))
+                } else {
+                    ReachabilityProbe(false, response.code, latencyMs, "HTTP ${response.code}: ${body.cleanProbeMessage()}")
+                }
+            }
+        } catch (error: IOException) {
+            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText("网络不可达或连接超时") })
+        } catch (error: Throwable) {
+            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText("检测失败") })
+        }
+    }
+
+    private data class ReachabilityProbe(
+        val available: Boolean,
+        val statusCode: Int?,
+        val latencyMs: Long,
+        val message: String,
+    )
 
     private fun fetchAnthropicModels(profile: ApiProfile): List<String> {
         val requests = listOf(
@@ -357,8 +521,9 @@ class OpenAiAgent(
                     content = result.content,
                     thinking = result.thinking,
                     rawJson = result.rawMessage.toString(),
+                    tokensPerSecond = result.tokensPerSecond,
                 )
-                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText("缓存命中") else uiText("模型完成"), assistantId))
+                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText("缓存命中") else uiText("模型完成"), assistantId, result.tokensPerSecond))
                 if (result.toolCalls.isEmpty()) {
                     conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE, profileId = profile.id, model = model)
                     return
@@ -447,7 +612,9 @@ class OpenAiAgent(
 
         val content = StringBuilder()
         val thinking = StringBuilder()
+        val startedAtNanos = System.nanoTime()
         var promptTokens = 0L
+        var completionTokens = 0L
         var cachedPromptTokens = 0L
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         client.newCall(request).execute().use { response ->
@@ -464,6 +631,7 @@ class OpenAiAgent(
                     val root = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
                     root.optJSONObject("usage")?.let { usage ->
                         promptTokens = usage.optLong("prompt_tokens", promptTokens)
+                        completionTokens = usage.optLong("completion_tokens", completionTokens)
                         cachedPromptTokens = usage.optJSONObject("prompt_tokens_details")
                             ?.optLong("cached_tokens", cachedPromptTokens)
                             ?: cachedPromptTokens
@@ -508,7 +676,7 @@ class OpenAiAgent(
                 ),
             )
         }
-        return StreamingResult(cleanContent, cleanThinking, message, calls)
+        return StreamingResult(cleanContent, cleanThinking, message, calls, outputTokensPerSecond(cleanContent, completionTokens, startedAtNanos))
     }
 
     private fun isFreshSingleUserTurn(conversationId: Long, excludeMessageId: Long): Boolean {
@@ -562,6 +730,8 @@ class OpenAiAgent(
             .build()
         val content = StringBuilder()
         val thinking = StringBuilder()
+        val startedAtNanos = System.nanoTime()
+        var outputTokens = 0L
         val blockBuilders = linkedMapOf<Int, AnthropicBlockBuilder>()
         val nonStreamingBody = StringBuilder()
         var sawStreamingData = false
@@ -581,6 +751,9 @@ class OpenAiAgent(
                     val data = line.removePrefix("data:").trim()
                     if (data.isBlank() || data == "[DONE]") return@forEach
                     val root = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
+                    root.optJSONObject("usage")?.let { usage ->
+                        outputTokens = usage.optLong("output_tokens", outputTokens)
+                    }
                     when (root.optString("type")) {
                         "content_block_start" -> {
                             val blockIndex = root.optInt("index")
@@ -623,6 +796,7 @@ class OpenAiAgent(
         }
         if (!sawStreamingData && nonStreamingBody.isNotBlank()) {
             val root = JSONObject(nonStreamingBody.toString())
+            outputTokens = root.optJSONObject("usage")?.optLong("output_tokens", outputTokens) ?: outputTokens
             val contentBlocks = root.optJSONArray("content") ?: JSONArray()
             for (index in 0 until contentBlocks.length()) {
                 val block = contentBlocks.optJSONObject(index) ?: continue
@@ -656,7 +830,7 @@ class OpenAiAgent(
         val cleanContent = cleanGeneratedText(content.toString())
         val cleanThinking = cleanGeneratedText(thinking.toString())
         val raw = assistantRawMessage(cleanContent, cleanThinking, calls)
-        return StreamingResult(cleanContent, cleanThinking, raw, calls)
+        return StreamingResult(cleanContent, cleanThinking, raw, calls, outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos))
     }
 
     private suspend fun requestGeminiModel(
@@ -678,10 +852,12 @@ class OpenAiAgent(
             .addHeader("Content-Type", "application/json")
             .post(requestJson.toString().toRequestBody("application/json".toMediaType()))
             .build()
+        val startedAtNanos = System.nanoTime()
         client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) error("AI 请求失败 ${response.code}: ${body.take(600)}")
             val root = JSONObject(body)
+            val outputTokens = root.optJSONObject("usageMetadata")?.optLong("candidatesTokenCount", 0L) ?: 0L
             val parts = root.optJSONArray("candidates")
                 ?.optJSONObject(0)
                 ?.optJSONObject("content")
@@ -705,7 +881,7 @@ class OpenAiAgent(
             val cleanContent = cleanGeneratedText(content.toString())
             onDelta(cleanContent, "")
             val raw = assistantRawMessage(cleanContent, "", calls)
-            return StreamingResult(cleanContent, "", raw, calls)
+            return StreamingResult(cleanContent, "", raw, calls, outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos))
         }
     }
 
@@ -4071,6 +4247,20 @@ class OpenAiAgent(
         val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray())
         return digest.joinToString("") { "%02x".format(it) }
     }
+    private fun outputTokensPerSecond(content: String, reportedOutputTokens: Long, startedAtNanos: Long): Double {
+        val tokens = reportedOutputTokens.takeIf { it > 0L } ?: tokenizer.count(content)
+        val elapsedSeconds = elapsedMs(startedAtNanos) / 1000.0
+        if (tokens <= 0L || elapsedSeconds <= 0.0) return 0.0
+        return tokens / elapsedSeconds
+    }
+
+    private fun elapsedMs(startedAtNanos: Long): Long {
+        return ((System.nanoTime() - startedAtNanos) / 1_000_000L).coerceAtLeast(0L)
+    }
+
+    private fun String.cleanProbeMessage(): String {
+        return replace(Regex("\\s+"), " ").trim().take(300).ifBlank { uiText("请求失败") }
+    }
 
     companion object {
         private const val AGENT_TAG = "LyraAgent"
@@ -4288,6 +4478,7 @@ fun ChatMessage.toRecord(): ChatRecord = ChatRecord(
     profileId,
     model,
     createdAt,
+    tokensPerSecond,
 )
 
 

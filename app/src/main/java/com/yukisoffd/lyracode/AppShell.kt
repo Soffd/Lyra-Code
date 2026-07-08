@@ -417,6 +417,7 @@ internal fun LyraCodeApp(
                     settings = settings,
                     pages = pages,
                     selectedPage = safeSelectedPage,
+                    languageMode = languageMode,
                     controller = controller,
                     nickname = nickname,
                     avatarPath = avatarPath,
@@ -630,6 +631,7 @@ internal fun KimiDrawerContent(
     settings: AppSettings,
     pages: List<String>,
     selectedPage: Int,
+    languageMode: String,
     controller: ChatController,
     nickname: String,
     avatarPath: String?,
@@ -655,7 +657,12 @@ internal fun KimiDrawerContent(
             }
         }
     }
-    val groupedConversations = remember(filteredConversations) {
+    val historyLanguageKey = listOf(
+        languageMode,
+        context.getString(R.string.label_today),
+        context.getString(R.string.date_format_year_month),
+    ).joinToString("|")
+    val groupedConversations = remember(filteredConversations, historyLanguageKey) {
         groupConversationsByTime(filteredConversations, context)
     }
     var editingProfile by rememberSaveable { mutableStateOf(false) }

@@ -219,6 +219,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = AppSettings(this)
+        if (savedInstanceState == null) settings.clearChatInputDrafts()
         val auditLogStore = AuditLogStore(this)
         val conversationStore = ConversationStore(this)
         val workspaceManager = WorkspaceManager(this, settings)
@@ -345,6 +346,9 @@ class MainActivity : ComponentActivity() {
         controller?.close()
         miniServerManager?.close()
         localMcpServerManager?.close()
+        if (isFinishing) {
+            AppSettings(this).clearChatInputDrafts()
+        }
         super.onDestroy()
     }
 

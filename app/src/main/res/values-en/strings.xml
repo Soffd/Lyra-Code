@@ -216,6 +216,7 @@
     <string name="label_size">Size: </string>
     <string name="label_bytes">bytes</string>
     <string name="status_fetching_models">Fetching models</string>
+    <string name="status_checking_reachability">Checking model reachability</string>
     <string name="status_approved_tool">Tool call approved</string>
     <string name="status_rejected_tool">Tool call rejected</string>
     <string name="status_waiting_confirm">Waiting for confirmation: %1$s</string>
@@ -1176,7 +1177,7 @@
     <!-- AppShell.kt — TopAppBar / Remaining -->
     <string name="cd_menu">Menu</string>
     <string name="roleplay_typing">Roleplay Typing</string>
-    <string name="date_format_year_month">Date Format Year Month</string>
+    <string name="date_format_year_month">MMM yyyy</string>
     <string name="action_checking_update">Checking for updates...</string>
 </resources>
 

@@ -177,6 +177,8 @@ import com.yukisoffd.lyracode.ai.AiResponseCache
 import com.yukisoffd.lyracode.ai.OpenAiAgent
 import com.yukisoffd.lyracode.ai.TodoItem
 import com.yukisoffd.lyracode.ai.WebViewWebAgent
+import com.yukisoffd.lyracode.ai.ModelReachabilityResult
+import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.AuditEntry
@@ -821,16 +823,22 @@ internal fun ModelServiceSettings(
     var editingProfileId by rememberSaveable { mutableStateOf<String?>(null) }
     var draftNewProfile by remember { mutableStateOf<ApiProfile?>(null) }
     var query by rememberSaveable { mutableStateOf("") }
+    var showReachabilityPage by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(controller.activeProfileId.value, controller.profiles.size, controller.settingsRevision.intValue) {
         val refreshed = controller.profiles.toList()
         profiles = refreshed
         if (editingProfileId != null && refreshed.none { it.id == editingProfileId } && draftNewProfile?.id != editingProfileId) {
             editingProfileId = null
+            showReachabilityPage = false
         }
     }
     BackHandler(enabled = editingProfileId != null) {
-        if (draftNewProfile?.id == editingProfileId) draftNewProfile = null
-        editingProfileId = null
+        if (showReachabilityPage) {
+            showReachabilityPage = false
+        } else {
+            if (draftNewProfile?.id == editingProfileId) draftNewProfile = null
+            editingProfileId = null
+        }
     }
     val editingIndex = profiles.indexOfFirst { it.id == editingProfileId }
     val current = if (draftNewProfile?.id == editingProfileId) draftNewProfile else profiles.getOrNull(editingIndex)
@@ -843,9 +851,29 @@ internal fun ModelServiceSettings(
     var chatPath by remember(editKey) { mutableStateOf(current?.chatPath ?: ApiProfile.defaultChatPath(apiFormat)) }
     var model by remember(editKey) { mutableStateOf(current?.selectedModel.orEmpty()) }
     var savedModels by remember(editKey) { mutableStateOf(current?.savedModels.orEmpty().joinToString("\n")) }
+    var selectedReachabilityModels by remember(editKey) { mutableStateOf<Set<String>>(emptySet()) }
+    var providerReachabilityResult by remember(editKey) { mutableStateOf<ProviderReachabilityResult?>(null) }
+    var modelReachabilityResults by remember(editKey) { mutableStateOf<List<ModelReachabilityResult>>(emptyList()) }
+    var reachabilityChecking by remember(editKey) { mutableStateOf(false) }
+    var activeReachabilityModel by remember(editKey) { mutableStateOf("") }
     var status by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<ApiProfile?>(null) }
+    val reachabilityModels = remember(savedModels, model) {
+        (savedModels.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList() + model.trim())
+            .filter { it.isNotBlank() }
+            .distinct()
+    }
+    LaunchedEffect(editKey, reachabilityModels.joinToString("\u0000"), model) {
+        val available = reachabilityModels.toSet()
+        val retained = selectedReachabilityModels.intersect(available)
+        selectedReachabilityModels = if (retained.isNotEmpty()) {
+            retained
+        } else {
+            val preferred = model.trim().takeIf { it in available } ?: reachabilityModels.firstOrNull()
+            preferred?.let { setOf(it) } ?: emptySet()
+        }
+    }
     fun draftProfile(selectedModelOverride: String? = null, savedModelsOverride: List<String>? = null): ApiProfile {
         val models = savedModelsOverride ?: savedModels.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList().distinct()
         val selected = selectedModelOverride ?: model.ifBlank { models.firstOrNull().orEmpty() }
@@ -873,6 +901,41 @@ internal fun ModelServiceSettings(
         editingProfileId = updated.id
         status = ""
         notice = uiText("模型服务已保存")
+    }
+    fun startReachabilityCheck(targetModels: List<String>) {
+        val targets = targetModels.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (targets.isEmpty()) {
+            status = uiText("请先选择要检测的模型")
+            return
+        }
+        val draft = draftProfile(savedModelsOverride = targets)
+        providerReachabilityResult = null
+        modelReachabilityResults = emptyList()
+        activeReachabilityModel = ""
+        reachabilityChecking = true
+        status = uiText("正在检测模型可达性...")
+        controller.checkReachabilityForProfileIncremental(
+            profile = draft,
+            models = targets,
+            onProviderResult = { result -> providerReachabilityResult = result },
+            onModelChecking = { model -> activeReachabilityModel = model },
+            onModelResult = { result ->
+                modelReachabilityResults = modelReachabilityResults.filterNot { it.model == result.model } + result
+            },
+            onDone = { result ->
+                reachabilityChecking = false
+                activeReachabilityModel = ""
+                result.fold(
+                    onSuccess = {
+                        status = ""
+                        notice = uiText("模型可达性检测完成")
+                    },
+                    onFailure = { error ->
+                        status = error.message.orEmpty().ifBlank { uiText("模型可达性检测失败") }
+                    },
+                )
+            },
+        )
     }
     deleteTarget?.let { target ->
         ConfirmDeleteDialog(
@@ -961,11 +1024,26 @@ internal fun ModelServiceSettings(
                     }
                 }
             }
+        } else if (showReachabilityPage) {
+            ReachabilitySelectionPage(
+                providerName = current?.name?.ifBlank { uiText("模型服务") } ?: uiText("模型服务"),
+                models = reachabilityModels,
+                selectedModels = selectedReachabilityModels,
+                checking = reachabilityChecking,
+                provider = providerReachabilityResult,
+                modelResults = modelReachabilityResults,
+                activeModel = activeReachabilityModel,
+                status = status,
+                onSelectedModelsChange = { selectedReachabilityModels = it },
+                onBack = { showReachabilityPage = false },
+                onStartCheck = { startReachabilityCheck(reachabilityModels.filter { it in selectedReachabilityModels }) },
+            )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(current?.name?.ifBlank { uiText("新模型服务") } ?: uiText("模型服务"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     IconButton(onClick = {
+                        showReachabilityPage = false
                         if (draftNewProfile?.id == editingProfileId) draftNewProfile = null
                         editingProfileId = null
                     }) {
@@ -1029,6 +1107,16 @@ internal fun ModelServiceSettings(
                     )
                     OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("默认模型")) }, singleLine = true)
                     OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("预保存模型，每行一个")) }, minLines = 3)
+                    OutlinedButton(
+                        enabled = reachabilityModels.isNotEmpty(),
+                        onClick = { showReachabilityPage = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = KimiPillShape,
+                    ) {
+                        Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(uiText("选择模型检测可达性"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1088,6 +1176,131 @@ internal fun ModelServiceSettings(
 }
 
 
+@Composable
+internal fun ReachabilitySelectionPage(
+    providerName: String,
+    models: List<String>,
+    selectedModels: Set<String>,
+    checking: Boolean,
+    provider: ProviderReachabilityResult?,
+    modelResults: List<ModelReachabilityResult>,
+    activeModel: String,
+    status: String,
+    onSelectedModelsChange: (Set<String>) -> Unit,
+    onBack: () -> Unit,
+    onStartCheck: () -> Unit,
+) {
+    val resultByModel = remember(modelResults) { modelResults.associateBy { it.model } }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回模型服务"))
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(uiText("可达性检测"), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(providerName, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        KimiCardBox {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    "${uiText("已选择")} ${selectedModels.size}/${models.size}",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                )
+                TextButton(onClick = { onSelectedModelsChange(models.toSet()) }) { Text(uiText("全选")) }
+                TextButton(onClick = { onSelectedModelsChange(emptySet()) }) { Text(uiText("清空选择")) }
+            }
+            Button(
+                enabled = !checking && selectedModels.isNotEmpty(),
+                onClick = onStartCheck,
+                modifier = Modifier.fillMaxWidth(),
+                shape = KimiPillShape,
+            ) {
+                Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(if (checking) uiText("检测中...") else uiText("开始检测"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            val providerLine = when {
+                provider != null -> {
+                    val providerText = if (provider.available) uiText("服务商可用") else uiText("服务商不可用")
+                    "$providerText · ${formatReachabilityLatency(provider.latencyMs)} · ${provider.message}"
+                }
+                checking -> uiText("服务商检测中...")
+                else -> ""
+            }
+            if (providerLine.isNotBlank()) {
+                Text(
+                    providerLine,
+                    color = if (provider?.available == false) MaterialTheme.colorScheme.error else KimiMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else if (status.isNotBlank()) {
+                Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        KimiCardBox {
+            Text(uiText("选择要检测的模型"), style = MaterialTheme.typography.titleSmall)
+            if (models.isEmpty()) {
+                Text(uiText("没有可检测的模型"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            } else {
+                models.forEach { model ->
+                    val selected = model in selectedModels
+                    val result = resultByModel[model]
+                    val detail = when {
+                        result != null -> "${formatReachabilityLatency(result.latencyMs)} · ${result.message}"
+                        checking && selected && activeModel == model -> uiText("检测中...")
+                        checking && selected -> uiText("等待检测")
+                        else -> ""
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable {
+                                onSelectedModelsChange(
+                                    if (selected) selectedModels - model else selectedModels + model,
+                                )
+                            }
+                            .padding(horizontal = 4.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Checkbox(
+                            checked = selected,
+                            onCheckedChange = { checked ->
+                                onSelectedModelsChange(if (checked) selectedModels + model else selectedModels - model)
+                            },
+                        )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(model, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                            if (detail.isNotBlank()) {
+                                Text(
+                                    detail,
+                                    color = if (result?.available == false) MaterialTheme.colorScheme.error else KimiMuted,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
+                        when {
+                            result != null -> Icon(
+                                if (result.available) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                                contentDescription = null,
+                                tint = if (result.available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp),
+                            )
+                            checking && selected && activeModel == model -> LinearProgressIndicator(modifier = Modifier.width(48.dp))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 @Composable
 internal fun ScreenCenterNotice(
     message: String,
@@ -1386,6 +1599,62 @@ internal fun MaterialChoiceButton(
     }
 }
 
+
+@Composable
+internal fun ReachabilityReportCard(
+    provider: ProviderReachabilityResult?,
+    modelResults: List<ModelReachabilityResult>,
+    checking: Boolean,
+) {
+    KimiCardBox {
+        Text(uiText("可达性检测结果"), style = MaterialTheme.typography.titleSmall)
+        if (provider == null) {
+            Text(
+                uiText("服务商检测中..."),
+                color = KimiMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            val providerText = if (provider.available) uiText("服务商可用") else uiText("服务商不可用")
+            Text(
+                "$providerText · ${formatReachabilityLatency(provider.latencyMs)} · ${provider.message}",
+                color = if (provider.available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        modelResults.forEach { result ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (result.available) Icons.Default.CheckCircle else Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = if (result.available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp),
+                )
+                Column(Modifier.weight(1f)) {
+                    Text(result.model, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                    Text(
+                        "${formatReachabilityLatency(result.latencyMs)} · ${result.message}",
+                        color = KimiMuted,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+        if (checking) {
+            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            Text(uiText("检测中..."), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+internal fun formatReachabilityLatency(latencyMs: Long): String {
+    return if (latencyMs > 0L) "${latencyMs}ms" else uiText("无延迟数据")
+}
 internal fun defaultBaseUrlForApiFormat(format: String): String = when (format) {
     ApiProfile.API_FORMAT_ANTHROPIC -> "https://api.anthropic.com/v1"
     ApiProfile.API_FORMAT_GEMINI -> "https://generativelanguage.googleapis.com/v1beta"
@@ -2463,6 +2732,7 @@ internal fun PermissionSettings(termuxExecutor: TermuxExecutor) {
 internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExecutor, externalRevision: Int = 0) {
     var disabled by remember(externalRevision) { mutableStateOf(settings.disabledTools()) }
     var query by rememberSaveable { mutableStateOf("") }
+    var showReachabilityPage by rememberSaveable { mutableStateOf(false) }
     val localTools = agentToolCatalog()
     val mcpTools = remember(disabled, externalRevision) { settings.enabledMcpTools() }
     val sshToolsEnabled = remember(disabled, externalRevision) { settings.sshServers().any { it.enabled } }

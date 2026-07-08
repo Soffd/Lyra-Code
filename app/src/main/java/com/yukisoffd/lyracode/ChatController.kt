@@ -9,6 +9,9 @@ import androidx.compose.runtime.State
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.ChatUpdate
 import com.yukisoffd.lyracode.ai.OpenAiAgent
+import com.yukisoffd.lyracode.ai.ModelReachabilityResult
+import com.yukisoffd.lyracode.ai.ProviderReachabilityReport
+import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
 import com.yukisoffd.lyracode.ai.ToolApprovalDecision
 import com.yukisoffd.lyracode.ai.ToolApprovalRequest
 import com.yukisoffd.lyracode.ai.TodoItem
@@ -92,6 +95,23 @@ class ChatController(
     }
 
     fun usageStore(): ConversationStore = conversationStore
+    fun inputDraftKey(): String {
+        return if (isRoleplayMode()) {
+            "roleplay:${currentRoleplayId()}:${activeConversationId.value}"
+        } else {
+            "normal:${activeConversationId.value}"
+        }
+    }
+
+    fun loadInputDraft(): String = settings.chatInputDraft(inputDraftKey())
+
+    fun saveInputDraft(text: String) {
+        settings.setChatInputDraft(inputDraftKey(), text)
+    }
+
+    fun clearInputDraft() {
+        settings.setChatInputDraft(inputDraftKey(), "")
+    }
 
     fun reloadProfiles() {
         profiles.clear()
@@ -496,6 +516,47 @@ class ChatController(
         }
     }
 
+
+    fun checkReachabilityForProfile(profile: ApiProfile, models: List<String>, onDone: (Result<ProviderReachabilityReport>) -> Unit) {
+        scope.launch {
+            status.value = appContext.getString(R.string.status_checking_reachability)
+            val result = withContext(Dispatchers.IO) {
+                runCatching { agent.checkReachability(profile, models) }
+            }
+            status.value = ""
+            onDone(result)
+        }
+    }
+
+    fun checkReachabilityForProfileIncremental(
+        profile: ApiProfile,
+        models: List<String>,
+        onProviderResult: (ProviderReachabilityResult) -> Unit,
+        onModelChecking: (String) -> Unit = {},
+        onModelResult: (ModelReachabilityResult) -> Unit,
+        onDone: (Result<Unit>) -> Unit,
+    ) {
+        scope.launch {
+            status.value = appContext.getString(R.string.status_checking_reachability)
+            val result = runCatching {
+                val targets = models
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .ifEmpty { listOf(profile.selectedModel) }
+                    .distinct()
+                val provider = withContext(Dispatchers.IO) { agent.checkProviderReachability(profile) }
+                onProviderResult(provider)
+                targets.forEach { model ->
+                    onModelChecking(model)
+                    val modelResult = withContext(Dispatchers.IO) { agent.checkModelReachability(profile, model) }
+                    onModelResult(modelResult)
+                }
+            }
+            status.value = ""
+            onDone(result)
+        }
+    }
+
     fun fetchModelsForProfile(profile: ApiProfile, onDone: (Result<List<String>>) -> Unit) {
         scope.launch {
             status.value = appContext.getString(R.string.status_fetching_models)
@@ -615,7 +676,11 @@ class ChatController(
             reloadMessages()
             return
         }
-        val updated = current[index].copy(content = update.content, thinking = update.thinking)
+        val updated = current[index].copy(
+            content = update.content,
+            thinking = update.thinking,
+            tokensPerSecond = update.tokensPerSecond.takeIf { value -> value > 0.0 } ?: current[index].tokensPerSecond,
+        )
         _messages.value = current.toMutableList().also { it[index] = updated }
         lastMessageReloadAt = System.currentTimeMillis()
         if (update.status.startsWith("工具完成")) {

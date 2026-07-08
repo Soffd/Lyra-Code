@@ -321,6 +321,26 @@ class AppSettings(context: Context) {
         plainPrefs.edit().putStringSet(KEY_DISABLED_TOOLS, updated).apply()
     }
 
+
+    fun chatInputDraft(key: String): String {
+        return plainPrefs.getString("$KEY_CHAT_INPUT_DRAFT_PREFIX$key", "").orEmpty()
+    }
+
+    fun setChatInputDraft(key: String, text: String) {
+        val cleanKey = key.trim().ifBlank { "normal:0" }
+        val prefsKey = "$KEY_CHAT_INPUT_DRAFT_PREFIX$cleanKey"
+        val editor = plainPrefs.edit()
+        if (text.isBlank()) editor.remove(prefsKey) else editor.putString(prefsKey, text)
+        editor.apply()
+    }
+
+    fun clearChatInputDrafts() {
+        val editor = plainPrefs.edit()
+        plainPrefs.all.keys
+            .filter { it.startsWith(KEY_CHAT_INPUT_DRAFT_PREFIX) }
+            .forEach { editor.remove(it) }
+        editor.apply()
+    }
     fun hiddenTodoSignature(conversationId: Long): String {
         return plainPrefs.getString("$KEY_HIDDEN_TODO_SIGNATURE_PREFIX$conversationId", "").orEmpty()
     }
@@ -1957,6 +1977,7 @@ class AppSettings(context: Context) {
         private const val KEY_HIDE_TERMUX_PERMISSION_HINT = "hide_termux_permission_hint"
         private const val KEY_DISABLED_TOOLS = "disabled_tools"
         private const val KEY_HIDDEN_TODO_SIGNATURE_PREFIX = "hidden_todo_signature_"
+        private const val KEY_CHAT_INPUT_DRAFT_PREFIX = "chat_input_draft_"
         private const val KEY_HIDDEN_FILE_CHANGES_SIGNATURE_PREFIX = "hidden_file_changes_signature_"
         private const val KEY_ENABLED_SKILLS = "enabled_skills"
         private const val KEY_SELECTED_SYSTEM_PROMPT_ID = "selected_system_prompt_id"

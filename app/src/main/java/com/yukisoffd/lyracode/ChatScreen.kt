@@ -354,6 +354,15 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     val pendingUploads = controller.pendingUploads
     val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !controller.isActiveConversationRunning()
     val isRunning = controller.isActiveConversationRunning()
+    val draftKey = controller.inputDraftKey()
+    var loadedDraftKey by remember { mutableStateOf("") }
+    LaunchedEffect(draftKey) {
+        input = controller.loadInputDraft()
+        loadedDraftKey = draftKey
+    }
+    LaunchedEffect(input, loadedDraftKey) {
+        if (loadedDraftKey == draftKey) controller.saveInputDraft(input)
+    }
     var autoFollowOutput by remember(controller.activeConversationId.value) { mutableStateOf(true) }
     var keyboardShouldLiftOutput by remember(controller.activeConversationId.value) { mutableStateOf(false) }
     val isInterrupted = controller.activeConversation()?.status == ConversationStore.STATUS_INTERRUPTED
@@ -446,6 +455,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             },
             onSend = {
                 val text = input
+                controller.clearInputDraft()
                 input = ""
                 attachmentMenuOpen = false
                 controller.send(text)
@@ -646,6 +656,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             onClick = {
                                 val text = input
+                                controller.clearInputDraft()
                                 input = ""
                                 attachmentMenuOpen = false
                                 controller.send(text)
@@ -1886,6 +1897,12 @@ internal fun ModelToolbar(controller: ChatController) {
     }
 }
 
+
+internal fun formatTokensPerSecond(value: Double): String {
+    if (value <= 0.0 || value.isNaN() || value.isInfinite()) return ""
+    val text = if (value >= 10.0) "%.0f".format(Locale.US, value) else "%.1f".format(Locale.US, value)
+    return "$text tok/s"
+}
 @Composable
 @OptIn(ExperimentalFoundationApi::class)
 internal fun MessageCard(
@@ -2031,7 +2048,17 @@ internal fun MessageCard(
                                         }
                                     }
                                     if (message.role == "assistant" && !inProcessRecord) {
-                                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                        ) {
+                                            Text(
+                                                formatTokensPerSecond(message.tokensPerSecond),
+                                                color = KimiMuted,
+                                                style = MaterialTheme.typography.labelSmall,
+                                            )
+                                            Spacer(Modifier.weight(1f))
                                             IconButton(
                                                 onClick = { clipboard.setText(AnnotatedString(message.content)) },
                                                 modifier = Modifier.size(36.dp),

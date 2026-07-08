@@ -218,6 +218,7 @@
     <string name="label_size">大小：</string>
     <string name="label_bytes"> bytes</string>
     <string name="status_fetching_models">获取模型列表</string>
+    <string name="status_checking_reachability">检测模型可达性</string>
     <string name="status_approved_tool">已批准工具调用</string>
     <string name="status_rejected_tool">已拒绝工具调用</string>
     <string name="status_waiting_confirm">等待确认：%1$s</string>
