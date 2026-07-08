@@ -66,6 +66,7 @@ import java.time.format.DateTimeFormatter
 import java.time.format.DateTimeParseException
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.ConcurrentHashMap
 import java.util.TimeZone
 import java.util.concurrent.TimeUnit
 
@@ -227,6 +228,7 @@ class OpenAiAgent(
         .callTimeout(30, TimeUnit.SECONDS)
         .build()
     private val tokenizer by lazy { DeepSeekV3Tokenizer.get(context) }
+    private val forcedSkillsByConversation = ConcurrentHashMap<Long, List<String>>()
 
     suspend fun chat(
         conversationId: Long,
@@ -235,20 +237,29 @@ class OpenAiAgent(
         model: String,
         userMessagePersisted: Boolean = false,
         propagateErrors: Boolean = false,
+        forcedSkillIds: List<String> = emptyList(),
         onUpdate: suspend (ChatUpdate) -> Unit,
     ) = withContext(Dispatchers.IO) {
-        conversationStore.setConversationMeta(
-            conversationId,
-            title = titleFor(conversationId, userInput),
-            status = ConversationStore.STATUS_RUNNING,
-            profileId = profile.id,
-            model = model,
-        )
-        if (!userMessagePersisted) {
-            conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
+        val normalizedForcedSkillIds = forcedSkillIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        if (normalizedForcedSkillIds.isNotEmpty()) {
+            forcedSkillsByConversation[conversationId] = normalizedForcedSkillIds
         }
-        onUpdate(ChatUpdate("", "", uiText("已发送")))
-        runLoop(conversationId, profile, model, onUpdate, propagateErrors)
+        try {
+            conversationStore.setConversationMeta(
+                conversationId,
+                title = titleFor(conversationId, userInput),
+                status = ConversationStore.STATUS_RUNNING,
+                profileId = profile.id,
+                model = model,
+            )
+            if (!userMessagePersisted) {
+                conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
+            }
+            onUpdate(ChatUpdate("", "", uiText("已发送")))
+            runLoop(conversationId, profile, model, onUpdate, propagateErrors)
+        } finally {
+            if (normalizedForcedSkillIds.isNotEmpty()) forcedSkillsByConversation.remove(conversationId)
+        }
     }
 
     suspend fun continueConversation(
@@ -523,6 +534,11 @@ class OpenAiAgent(
                     rawJson = result.rawMessage.toString(),
                     tokensPerSecond = result.tokensPerSecond,
                 )
+                conversationStore.recordUsageModelRequest(
+                    assistantId,
+                    estimatedPromptInputTokens(conversationId, assistantId),
+                    estimatedAssistantOutputTokens(result.content, result.thinking, result.rawMessage.toString()),
+                )
                 onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText("缓存命中") else uiText("模型完成"), assistantId, result.tokensPerSecond))
                 if (result.toolCalls.isEmpty()) {
                     conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE, profileId = profile.id, model = model)
@@ -584,7 +600,7 @@ class OpenAiAgent(
             .put("messages", promptMessages(conversationId, excludeMessageId))
             .put("temperature", 0.2)
             .put("stream", true)
-        applyProviderCacheHints(requestJson, profile, model)
+        applyProviderCacheHints(requestJson, profile, model, conversationId)
         applyReasoningDepthHint(requestJson, profile, model)
 
         val allowLocalResponseCache = !isFreshSingleUserTurn(conversationId, excludeMessageId)
@@ -717,7 +733,7 @@ class OpenAiAgent(
             .put("model", model)
             .put("max_tokens", 4096)
             .put("temperature", 0.2)
-            .put("system", providerSystemText())
+            .put("system", providerSystemText(conversationId))
             .put("messages", anthropicMessages(conversationId, excludeMessageId))
             .put("tools", anthropicTools(allowSubAgentsFor(conversationId)))
             .put("stream", true)
@@ -843,7 +859,7 @@ class OpenAiAgent(
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
         val requestJson = JSONObject()
             .put("contents", geminiContents(conversationId, excludeMessageId))
-            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", providerSystemText()))))
+            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", providerSystemText(conversationId)))))
             .put("generationConfig", JSONObject().put("temperature", 0.2))
             .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", geminiFunctionDeclarations(allowSubAgentsFor(conversationId)))))
         val request = Request.Builder()
@@ -898,7 +914,7 @@ class OpenAiAgent(
         val messages = JSONArray()
             .put(staticSystemMessage())
             .put(activeSystemPromptMessage())
-            .put(activeSkillsMessage())
+            .put(activeSkillsMessage(conversationId))
             .put(sessionContextMessage())
         val history = openAiHistoryGroups(conversationId, excludeMessageId)
         compactHistoryGroups(history).forEach { group ->
@@ -907,11 +923,11 @@ class OpenAiAgent(
         return sanitizePromptMessageSequence(messages)
     }
 
-    private fun providerSystemText(): String {
+    private fun providerSystemText(conversationId: Long): String {
         return listOf(
             staticSystemMessage(),
             activeSystemPromptMessage(),
-            activeSkillsMessage(),
+            activeSkillsMessage(conversationId),
             sessionContextMessage(),
         ).joinToString("\n\n") { it.optString("content") }
     }
@@ -1263,10 +1279,10 @@ class OpenAiAgent(
             .put("content", lines.joinToString("\n"))
     }
 
-    private fun applyProviderCacheHints(requestJson: JSONObject, profile: ApiProfile, model: String) {
+    private fun applyProviderCacheHints(requestJson: JSONObject, profile: ApiProfile, model: String, conversationId: Long) {
         val host = runCatching { URI(profile.chatEndpoint).host.orEmpty().lowercase(Locale.US) }.getOrDefault("")
         if (!isOfficialOpenAiHost(host)) return
-        requestJson.put("prompt_cache_key", openAiPromptCacheKey(profile, model))
+        requestJson.put("prompt_cache_key", openAiPromptCacheKey(profile, model, conversationId))
         if (supportsOpenAiExtendedPromptCache(model)) {
             requestJson.put("prompt_cache_retention", "24h")
         }
@@ -1282,12 +1298,12 @@ class OpenAiAgent(
             normalized.startsWith("gpt-4.1")
     }
 
-    private fun openAiPromptCacheKey(profile: ApiProfile, model: String): String {
+    private fun openAiPromptCacheKey(profile: ApiProfile, model: String, conversationId: Long): String {
         val stable = listOf(
             "lyra_code_cache_v2",
             model.trim().lowercase(Locale.US),
             settings.roleplayPrompt().trim(),
-            settings.activeSkillsPrompt().trim(),
+            settings.activeSkillsPrompt(forcedSkillIdsFor(conversationId)).trim(),
             workspaceManager.termuxRootPath().orEmpty(),
             workspaceManager.displayName(),
             staticToolFingerprint(),
@@ -3583,11 +3599,67 @@ class OpenAiAgent(
             "LYRA_USER_SELECTED_SYSTEM_PROMPT_V1\n${settings.roleplayPrompt()}",
         )
 
-    private fun activeSkillsMessage(): JSONObject = JSONObject()
+    private fun forcedSkillIdsFor(conversationId: Long): List<String> = forcedSkillsByConversation[conversationId].orEmpty()
+
+    private fun estimatedPromptInputTokens(conversationId: Long, excludeMessageId: Long): Long {
+        val contextTokens = conversationStore.messages(conversationId)
+            .filter { it.id != excludeMessageId }
+            .sumOf { it.promptInputCost() }
+        return REQUEST_STATIC_INPUT_TOKENS + contextTokens
+    }
+
+    private fun ChatMessage.promptInputCost(): Long {
+        return when (role.lowercase()) {
+            "user" -> MESSAGE_WRAPPER_TOKENS + tokenizer.count(content)
+            "tool" -> MESSAGE_WRAPPER_TOKENS + tokenizer.count(content)
+            "assistant" -> MESSAGE_WRAPPER_TOKENS + estimatedAssistantOutputTokens(content, thinking, rawJson)
+            else -> MESSAGE_WRAPPER_TOKENS + tokenizer.count(content) + tokenizer.count(thinking)
+        }
+    }
+
+    private fun estimatedAssistantOutputTokens(content: String, thinking: String, rawJson: String?): Long {
+        return tokenizer.count(content) +
+            tokenizer.count(thinking) +
+            tokenizer.count(toolCallsOutputText(rawJson))
+    }
+
+    private fun toolCallsOutputText(rawJson: String?): String {
+        val raw = rawJson?.takeIf { it.isNotBlank() }
+            ?.let { runCatching { JSONObject(it) }.getOrNull() }
+            ?: return ""
+        val calls = raw.optJSONArray("tool_calls") ?: return ""
+        return buildString {
+            for (index in 0 until calls.length()) {
+                val call = calls.optJSONObject(index) ?: continue
+                appendToolCallOutput(call)
+                append('\n')
+            }
+        }
+    }
+
+    private fun StringBuilder.appendToolCallOutput(call: JSONObject) {
+        val function = call.optJSONObject("function")
+        if (function != null) {
+            append(function.optString("name"))
+            append('\n')
+            append(function.optString("arguments"))
+            return
+        }
+        append(call.optString("name"))
+        append('\n')
+        val input = call.opt("input")
+        when (input) {
+            is JSONObject, is JSONArray -> append(input.toString())
+            null -> append(call.toString())
+            else -> append(input.toString())
+        }
+    }
+
+    private fun activeSkillsMessage(conversationId: Long): JSONObject = JSONObject()
         .put("role", "system")
         .put(
             "content",
-            "LYRA_ACTIVE_SKILLS_V1\n${settings.activeSkillsPrompt().ifBlank { "[]" }}",
+            "LYRA_ACTIVE_SKILLS_V1\n${settings.activeSkillsPrompt(forcedSkillIdsFor(conversationId)).ifBlank { "[]" }}",
         )
 
     private fun staticSystemMessage(): JSONObject = JSONObject()
@@ -3598,7 +3670,7 @@ class OpenAiAgent(
             LYRA_STATIC_AGENT_PROTOCOL_V3
             以下是 Lyra Code 运行环境与工具约束，必须遵守。此段为静态协议，不包含会随会话变化的路径、时间、模型、网络结果、工具结果或文件内容；运行时上下文会以固定 JSON 模板放在消息列表最后。
             你是运行在 Android 应用 Lyra Code 中的开发 Agent。优先使用原生文件工具完成小文件读写和目录浏览。
-            Skills 是可选能力包，不是默认系统提示词。先根据 LYRA_ACTIVE_SKILLS_V1 中的 name/description 判断是否相关；相关时再调用 list_skill_files 和 read_skill_file 读取 SKILL.md 或必要文件。不要无差别读取所有 Skills。
+            Skills 是可选能力包，不是默认系统提示词，除非 LYRA_ACTIVE_SKILLS_V1 包含 forced_skill_ids。若存在 forced_skill_ids，必须调用 list_skill_files 和 read_skill_file 从 SKILL.md 开始检查并尽量应用这些 Skills；若无法应用，应简要说明原因。没有 forced_skill_ids 时，先根据 name/description 判断是否相关；相关时再读取 SKILL.md 或必要文件。不要无差别读取所有 Skills。
             Skills 可能包含桌面、云端或外部服务假设，使用前必须适配 Android、Termux 和 Lyra Code 工具限制。
             MCP 工具来自用户配置的远程或局域网 MCP Server，仅在工具名以 mcp_ 开头时代表外部 MCP 工具。调用 MCP 工具前应用会请求用户确认；不要把 MCP 工具当成本地文件工具使用，也不要假设 MCP Server 可访问 Android 本机工作区。
             下载 http/https 文件时优先调用 download_file，直接保存到工作区或 Android 共享存储；可提供请求头和 SHA-256 校验。只有 download_file 明确失败、被禁用或不支持目标协议时，才可把 Termux 的 curl/wget 作为最后备用手段。
@@ -4274,6 +4346,8 @@ class OpenAiAgent(
         private const val SUMMARY_MAX_LINES = 96
         private const val SUMMARY_HEAD_LINES = 24
         private const val PROMPT_CACHE_KEY_HASH_CHARS = 32
+        private const val REQUEST_STATIC_INPUT_TOKENS = 1024L
+        private const val MESSAGE_WRAPPER_TOKENS = 8L
         private const val GLOBAL_SEARCH_RESULT_LIMIT = 120
         private const val MAX_IMAGE_PROMPT_BYTES = 8 * 1024 * 1024
         private const val DEFAULT_WEBDAV_BACKUP_PATH = "/LyraCode/lyra_backup_latest.zip"

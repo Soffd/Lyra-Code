@@ -15,8 +15,8 @@ android {
         applicationId = "com.yukisoffd.lyracode"
         minSdk = 26
         targetSdk = 36
-        versionCode = 49
-        versionName = "2.8.0"
+        versionCode = 50
+        versionName = "2.9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(

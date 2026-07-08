@@ -36,11 +36,26 @@ data class ChatMessage(
     val createdAt: Long,
 )
 
+data class UsageMessageEvent(
+    val messageId: Long,
+    val conversationId: Long,
+    val role: String,
+    val createdAt: Long,
+)
+
+data class UsageModelRequest(
+    val assistantMessageId: Long,
+    val conversationId: Long,
+    val createdAt: Long,
+    val inputTokens: Long,
+    val outputTokens: Long,
+)
+
 class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    5,
+    6,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -77,6 +92,33 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             )
             """.trimIndent(),
         )
+        createUsageTables(db)
+    }
+
+    private fun createUsageTables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS usage_message_events (
+                message_id INTEGER PRIMARY KEY,
+                conversation_id INTEGER NOT NULL,
+                role TEXT NOT NULL,
+                created_at INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS usage_model_requests (
+                assistant_message_id INTEGER PRIMARY KEY,
+                conversation_id INTEGER NOT NULL,
+                created_at INTEGER NOT NULL,
+                input_tokens INTEGER NOT NULL,
+                output_tokens INTEGER NOT NULL
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_usage_message_events_created_at ON usage_message_events(created_at)")
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_usage_model_requests_created_at ON usage_model_requests(created_at)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -92,6 +134,15 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         }
         if (oldVersion < 5) {
             db.execSQL("ALTER TABLE messages ADD COLUMN tokens_per_second REAL NOT NULL DEFAULT 0")
+        }
+        if (oldVersion < 6) {
+            createUsageTables(db)
+            db.execSQL(
+                """
+                INSERT OR IGNORE INTO usage_message_events (message_id, conversation_id, role, created_at)
+                SELECT id, conversation_id, role, created_at FROM messages
+                """.trimIndent(),
+            )
         }
     }
 
@@ -272,6 +323,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             },
         )
         setConversationMeta(conversationId)
+        recordUsageMessageEvent(id, conversationId, role, now)
         return id
     }
 
@@ -287,7 +339,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         tokensPerSecond: Double = 0.0,
         createdAt: Long,
     ): Long {
-        return writableDatabase.insert(
+        val id = writableDatabase.insert(
             "messages",
             null,
             ContentValues().apply {
@@ -303,6 +355,8 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("created_at", createdAt)
             },
         )
+        recordUsageMessageEvent(id, conversationId, role, createdAt)
+        return id
     }
 
     fun updateMessage(id: Long, content: String? = null, thinking: String? = null, rawJson: String? = null, tokensPerSecond: Double? = null) {
@@ -353,6 +407,89 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             arrayOf(conversationId.toString(), messageId.toString()),
         )
         setConversationMeta(conversationId)
+    }
+
+    fun recordUsageModelRequest(assistantMessageId: Long, inputTokens: Long, outputTokens: Long) {
+        val message = message(assistantMessageId) ?: return
+        if (message.role.lowercase() != "assistant") return
+        writableDatabase.insertWithOnConflict(
+            "usage_model_requests",
+            null,
+            ContentValues().apply {
+                put("assistant_message_id", assistantMessageId)
+                put("conversation_id", message.conversationId)
+                put("created_at", message.createdAt)
+                put("input_tokens", inputTokens.coerceAtLeast(0L))
+                put("output_tokens", outputTokens.coerceAtLeast(0L))
+            },
+            SQLiteDatabase.CONFLICT_REPLACE,
+        )
+    }
+
+    fun usageMessageEvents(startAt: Long, endAt: Long): List<UsageMessageEvent> {
+        return readableDatabase.query(
+            "usage_message_events",
+            arrayOf("message_id", "conversation_id", "role", "created_at"),
+            "created_at>=? AND created_at<?",
+            arrayOf(startAt.toString(), endAt.toString()),
+            null,
+            null,
+            "created_at ASC, message_id ASC",
+        ).use {
+            buildList {
+                while (it.moveToNext()) {
+                    add(UsageMessageEvent(it.getLong(0), it.getLong(1), it.getString(2), it.getLong(3)))
+                }
+            }
+        }
+    }
+
+    fun usageModelRequests(startAt: Long, endAt: Long): List<UsageModelRequest> {
+        return readableDatabase.query(
+            "usage_model_requests",
+            arrayOf("assistant_message_id", "conversation_id", "created_at", "input_tokens", "output_tokens"),
+            "created_at>=? AND created_at<?",
+            arrayOf(startAt.toString(), endAt.toString()),
+            null,
+            null,
+            "created_at ASC, assistant_message_id ASC",
+        ).use {
+            buildList {
+                while (it.moveToNext()) {
+                    add(UsageModelRequest(it.getLong(0), it.getLong(1), it.getLong(2), it.getLong(3), it.getLong(4)))
+                }
+            }
+        }
+    }
+
+    fun usageModelRequestMessageIds(): Set<Long> {
+        return readableDatabase.query(
+            "usage_model_requests",
+            arrayOf("assistant_message_id"),
+            null,
+            null,
+            null,
+            null,
+            null,
+        ).use {
+            buildSet {
+                while (it.moveToNext()) add(it.getLong(0))
+            }
+        }
+    }
+
+    private fun recordUsageMessageEvent(messageId: Long, conversationId: Long, role: String, createdAt: Long) {
+        writableDatabase.insertWithOnConflict(
+            "usage_message_events",
+            null,
+            ContentValues().apply {
+                put("message_id", messageId)
+                put("conversation_id", conversationId)
+                put("role", role)
+                put("created_at", createdAt)
+            },
+            SQLiteDatabase.CONFLICT_IGNORE,
+        )
     }
 
     fun messages(conversationId: Long): List<ChatMessage> {

@@ -733,19 +733,26 @@ class AppSettings(context: Context) {
         description?.trim()?.takeIf { it.isNotBlank() }?.let { File(dir, SKILL_DESCRIPTION_FILE).writeText(it) }
     }
 
-    fun activeSkillsPrompt(): String {
-        val enabled = installedSkills().filter { it.enabled }
-        if (enabled.isEmpty()) return "enabled_skills=[]"
+    fun activeSkillsPrompt(forcedSkillIds: Collection<String> = emptyList()): String {
+        val forcedIds = forcedSkillIds.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val installed = installedSkills()
+        val skills = (installed.filter { it.enabled } + installed.filter { it.id in forcedIds })
+            .distinctBy { it.id }
+        if (skills.isEmpty()) return "enabled_skills=[]"
         return buildString {
             appendLine("enabled_skills=[")
-            enabled.forEach { skill ->
+            skills.forEach { skill ->
                 appendLine("""  {"id":"${skill.id}","name":"${escapeSkillJson(skill.name)}","description":"${escapeSkillJson(skill.description)}","file_count":${skill.fileCount}},""")
             }
             appendLine("]")
-            appendLine("Use Skills as optional capability references only. First judge relevance from name/description. If a Skill seems useful, call list_skill_files/read_skill_file to inspect SKILL.md and required files. Do not load every Skill blindly. Some Skills may assume desktop/cloud tools unavailable on Android/Termux; adapt them to Lyra Code's Android environment and current tool limits.")
+            if (forcedIds.isNotEmpty()) {
+                appendLine("forced_skill_ids=[${forcedIds.joinToString(",") { "\"${escapeSkillJson(it)}\"" }}]")
+                appendLine("The user explicitly selected forced_skill_ids for this request. You must inspect each forced Skill with list_skill_files/read_skill_file, starting from SKILL.md, and apply relevant instructions unless impossible. If a forced Skill cannot be applied, briefly explain why.")
+            } else {
+                appendLine("Use Skills as optional capability references only. First judge relevance from name/description. If a Skill seems useful, call list_skill_files/read_skill_file to inspect SKILL.md and required files. Do not load every Skill blindly. Some Skills may assume desktop/cloud tools unavailable on Android/Termux; adapt them to Lyra Code's Android environment and current tool limits.")
+            }
         }
     }
-
     fun listSkillFiles(id: String): Result<String> = runCatching {
         val root = skillDir(id)
         root.walkTopDown()

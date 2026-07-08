@@ -43,30 +43,32 @@ class UsageStatisticsRepository(
         var toolMessageCount = 0
         var modelRequestCount = 0
 
+        conversationStore.usageMessageEvents(range.first, range.second).forEach { event ->
+            when (event.role.lowercase()) {
+                "user" -> {
+                    conversationsWithUserInput += event.conversationId
+                    userMessageCount++
+                }
+                "tool" -> toolMessageCount++
+                "assistant" -> assistantMessageCount++
+            }
+        }
+
+        conversationStore.usageModelRequests(range.first, range.second).forEach { request ->
+            userInputTokens += request.inputTokens
+            aiOutputTokens += request.outputTokens
+            modelRequestCount++
+        }
+
+        val recordedAssistantIds = conversationStore.usageModelRequestMessageIds()
         conversationStore.conversations(includeSubAgents = true).forEach { conversation ->
             var repeatedContextTokens = 0L
             conversationStore.messages(conversation.id).forEach { message ->
-                val inRange = message.createdAt >= range.first && message.createdAt < range.second
-                if (inRange) {
-                    when (message.role.lowercase()) {
-                        "user" -> {
-                            conversationsWithUserInput += message.conversationId
-                            userMessageCount++
-                        }
-                        "tool" -> toolMessageCount++
-                        "assistant" -> assistantMessageCount++
-                    }
-                }
-
                 when (message.role.lowercase()) {
-                    "user" -> {
-                        repeatedContextTokens += message.promptInputCost()
-                    }
-                    "tool" -> {
-                        repeatedContextTokens += message.promptInputCost()
-                    }
+                    "user", "tool" -> repeatedContextTokens += message.promptInputCost()
                     "assistant" -> {
-                        if (inRange) {
+                        val inRange = message.createdAt >= range.first && message.createdAt < range.second
+                        if (inRange && message.id !in recordedAssistantIds) {
                             modelRequestCount++
                             userInputTokens += REQUEST_STATIC_INPUT_TOKENS + repeatedContextTokens
                             aiOutputTokens += message.assistantOutputCost()
@@ -90,7 +92,6 @@ class UsageStatisticsRepository(
             modelRequestCount = modelRequestCount,
         )
     }
-
     private fun ChatMessage.promptInputCost(): Long {
         return when (role.lowercase()) {
             "user" -> MESSAGE_WRAPPER_TOKENS + tokenizer.count(content)

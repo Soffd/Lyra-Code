@@ -352,8 +352,11 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     val messageSnapshot = controller.messages.value
     val renderItems = remember(messageSnapshot) { chatRenderItems(messageSnapshot) }
     val pendingUploads = controller.pendingUploads
-    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !controller.isActiveConversationRunning()
     val isRunning = controller.isActiveConversationRunning()
+    var forcedSkillIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
+    val installedSkills = settings.installedSkills()
+    val skillPickerOpen = input.startsWith("/") && !isRunning
+    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !isRunning && !skillPickerOpen
     val draftKey = controller.inputDraftKey()
     var loadedDraftKey by remember { mutableStateOf("") }
     LaunchedEffect(draftKey) {
@@ -446,6 +449,9 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             pendingUploads = pendingUploads,
             canSend = canSend,
             isRunning = isRunning,
+            installedSkills = installedSkills,
+            forcedSkillIds = forcedSkillIds,
+            onForcedSkillIdsChange = { forcedSkillIds = it },
             listState = listState,
             keyboardLiftPx = keyboardLiftPx,
             keyboardLiftDp = keyboardLiftDp,
@@ -456,9 +462,11 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             onSend = {
                 val text = input
                 controller.clearInputDraft()
+                val skills = forcedSkillIds
                 input = ""
+                forcedSkillIds = emptyList()
                 attachmentMenuOpen = false
-                controller.send(text)
+                controller.send(text, skills)
             },
             onStop = { controller.stopActive() },
         )
@@ -606,6 +614,14 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ForcedSkillControls(
+                    input = input,
+                    installedSkills = installedSkills,
+                    forcedSkillIds = forcedSkillIds,
+                    enabled = !isRunning,
+                    onSkillIdsChange = { forcedSkillIds = it },
+                    onInputChange = { input = it },
+                )
                 if (pendingUploads.isNotEmpty()) {
                     PendingUploadStrip(pendingUploads, onRemove = controller::removePendingUpload)
                 }
@@ -656,10 +672,12 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
                             onClick = {
                                 val text = input
+                                val skills = forcedSkillIds
                                 controller.clearInputDraft()
                                 input = ""
+                                forcedSkillIds = emptyList()
                                 attachmentMenuOpen = false
-                                controller.send(text)
+                                controller.send(text, skills)
                             },
                         ) {
                             Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
@@ -673,6 +691,117 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
 }
 
 @Composable
+private fun ForcedSkillControls(
+    input: String,
+    installedSkills: List<SkillPack>,
+    forcedSkillIds: List<String>,
+    enabled: Boolean,
+    onSkillIdsChange: (List<String>) -> Unit,
+    onInputChange: (String) -> Unit,
+) {
+    val forcedSkills = forcedSkillIds.mapNotNull { id -> installedSkills.firstOrNull { it.id == id } }
+    val slashBody = input.takeIf { it.startsWith("/") }?.drop(1).orEmpty()
+    val query = slashBody.substringBefore(' ').trim()
+    val showPicker = enabled && input.startsWith("/")
+    val matches = installedSkills
+        .filterNot { it.id in forcedSkillIds }
+        .filter { skill ->
+            query.isBlank() ||
+                skill.name.contains(query, ignoreCase = true) ||
+                skill.description.contains(query, ignoreCase = true) ||
+                skill.id.contains(query, ignoreCase = true)
+        }
+        .take(8)
+
+    if (forcedSkills.isNotEmpty()) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(uiText("本轮强制使用"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+            forcedSkills.forEach { skill ->
+                TextButton(
+                    onClick = { onSkillIdsChange(forcedSkillIds - skill.id) },
+                    shape = RoundedCornerShape(18.dp),
+                    contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = uiText("点击移除 Skill"), modifier = Modifier.size(14.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
+    }
+
+    AnimatedVisibility(showPicker) {
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.72f)),
+        ) {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 260.dp).verticalScroll(rememberScrollState()).padding(vertical = 6.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) {
+                        Text(uiText("选择技能"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+                        Text(uiText("输入 / 选择本轮要强制使用的 Skill"), style = MaterialTheme.typography.labelSmall, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+                if (matches.isEmpty()) {
+                    Text(
+                        uiText("没有匹配的 Skill"),
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                        color = KimiMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                } else {
+                    matches.forEach { skill ->
+                        Row(
+                            Modifier.fillMaxWidth()
+                                .clickable {
+                                    onSkillIdsChange(forcedSkillIds + skill.id)
+                                    onInputChange(removeSkillSlashPrefix(input))
+                                }
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                                    if (!skill.enabled) {
+                                        Text(uiText("已禁用"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                                    }
+                                }
+                                if (skill.description.isNotBlank()) {
+                                    Text(skill.description, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun removeSkillSlashPrefix(input: String): String {
+    if (!input.startsWith("/")) return input
+    val body = input.drop(1)
+    val firstWhitespace = body.indexOfFirst { it.isWhitespace() }
+    if (firstWhitespace < 0) return ""
+    return body.drop(firstWhitespace + 1).trimStart()
+}
+@Composable
 internal fun RoleplayChatScreen(
     controller: ChatController,
     settings: AppSettings,
@@ -681,6 +810,9 @@ internal fun RoleplayChatScreen(
     pendingUploads: List<UploadedFile>,
     canSend: Boolean,
     isRunning: Boolean,
+    installedSkills: List<SkillPack>,
+    forcedSkillIds: List<String>,
+    onForcedSkillIdsChange: (List<String>) -> Unit,
     listState: androidx.compose.foundation.lazy.LazyListState,
     keyboardLiftPx: Int,
     keyboardLiftDp: androidx.compose.ui.unit.Dp,
@@ -832,6 +964,14 @@ internal fun RoleplayChatScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
             ) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ForcedSkillControls(
+                        input = input,
+                        installedSkills = installedSkills,
+                        forcedSkillIds = forcedSkillIds,
+                        enabled = !isRunning,
+                        onSkillIdsChange = onForcedSkillIdsChange,
+                        onInputChange = onInputChange,
+                    )
                     if (pendingUploads.isNotEmpty()) {
                         PendingUploadStrip(pendingUploads, onRemove = controller::removePendingUpload)
                     }

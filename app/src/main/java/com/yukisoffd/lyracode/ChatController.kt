@@ -306,7 +306,7 @@ class ChatController(
         reloadConversations()
     }
 
-    fun send(text: String) {
+    fun send(text: String, forcedSkillIds: List<String> = emptyList()) {
         val uploads = pendingUploads.toList()
         if (text.isBlank() && uploads.isEmpty()) return
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: createPersistedConversation()
@@ -333,7 +333,7 @@ class ChatController(
         uploadingStatus.value = ""
         jobs[conversationId] = scope.launch {
             status.value = appContext.getString(R.string.status_running)
-            agent.chat(conversationId, userInput, profile, model, userMessagePersisted = true) {
+            agent.chat(conversationId, userInput, profile, model, userMessagePersisted = true, forcedSkillIds = forcedSkillIds) {
                 withContext(Dispatchers.Main) {
                     applyChatUpdate(it)
                     status.value = it.status
