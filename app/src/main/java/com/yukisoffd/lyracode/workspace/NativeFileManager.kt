@@ -22,6 +22,8 @@ class NativeFileManager(
     private val context: Context,
     private val workspaceManager: WorkspaceManager,
 ) {
+    fun hasWorkspaceRoot(): Boolean = workspaceManager.rootUri() != null
+
     fun listDirectory(path: String = ""): Result<List<WorkspaceFile>> = runCatching {
         val dir = resolve(path) ?: throw FileNotFoundException("目录不存在: $path")
         require(dir.isDirectory) { "不是目录: $path" }
@@ -157,7 +159,7 @@ class NativeFileManager(
     private fun findOrCreateFile(path: String): DocumentFile {
         val clean = normalize(path)
         require(clean.isNotBlank()) { "文件路径不能为空" }
-        val parent = resolve(parentPath(clean)) ?: throw FileNotFoundException("父目录不存在: ${parentPath(clean)}")
+        val parent = findOrCreateDirectory(parentPath(clean))
         val name = clean.substringAfterLast("/")
         parent.findFile(name)?.let { return it }
         val created = parent.createFile(mimeFor(name), name)
@@ -170,8 +172,25 @@ class NativeFileManager(
                 created.delete()
                 throw FileNotFoundException("SAF 创建文件时被系统改名为 $actual，无法创建目标文件名: $name")
             }
+            return resolved
         }
-        return parent.findFile(name) ?: created
+        return created
+    }
+
+    private fun findOrCreateDirectory(path: String): DocumentFile {
+        var current = workspaceManager.root() ?: throw FileNotFoundException("未选择工作目录")
+        val clean = normalize(path)
+        if (clean.isBlank()) return current
+        clean.split("/").forEach { segment ->
+            val existing = current.findFile(segment)
+            current = when {
+                existing == null -> current.createDirectory(segment)
+                    ?: throw FileNotFoundException("无法创建目录: $segment")
+                existing.isDirectory -> existing
+                else -> throw FileNotFoundException("父路径不是目录: $segment")
+            }
+        }
+        return current
     }
 
     private fun resolve(path: String): DocumentFile? {

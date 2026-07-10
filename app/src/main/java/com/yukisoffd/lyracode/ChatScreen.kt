@@ -355,8 +355,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     val isRunning = controller.isActiveConversationRunning()
     var forcedSkillIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val installedSkills = settings.installedSkills()
-    val skillPickerOpen = input.startsWith("/") && !isRunning
-    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !isRunning && !skillPickerOpen
+    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !isRunning
     val draftKey = controller.inputDraftKey()
     var loadedDraftKey by remember { mutableStateOf("") }
     LaunchedEffect(draftKey) {
@@ -702,7 +701,7 @@ private fun ForcedSkillControls(
     val forcedSkills = forcedSkillIds.mapNotNull { id -> installedSkills.firstOrNull { it.id == id } }
     val slashBody = input.takeIf { it.startsWith("/") }?.drop(1).orEmpty()
     val query = slashBody.substringBefore(' ').trim()
-    val showPicker = enabled && input.startsWith("/")
+    val showPicker = enabled && input.startsWith("/") && installedSkills.isNotEmpty()
     val matches = installedSkills
         .filterNot { it.id in forcedSkillIds }
         .filter { skill ->

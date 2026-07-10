@@ -3091,7 +3091,11 @@ class OpenAiAgent(
             )
             "download_file" -> {
                 val destination = args.optString("destination", "workspace")
-                val target = if (destination.equals("global", true)) "Android 共享存储" else "当前工作区"
+                val target = when {
+                    destination.equals("global", true) -> "Android 共享存储"
+                    !nativeFileManager.hasWorkspaceRoot() -> "Android 共享存储 Download/LyraCode（未选择工作区）"
+                    else -> "当前工作区"
+                }
                 ToolApprovalRequest(
                     conversationId,
                     call.name,
@@ -3673,7 +3677,7 @@ class OpenAiAgent(
             Skills 是可选能力包，不是默认系统提示词，除非 LYRA_ACTIVE_SKILLS_V1 包含 forced_skill_ids。若存在 forced_skill_ids，必须调用 list_skill_files 和 read_skill_file 从 SKILL.md 开始检查并尽量应用这些 Skills；若无法应用，应简要说明原因。没有 forced_skill_ids 时，先根据 name/description 判断是否相关；相关时再读取 SKILL.md 或必要文件。不要无差别读取所有 Skills。
             Skills 可能包含桌面、云端或外部服务假设，使用前必须适配 Android、Termux 和 Lyra Code 工具限制。
             MCP 工具来自用户配置的远程或局域网 MCP Server，仅在工具名以 mcp_ 开头时代表外部 MCP 工具。调用 MCP 工具前应用会请求用户确认；不要把 MCP 工具当成本地文件工具使用，也不要假设 MCP Server 可访问 Android 本机工作区。
-            下载 http/https 文件时优先调用 download_file，直接保存到工作区或 Android 共享存储；可提供请求头和 SHA-256 校验。只有 download_file 明确失败、被禁用或不支持目标协议时，才可把 Termux 的 curl/wget 作为最后备用手段。
+            下载 http/https 文件时优先调用 download_file，直接保存到工作区或 Android 共享存储；未选择工作区而 destination=workspace 时，应用会自动回退保存到 Android 共享存储 Download/LyraCode。可提供请求头和 SHA-256 校验。只有 download_file 明确失败、被禁用或不支持目标协议时，才可把 Termux 的 curl/wget 作为最后备用手段。
             需要预览或调试工作区内静态网站、Vue/Vite/VitePress 构建产物、HTML/CSS/JS 文件时，优先使用 get_mini_server_status 和 manage_mini_server 启动 Lyra Code 微型服务器。默认监听 127.0.0.1；若用户要求局域网、内网穿透或公网访问，可设置 host=0.0.0.0 并提醒设置密码和 HTTP 明文风险。HTTPS 可使用自定义证书库/PEM 证书链和私钥；未配置时使用内置自签名证书，浏览器可能提示不受信任。custom_domains 只是访问域名展示/跳转配置，域名 DNS 或内网穿透仍需用户自行指向设备。站点资源加载失败、404、认证失败或页面 JavaScript 报错时，调用 read_mini_server_logs 读取最近日志再修复。
             只有在工具列表提供 run_command，且需要安装包、运行脚本、Git、长输出或非空目录删除时才调用 run_command；如果工具列表没有 run_command，说明用户未授予 Termux 通信权限或已禁用该工具，不要假设可执行命令。
             需要按文件名、扩展名或路径片段查找文件时，必须先调用 search_files；不要用 run_command 执行 find、fd、locate 或自行写搜索脚本来代替 search_files。
@@ -3765,7 +3769,7 @@ class OpenAiAgent(
         .put(
             functionWithOptional(
                 "download_file",
-                "使用应用原生 HTTP/HTTPS 客户端下载文件，不依赖 Termux。必须优先于 curl/wget 使用。destination=workspace 时 path 为工作区相对路径；destination=global 时 path 为 Android 共享存储路径，例如 Download/file.zip。执行前会请求用户确认。headers 每项使用 Name: Value 格式；sha256 可用于完整性校验。",
+                "使用应用原生 HTTP/HTTPS 客户端下载文件，不依赖 Termux。必须优先于 curl/wget 使用。destination=workspace 时 path 为工作区相对路径；若未选择工作区，应用会自动保存到 Android 共享存储 Download/LyraCode/<path>。destination=global 时 path 为 Android 共享存储路径，例如 Download/file.zip。执行前会请求用户确认。headers 每项使用 Name: Value 格式；sha256 可用于完整性校验。",
                 required = listOf("url" to "string", "path" to "string"),
                 optional = listOf(
                     "destination" to "string",

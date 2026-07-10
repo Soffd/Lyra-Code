@@ -151,16 +151,26 @@ class DownloadTaskManager private constructor(
                 if (request.expectedSha256.isNotBlank() && actualSha256 != request.expectedSha256) {
                     error("SHA-256 校验失败: expected=${request.expectedSha256} actual=$actualSha256")
                 }
+                val effectiveDestination = if (request.destination == "workspace" && !nativeFileManager.hasWorkspaceRoot()) {
+                    "global"
+                } else {
+                    request.destination
+                }
+                val effectivePath = if (effectiveDestination == "global" && request.destination == "workspace") {
+                    fallbackDownloadPath(request.path)
+                } else {
+                    request.path
+                }
                 val written = tempFile.inputStream().buffered().use { input ->
-                    when (request.destination) {
-                        "workspace" -> nativeFileManager.writeStream(request.path, input).getOrThrow()
-                        else -> globalFileManager.writeStream(request.path, input).getOrThrow()
+                    when (effectiveDestination) {
+                        "workspace" -> nativeFileManager.writeStream(effectivePath, input).getOrThrow()
+                        else -> globalFileManager.writeStream(effectivePath, input).getOrThrow()
                     }
                 }
                 val result = DownloadTaskResult(
                     finalUrl = response.request.url.toString(),
-                    destination = request.destination,
-                    path = request.path,
+                    destination = effectiveDestination,
+                    path = effectivePath,
                     bytes = written,
                     contentType = contentType,
                     sha256 = actualSha256,
@@ -174,9 +184,11 @@ class DownloadTaskManager private constructor(
                         finishedAt = System.currentTimeMillis(),
                         contentType = contentType,
                         sha256 = actualSha256,
+                        destination = result.destination,
+                        path = result.path,
                     ),
                 )
-                notifyCompleted(request.path)
+                notifyCompleted(result.path)
                 result
             }
         } catch (error: Throwable) {
@@ -194,6 +206,11 @@ class DownloadTaskManager private constructor(
         } finally {
             tempFile.delete()
         }
+    }
+
+    private fun fallbackDownloadPath(path: String): String {
+        val clean = path.replace('\\', '/').trim().trimStart('/').ifBlank { "download.bin" }
+        return "Download/LyraCode/$clean"
     }
 
     private fun updateTask(task: DownloadTask) {
