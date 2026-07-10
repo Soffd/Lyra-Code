@@ -1179,6 +1179,25 @@
     <string name="roleplay_typing">Roleplay Typing</string>
     <string name="date_format_year_month">MMM yyyy</string>
     <string name="action_checking_update">Checking for updates...</string>
+    <!-- Workspace @ picker, tool detail, and streaming output -->
+    <string name="workspace_file_picker_title">Choose workspace files (multiple allowed)</string>
+    <string name="workspace_file_select">Select file</string>
+    <string name="workspace_file_remove">Remove file</string>
+    <string name="workspace_file_no_matches">No matching files</string>
+    <string name="workspace_file_indexing">Indexing workspace files…</string>
+    <string name="tool_call_summary">Tool %1$s · View details</string>
+    <string name="tool_call_summary_unknown">Tool call · View details</string>
+    <string name="tool_detail_title">Tool call details</string>
+    <string name="tool_unknown_name">Unknown tool</string>
+    <string name="tool_input_title">Tool input</string>
+    <string name="tool_output_title">Result</string>
+    <string name="detail_streaming_output">Streaming output</string>
+    <string name="streaming_output_title">Streaming animation</string>
+    <string name="streaming_typewriter_title">Typewriter</string>
+    <string name="streaming_typewriter_desc">Classic typewriter effect that reveals text character by character</string>
+    <string name="streaming_fade_title">Fade in</string>
+    <string name="streaming_fade_desc">New content smoothly fades from transparent to clear</string>
+    <string name="streaming_selected">Selected</string>
 </resources>
 
 

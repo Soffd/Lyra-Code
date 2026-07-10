@@ -1263,6 +1263,25 @@
     <string name="cd_menu">菜单</string>
     <string name="roleplay_typing">对方正在输入…</string>
     <string name="date_format_year_month">yyyy年M月</string>
+    <!-- Workspace @ picker, tool detail, and streaming output -->
+    <string name="workspace_file_picker_title">选择工作区文件（可多选）</string>
+    <string name="workspace_file_select">选择文件</string>
+    <string name="workspace_file_remove">移除文件</string>
+    <string name="workspace_file_no_matches">没有匹配的文件</string>
+    <string name="workspace_file_indexing">正在建立工作区文件索引…</string>
+    <string name="tool_call_summary">调用工具 %1$s · 查看详情</string>
+    <string name="tool_call_summary_unknown">工具调用 · 查看详情</string>
+    <string name="tool_detail_title">工具调用详情</string>
+    <string name="tool_unknown_name">未知工具</string>
+    <string name="tool_input_title">工具输入</string>
+    <string name="tool_output_title">调用结果</string>
+    <string name="detail_streaming_output">流式输出</string>
+    <string name="streaming_output_title">流式输出动画</string>
+    <string name="streaming_typewriter_title">逐字显示</string>
+    <string name="streaming_typewriter_desc">经典打字机效果，内容逐字出现</string>
+    <string name="streaming_fade_title">渐变显示</string>
+    <string name="streaming_fade_desc">新内容从高透明度平滑过渡至清晰</string>
+    <string name="streaming_selected">已选择</string>
 </resources>
 
 

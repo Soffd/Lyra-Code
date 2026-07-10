@@ -445,6 +445,8 @@ internal class FileSearchMatcher(query: String) {
     }
 
     fun score(name: String, path: String): Int {
+        if (terms.isEmpty()) return 1
+        if (!matches(name, path)) return 0
         val normalizedName = normalizeToken(name)
         val normalizedPath = normalizeToken(path)
         return terms.sumOf { term ->

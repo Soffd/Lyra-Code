@@ -12,16 +12,25 @@ class WorkspaceManager(
     @Suppress("unused") private val settings: AppSettings,
 ) {
     private var activeWorkspaceUri: String = ""
+    private val fileIndexer by lazy { WorkspaceFileIndexer(context, this) }
 
     fun persistWorkspace(uri: Uri): String {
         val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
         context.contentResolver.takePersistableUriPermission(uri, flags)
-        activeWorkspaceUri = uri.toString()
+        val nextUri = uri.toString()
+        if (activeWorkspaceUri != nextUri) {
+            activeWorkspaceUri = nextUri
+            fileIndexer.invalidate()
+        }
         return activeWorkspaceUri
     }
 
     fun setActiveWorkspaceUri(uri: String?) {
-        activeWorkspaceUri = uri.orEmpty()
+        val nextUri = uri.orEmpty()
+        if (activeWorkspaceUri != nextUri) {
+            activeWorkspaceUri = nextUri
+            fileIndexer.invalidate()
+        }
     }
 
     fun activeWorkspaceUri(): String = activeWorkspaceUri
@@ -34,6 +43,9 @@ class WorkspaceManager(
     }
 
     fun displayName(): String = root()?.name ?: "未选择工作目录"
+
+    fun searchFiles(query: String, limit: Int = 80): List<WorkspaceFileReference> =
+        fileIndexer.search(query, limit)
 
     fun termuxRootPath(): String? {
         val uri = rootUri() ?: return null

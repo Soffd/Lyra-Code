@@ -33,9 +33,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
@@ -153,6 +156,7 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -198,6 +202,7 @@ import com.yukisoffd.lyracode.workspace.NativeFileManager
 import com.yukisoffd.lyracode.workspace.UploadedFile
 import com.yukisoffd.lyracode.workspace.UploadedFileManager
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
+import com.yukisoffd.lyracode.workspace.WorkspaceFileReference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -336,6 +341,9 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     var attachmentMenuSearch by rememberSaveable { mutableStateOf("") }
     var cropUploadUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var selectionResetKey by remember { mutableIntStateOf(0) }
+    var selectedWorkspaceFiles by remember { mutableStateOf<List<WorkspaceFileReference>>(emptyList()) }
+    var workspaceFileMatches by remember { mutableStateOf<List<WorkspaceFileReference>>(emptyList()) }
+    var workspaceFileSearchLoading by remember { mutableStateOf(false) }
     val fileUploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) controller.attachUploadedFile(uri)
     }
@@ -353,17 +361,39 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     val renderItems = remember(messageSnapshot) { chatRenderItems(messageSnapshot) }
     val pendingUploads = controller.pendingUploads
     val isRunning = controller.isActiveConversationRunning()
+    val hasWorkspace = controller.hasWorkspace()
     var forcedSkillIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val installedSkills = settings.installedSkills()
-    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty()) && !isRunning
+    val canSend = (input.isNotBlank() || pendingUploads.isNotEmpty() || selectedWorkspaceFiles.isNotEmpty()) && !isRunning
     val draftKey = controller.inputDraftKey()
     var loadedDraftKey by remember { mutableStateOf("") }
     LaunchedEffect(draftKey) {
         input = controller.loadInputDraft()
+        selectedWorkspaceFiles = emptyList()
+        workspaceFileMatches = emptyList()
+        workspaceFileSearchLoading = false
         loadedDraftKey = draftKey
     }
     LaunchedEffect(input, loadedDraftKey) {
         if (loadedDraftKey == draftKey) controller.saveInputDraft(input)
+    }
+    LaunchedEffect(input, controller.activeConversationId.value, controller.settingsRevision.intValue) {
+        if (!input.startsWith("@") || !hasWorkspace) {
+            workspaceFileMatches = emptyList()
+            workspaceFileSearchLoading = false
+            return@LaunchedEffect
+        }
+        workspaceFileSearchLoading = true
+        try {
+            delay(120L)
+            val mentionBody = input.drop(1)
+            val query = mentionBody.substringBefore(' ').trim()
+            workspaceFileMatches = withContext(Dispatchers.IO) {
+                controller.searchWorkspaceFiles(query)
+            }
+        } finally {
+            workspaceFileSearchLoading = false
+        }
     }
     var autoFollowOutput by remember(controller.activeConversationId.value) { mutableStateOf(true) }
     var keyboardShouldLiftOutput by remember(controller.activeConversationId.value) { mutableStateOf(false) }
@@ -575,6 +605,8 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                         MessageCard(
                             message = item.message,
                             selectionResetKey = selectionResetKey,
+                            streamingAnimationMode = settings.streamingAnimationMode,
+                            isStreaming = isRunning && item.message.id == messageSnapshot.lastOrNull { it.role == "assistant" }?.id,
                             onEditAndRegenerate = controller::editAndRegenerateUserMessage,
                         )
                     }
@@ -620,6 +652,28 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                     enabled = !isRunning,
                     onSkillIdsChange = { forcedSkillIds = it },
                     onInputChange = { input = it },
+                )
+                WorkspaceFileMentionPicker(
+                    input = input,
+                    matches = workspaceFileMatches,
+                    selected = selectedWorkspaceFiles,
+                    enabled = !isRunning,
+                    hasWorkspace = hasWorkspace,
+                    loading = workspaceFileSearchLoading,
+                    onToggle = { file ->
+                        selectedWorkspaceFiles = if (selectedWorkspaceFiles.any { it.relativePath == file.relativePath }) {
+                            selectedWorkspaceFiles.filterNot { it.relativePath == file.relativePath }
+                        } else {
+                            (selectedWorkspaceFiles + file).distinctBy { it.relativePath }.take(24)
+                        }
+                    },
+                    onRemove = { file ->
+                        selectedWorkspaceFiles = selectedWorkspaceFiles.filterNot { it.relativePath == file.relativePath }
+                    },
+                    onDone = {
+                        input = removeWorkspaceMentionPrefix(input)
+                        workspaceFileMatches = emptyList()
+                    },
                 )
                 if (pendingUploads.isNotEmpty()) {
                     PendingUploadStrip(pendingUploads, onRemove = controller::removePendingUpload)
@@ -672,11 +726,14 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             onClick = {
                                 val text = input
                                 val skills = forcedSkillIds
+                                val workspaceFiles = selectedWorkspaceFiles
                                 controller.clearInputDraft()
                                 input = ""
                                 forcedSkillIds = emptyList()
+                                selectedWorkspaceFiles = emptyList()
+                                workspaceFileMatches = emptyList()
                                 attachmentMenuOpen = false
-                                controller.send(text, skills)
+                                controller.send(text, skills, workspaceFiles)
                             },
                         ) {
                             Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
@@ -687,6 +744,129 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
         }
     }
 }
+}
+
+@Composable
+private fun WorkspaceFileMentionPicker(
+    input: String,
+    matches: List<WorkspaceFileReference>,
+    selected: List<WorkspaceFileReference>,
+    enabled: Boolean,
+    hasWorkspace: Boolean,
+    loading: Boolean,
+    onToggle: (WorkspaceFileReference) -> Unit,
+    onRemove: (WorkspaceFileReference) -> Unit,
+    onDone: () -> Unit,
+) {
+    AnimatedContent(
+        targetState = selected,
+        transitionSpec = {
+            (fadeIn() + expandIn()) togetherWith (fadeOut() + shrinkOut())
+        },
+        label = "workspaceFileSelection",
+    ) { visibleSelection ->
+        if (visibleSelection.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                visibleSelection.forEach { file ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.65f)),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Row(
+                            Modifier.padding(start = 10.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text(file.name, maxLines = 1, style = MaterialTheme.typography.labelMedium)
+                            IconButton(onClick = { onRemove(file) }, enabled = enabled, modifier = Modifier.size(30.dp)) {
+                                Icon(Icons.Default.Close, contentDescription = stringResource(R.string.workspace_file_remove), modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    val showPicker = shouldShowWorkspaceFilePicker(input, enabled, hasWorkspace)
+    AnimatedVisibility(showPicker) {
+    Card(
+        Modifier.fillMaxWidth().heightIn(max = 280.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f)),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
+    ) {
+        Column(Modifier.padding(vertical = 8.dp)) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(stringResource(R.string.workspace_file_picker_title), style = MaterialTheme.typography.labelMedium)
+                    if (selected.isNotEmpty()) {
+                        Text(uiText("已选择") + " ${selected.size}/24", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+                TextButton(onClick = onDone, enabled = enabled) { Text(uiText("完成")) }
+            }
+            if (loading) {
+                Text(
+                    stringResource(R.string.workspace_file_indexing),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else if (matches.isEmpty()) {
+                Text(
+                    stringResource(R.string.workspace_file_no_matches),
+                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                LazyColumn(Modifier.heightIn(max = 210.dp)) {
+                items(matches, key = { it.relativePath }) { file ->
+                    val isSelected = selected.any { it.relativePath == file.relativePath }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) else Color.Transparent)
+                            .clickable(enabled = enabled) { onToggle(file) }
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Icon(Icons.Default.InsertDriveFile, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                        Column(Modifier.weight(1f)) {
+                            Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
+                            Text(file.relativePath, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                        }
+                        Icon(
+                            if (isSelected) Icons.Default.CheckCircle else Icons.Default.Add,
+                            contentDescription = stringResource(if (isSelected) R.string.workspace_file_remove else R.string.workspace_file_select),
+                            tint = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+    }
+}
+
+internal fun shouldShowWorkspaceFilePicker(input: String, enabled: Boolean, hasWorkspace: Boolean): Boolean =
+    enabled && hasWorkspace && input.startsWith("@")
+
+private fun removeWorkspaceMentionPrefix(input: String): String {
+    if (!input.startsWith("@")) return input
+    val body = input.drop(1)
+    val firstWhitespace = body.indexOfFirst { it.isWhitespace() }
+    if (firstWhitespace < 0) return ""
+    return body.drop(firstWhitespace + 1).trimStart()
 }
 
 @Composable
@@ -2048,11 +2228,14 @@ internal fun MessageCard(
     message: ChatRecord,
     selectionResetKey: Int = 0,
     inProcessRecord: Boolean = false,
+    streamingAnimationMode: String = AppSettings.STREAMING_ANIMATION_TYPEWRITER,
+    isStreaming: Boolean = false,
     onEditAndRegenerate: ((Long, String) -> Unit)? = null,
 ) {
     val visibleContent = displayMessageContent(message)
     val mediaPreviews = remember(message.content) { uploadedMediaPreviews(message.content) }
     val filePreviews = remember(message.content) { uploadedFilePreviews(message.content) }
+    val workspaceReferences = remember(message.content) { workspaceReferencePreviews(message.content) }
     val container = when (message.role) {
         "user" -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)
         "tool" -> MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
@@ -2108,6 +2291,9 @@ internal fun MessageCard(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start,
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            if (isUser && workspaceReferences.isNotEmpty()) {
+                WorkspaceReferenceCardColumn(workspaceReferences)
+            }
             if (isUser && mediaPreviews.isNotEmpty()) {
                 UploadedMediaGrid(mediaPreviews)
             }
@@ -2135,14 +2321,23 @@ internal fun MessageCard(
                         border = if (message.role == "assistant") null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
                         modifier = cardModifier,
                     ) {
+                        val compactToolResult = inProcessRecord && message.role == "tool"
                         Column(
                             Modifier.padding(
-                                horizontal = if (isUser) 16.dp else 6.dp,
-                                vertical = if (isUser) 9.dp else 6.dp,
+                                horizontal = when {
+                                    isUser -> 16.dp
+                                    compactToolResult -> 2.dp
+                                    else -> 6.dp
+                                },
+                                vertical = when {
+                                    isUser -> 9.dp
+                                    compactToolResult -> 2.dp
+                                    else -> 6.dp
+                                },
                             ),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(if (compactToolResult) 2.dp else 8.dp),
                         ) {
-                            if (!isUser && message.role != "assistant") {
+                            if (!isUser && message.role != "assistant" && !compactToolResult) {
                                 Text(uiText("工具结果"), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                             }
                             if (message.thinking.isNotBlank()) {
@@ -2166,8 +2361,11 @@ internal fun MessageCard(
                             if (message.role == "tool") {
                                 ToolResultContent(
                                     content = message.content,
+                                    toolName = message.toolName,
+                                    toolInput = message.toolInput,
                                     expanded = showToolResult,
                                     onToggle = { showToolResult = !showToolResult },
+                                    compact = compactToolResult,
                                 )
                             } else {
                                 if (visibleContent.isNotBlank()) {
@@ -2182,7 +2380,7 @@ internal fun MessageCard(
                                             }
                                         } else {
                                             SelectionContainer {
-                                                RichMarkdownContent(visibleContent)
+                                                StreamingAssistantContent(visibleContent, isStreaming, streamingAnimationMode)
                                             }
                                         }
                                     }
@@ -2260,6 +2458,66 @@ internal fun MessageCard(
     }
 }
 
+@Composable
+internal fun StreamingAssistantContent(content: String, isStreaming: Boolean, mode: String) {
+    val normalizedMode = AppSettings.normalizeStreamingAnimationMode(mode)
+    val latestContent by rememberUpdatedState(content)
+    val fadeMode = normalizedMode == AppSettings.STREAMING_ANIMATION_FADE
+    var renderedContent by remember {
+        mutableStateOf(if (isStreaming && !fadeMode) "" else content)
+    }
+    val opaquePosition = remember {
+        Animatable(if (isStreaming && fadeMode) 0f else content.length.toFloat())
+    }
+
+    LaunchedEffect(content, isStreaming, normalizedMode) {
+        if (!fadeMode) return@LaunchedEffect
+
+        val targetPosition = content.length.toFloat()
+        val contentWasReplaced = !content.startsWith(renderedContent)
+        renderedContent = content
+        when {
+            contentWasReplaced -> opaquePosition.snapTo((targetPosition - 72f).coerceAtLeast(0f))
+            opaquePosition.value > targetPosition -> opaquePosition.snapTo(targetPosition)
+        }
+        // Render every received character immediately; only the newest tail fades in.
+        opaquePosition.animateTo(
+            targetValue = targetPosition,
+            animationSpec = tween(durationMillis = 500),
+        )
+    }
+
+    LaunchedEffect(isStreaming, normalizedMode) {
+        if (fadeMode) return@LaunchedEffect
+        if (!isStreaming) {
+            renderedContent = latestContent
+            return@LaunchedEffect
+        }
+
+        while (true) {
+            val target = latestContent
+            if (!target.startsWith(renderedContent)) {
+                renderedContent = ""
+            }
+            val pending = target.length - renderedContent.length
+            if (pending > 0) {
+                renderedContent = target.take(renderedContent.length + 1)
+            }
+            delay(12L)
+        }
+    }
+    val streamingFade = if (
+        fadeMode && opaquePosition.value < renderedContent.length
+    ) {
+        StreamingTextFade(renderedContent.length, opaquePosition.value)
+    } else {
+        null
+    }
+    RichMarkdownContent(
+        renderedContent,
+        streamingFade = streamingFade,
+    )
+}
 internal fun formatProcessDuration(durationMs: Long): String {
     val totalSeconds = (durationMs / 1000L).coerceAtLeast(0L)
     val hours = totalSeconds / 3600L
@@ -2448,6 +2706,51 @@ internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
     return markerPreviews + legacyPreviews
 }
 
+internal data class WorkspaceReferencePreview(val name: String, val path: String)
+
+internal fun workspaceReferencePreviews(content: String): List<WorkspaceReferencePreview> {
+    val regex = Regex("<lyra_workspace_refs_v1>([\\s\\S]*?)</lyra_workspace_refs_v1>")
+    return regex.findAll(content).flatMap { match ->
+        val files = runCatching { JSONObject(match.groupValues[1]).optJSONArray("files") }.getOrNull() ?: JSONArray()
+        buildList {
+            for (index in 0 until files.length()) {
+                val item = files.optJSONObject(index) ?: continue
+                val path = item.optString("path")
+                if (path.isNotBlank()) add(WorkspaceReferencePreview(item.optString("name").ifBlank { fileNameForDisplay(path) }, path))
+            }
+        }.asSequence()
+    }.toList()
+}
+
+@Composable
+internal fun WorkspaceReferenceCardColumn(files: List<WorkspaceReferencePreview>) {
+    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        files.forEach { file ->
+            Card(
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
+            ) {
+                Row(
+                    Modifier.widthIn(max = 320.dp).padding(horizontal = 12.dp, vertical = 9.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(9.dp),
+                ) {
+                    Icon(Icons.Default.Description, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(file.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelLarge)
+                        Text(file.path, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun stripWorkspaceReferenceBlocks(content: String): String = content.replace(
+    Regex("\\n*<lyra_workspace_refs_v1>[\\s\\S]*?</lyra_workspace_refs_v1>\\n*"),
+    "\n",
+).trim()
 internal fun uploadedAttachmentPayloads(content: String): List<JSONObject> {
     val regex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
     return regex.findAll(content).mapNotNull { match ->
@@ -2457,7 +2760,7 @@ internal fun uploadedAttachmentPayloads(content: String): List<JSONObject> {
 
 internal fun displayMessageContent(message: ChatRecord): String {
     if (message.role != "user") return message.content
-    return stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(message.content))).trim()
+    return stripWorkspaceReferenceBlocks(stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(message.content)))).trim()
 }
 
 internal fun stripUploadedAttachmentBlocks(content: String): String {
@@ -2474,69 +2777,214 @@ internal fun stripUploadedMediaBlocks(content: String): String {
     ).trim()
 }
 @Composable
-internal fun ToolResultContent(content: String, expanded: Boolean, onToggle: () -> Unit) {
-    val previewLimit = 12_000
-    val preview = remember(content) {
-        content.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().ifBlank { uiText("空结果") }.take(180)
+internal fun ToolResultContent(
+    content: String,
+    toolName: String = "",
+    toolInput: String = "{}",
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    compact: Boolean = false,
+) {
+    val summary = if (toolName.isNotBlank()) {
+        uiText("调用工具") + " $toolName · " + uiText("查看详情")
+    } else {
+        uiText("工具调用") + " · " + uiText("查看详情")
     }
-    val renderedPreview = remember(content) {
-        content.ifBlank { "..." }.let { value ->
-            if (value.length > previewLimit) {
-                value.take(previewLimit) + uiText("\n\n... 已截断预览，完整工具结果共 ${value.length} 字符。")
-            } else {
-                value
-            }
-        }
-    }
-    val changes = remember(content) { parseFileChanges(content) }
-    var expandedChangePath by rememberSaveable(content) { mutableStateOf<String?>(null) }
-    CollapsedStatusLine(
-        text = if (expanded) uiText("工具调用详情已展开") else uiText("使用工具中... / 工具结果已收起"),
-        expanded = expanded,
-        onClick = onToggle,
-    )
-    if (!expanded) return
+    ToolCallSummaryButton(text = summary, compact = compact, onClick = onToggle)
     if (expanded) {
-        Text(
-            uiText("工具返回 ${content.length} 字符：$preview"),
-            style = MaterialTheme.typography.bodySmall,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        ToolCallDetailPage(
+            toolName = toolName,
+            toolInput = toolInput.ifBlank { "{}" },
+            toolOutput = content.ifBlank { uiText("空结果") },
+            onClose = onToggle,
         )
     }
-    changes.forEach { change ->
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant), modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(fileNameForDisplay(change.path), maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.titleSmall)
-                        Text(change.path, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                    }
-                    Text("+${change.added}", color = Color(0xFF188038), style = MaterialTheme.typography.labelMedium)
-                    Spacer(Modifier.width(8.dp))
-                    Text("-${change.removed}", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
+}
+
+@Composable
+private fun ToolCallSummaryButton(text: String, compact: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(KimiPillShape)
+            .clickable(onClick = onClick)
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.78f))
+            .padding(horizontal = if (compact) 10.dp else 14.dp, vertical = if (compact) 5.dp else 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(
+            Icons.Default.Build,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(if (compact) 15.dp else 19.dp),
+        )
+        Spacer(Modifier.width(if (compact) 6.dp else 9.dp))
+        Text(
+            text,
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.onPrimaryContainer,
+            style = if (compact) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = uiText("查看详情"),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+            modifier = Modifier.size(if (compact) 17.dp else 24.dp),
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun ToolCallDetailPage(
+    toolName: String,
+    toolInput: String,
+    toolOutput: String,
+    onClose: () -> Unit,
+) {
+    val clipboard = LocalClipboardManager.current
+    Dialog(
+        onDismissRequest = onClose,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+    ) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Column {
+                            Text(uiText("工具调用详情"))
+                            Text(
+                                toolName.ifBlank { uiText("未知工具") },
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        }
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onClose) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回"), tint = MaterialTheme.colorScheme.primary)
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                )
+            },
+        ) { padding ->
+            LazyColumn(
+                Modifier.fillMaxSize().padding(padding).padding(horizontal = 18.dp),
+                contentPadding = PaddingValues(vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(22.dp),
+            ) {
+                item {
+                    ToolJsonSection(
+                        title = uiText("工具输入"),
+                        content = toolInput,
+                        onCopy = { clipboard.setText(AnnotatedString(toolInput)) },
+                    )
                 }
-                TextButton(onClick = { expandedChangePath = if (expandedChangePath == change.path) null else change.path }) {
-                    Text(if (expandedChangePath == change.path) uiText("收起变更") else uiText("审视变更"))
-                }
-                AnimatedVisibility(expandedChangePath == change.path) {
-                    FileChangeDetail(change)
+                item {
+                    ToolJsonSection(
+                        title = uiText("调用结果"),
+                        content = toolOutput,
+                        onCopy = { clipboard.setText(AnnotatedString(toolOutput)) },
+                    )
                 }
             }
         }
     }
-    AnimatedVisibility(expanded) {
-        SelectionContainer {
-            Text(
-                renderedPreview,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .heightIn(max = 420.dp)
-                    .verticalScroll(rememberScrollState())
-                    .horizontalScroll(rememberScrollState()),
-                style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            )
+}
+
+@Composable
+private fun ToolJsonSection(title: String, content: String, onCopy: () -> Unit) {
+    val colorScheme = MaterialTheme.colorScheme
+    val highlightedJson = remember(content, colorScheme) {
+        highlightedJsonForDisplay(
+            value = content,
+            keyColor = colorScheme.primary,
+            stringColor = colorScheme.tertiary,
+            numberColor = colorScheme.secondary,
+            literalColor = colorScheme.error,
+            punctuationColor = colorScheme.onSurfaceVariant,
+        )
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text(title, color = MaterialTheme.colorScheme.onBackground, style = MaterialTheme.typography.titleLarge)
+        Card(
+            Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(22.dp),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.25f)),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)),
+        ) {
+            Column {
+                Row(
+                    Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("json", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                    IconButton(onClick = onCopy) {
+                        Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制"), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+                KimiDivider()
+                SelectionContainer {
+                    Text(
+                        highlightedJson,
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(16.dp),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                    )
+                }
+            }
         }
+    }
+}
+
+internal fun prettyJsonForDisplay(value: String): String {
+    val trimmed = value.trim()
+    if (trimmed.isBlank()) return "{}"
+    return runCatching { JSONObject(trimmed).toString(2) }
+        .recoverCatching { JSONArray(trimmed).toString(2) }
+        .getOrDefault(value)
+}
+
+private val jsonSyntaxTokenRegex = Regex(
+    """\"(?:\\.|[^\"\\])*\"|(?<![\w.])-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?(?![\w.])|\b(?:true|false|null)\b|[{}\[\],:]""",
+)
+
+internal fun highlightedJsonForDisplay(
+    value: String,
+    keyColor: Color,
+    stringColor: Color,
+    numberColor: Color,
+    literalColor: Color,
+    punctuationColor: Color,
+): AnnotatedString {
+    val formatted = prettyJsonForDisplay(value)
+    return buildAnnotatedString {
+        var cursor = 0
+        jsonSyntaxTokenRegex.findAll(formatted).forEach { match ->
+            if (cursor < match.range.first) append(formatted.substring(cursor, match.range.first))
+            val token = match.value
+            val color = when {
+                token.startsWith('"') -> {
+                    var next = match.range.last + 1
+                    while (next < formatted.length && formatted[next].isWhitespace()) next++
+                    if (formatted.getOrNull(next) == ':') keyColor else stringColor
+                }
+                token == "true" || token == "false" || token == "null" -> literalColor
+                token.firstOrNull()?.let { it == '-' || it.isDigit() } == true -> numberColor
+                else -> punctuationColor
+            }
+            withStyle(SpanStyle(color = color)) { append(token) }
+            cursor = match.range.last + 1
+        }
+        if (cursor < formatted.length) append(formatted.substring(cursor))
     }
 }
 

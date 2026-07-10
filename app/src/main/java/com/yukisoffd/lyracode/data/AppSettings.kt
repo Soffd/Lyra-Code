@@ -293,6 +293,11 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getString(KEY_USER_AVATAR_PATH, null)
         set(value) = plainPrefs.edit().putString(KEY_USER_AVATAR_PATH, value).apply()
 
+    var streamingAnimationMode: String
+        get() = normalizeStreamingAnimationMode(
+            plainPrefs.getString(KEY_STREAMING_ANIMATION_MODE, STREAMING_ANIMATION_TYPEWRITER).orEmpty(),
+        )
+        set(value) = plainPrefs.edit().putString(KEY_STREAMING_ANIMATION_MODE, normalizeStreamingAnimationMode(value)).apply()
     var chatBackgroundPath: String?
         get() = plainPrefs.getString(KEY_CHAT_BACKGROUND_PATH, null)
         set(value) = plainPrefs.edit().putString(KEY_CHAT_BACKGROUND_PATH, value).apply()
@@ -1264,6 +1269,7 @@ class AppSettings(context: Context) {
             .put("customSuCommand", customSuCommand)
             .put("userNickname", userNickname)
             .put("userAvatarPath", userAvatarPath.orEmpty())
+            .put("streamingAnimationMode", streamingAnimationMode)
             .put("chatBackgroundPath", chatBackgroundPath.orEmpty())
             .put("chatBackgroundMaskOpacity", chatBackgroundMaskOpacity.toDouble())
             .put("hideTermuxPermissionHint", hideTermuxPermissionHint)
@@ -1370,6 +1376,7 @@ class AppSettings(context: Context) {
         root.optString("customSuCommand").takeIf { it.isNotBlank() }?.let { customSuCommand = it }
         root.optString("userNickname").takeIf { it.isNotBlank() }?.let { userNickname = it }
         root.optString("userAvatarPath").takeIf { it.isNotBlank() }?.let { userAvatarPath = it }
+        root.optString("streamingAnimationMode").takeIf { it.isNotBlank() }?.let { streamingAnimationMode = it }
         root.optString("chatBackgroundPath").takeIf { it.isNotBlank() }?.let { chatBackgroundPath = it }
         if (root.has("chatBackgroundMaskOpacity")) {
             chatBackgroundMaskOpacity = root.optDouble(
@@ -1979,6 +1986,7 @@ class AppSettings(context: Context) {
         private const val KEY_USER_NICKNAME = "user_nickname"
         private const val KEY_USER_AVATAR_PATH = "user_avatar_path"
         private const val KEY_CHAT_BACKGROUND_PATH = "chat_background_path"
+        private const val KEY_STREAMING_ANIMATION_MODE = "streaming_animation_mode"
         private const val KEY_CHAT_BACKGROUND_MASK_OPACITY = "chat_background_mask_opacity"
         private const val DEFAULT_CHAT_BACKGROUND_MASK_OPACITY = 0.58f
         private const val KEY_HIDE_TERMUX_PERMISSION_HINT = "hide_termux_permission_hint"
@@ -2016,6 +2024,13 @@ class AppSettings(context: Context) {
         private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         private const val DEFAULT_MODEL = "gpt-4o-mini"
         private const val DEFAULT_SYSTEM_PROMPT_ID = "default"
+        const val STREAMING_ANIMATION_TYPEWRITER = "typewriter"
+        const val STREAMING_ANIMATION_FADE = "fade"
+
+        fun normalizeStreamingAnimationMode(value: String): String = when (value.trim().lowercase()) {
+            STREAMING_ANIMATION_FADE -> STREAMING_ANIMATION_FADE
+            else -> STREAMING_ANIMATION_TYPEWRITER
+        }
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"

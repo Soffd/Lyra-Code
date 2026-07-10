@@ -79,6 +79,10 @@ data class ChatRecord(
     val model: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val tokensPerSecond: Double = 0.0,
+    val toolCallId: String? = null,
+    val rawJson: String? = null,
+    val toolName: String = "",
+    val toolInput: String = "",
 )
 
 data class ChatUpdate(
@@ -4549,14 +4553,15 @@ private fun cleanGeneratedText(text: String): String {
 }
 
 fun ChatMessage.toRecord(): ChatRecord = ChatRecord(
-    id,
-    role,
-    if (role == "assistant") cleanGeneratedText(content) else content,
-    if (role == "assistant") cleanGeneratedText(thinking) else thinking,
-    profileId,
-    model,
-    createdAt,
-    tokensPerSecond,
+    id = id,
+    role = role,
+    content = if (role == "assistant") cleanGeneratedText(content) else content,
+    thinking = if (role == "assistant") cleanGeneratedText(thinking) else thinking,
+    profileId = profileId,
+    model = model,
+    createdAt = createdAt,
+    tokensPerSecond = tokensPerSecond,
+    toolCallId = toolCallId,
+    rawJson = rawJson,
 )
-
 

@@ -281,7 +281,7 @@ internal fun SettingsScreen(
     fun navigateBackFromDetail() {
         detail = when (detail) {
             "device" -> "about"
-            "theme_mode", "language", "font", "refresh_rate", "chat_background" -> "theme"
+            "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
             "mini_server_logs" -> "mini_server"
             else -> null
         }
@@ -299,8 +299,8 @@ internal fun SettingsScreen(
             val forward = when {
                 initialState == "device" && targetState == "about" -> false
                 initialState == "about" && targetState == "device" -> true
-                initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background") && targetState == "theme" -> false
-                initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background") -> true
+                initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
+                initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
                 initialState == "mini_server_logs" && targetState == "mini_server" -> false
                 initialState == "mini_server" && targetState == "mini_server_logs" -> true
                 targetState == null -> false
@@ -335,6 +335,7 @@ internal fun SettingsScreen(
                         onOpenFontSettings = { detail = "font" },
                         onOpenRefreshRateSettings = { detail = "refresh_rate" },
                         onOpenChatBackgroundSettings = { detail = "chat_background" },
+                        onOpenStreamingOutputSettings = { detail = "streaming_output" },
                     )
                     "theme_mode" -> ThemeModeSettings(
                         themeMode = themeMode,
@@ -349,6 +350,7 @@ internal fun SettingsScreen(
                         onRefreshRateModeChange = onRefreshRateModeChange,
                     )
                     "chat_background" -> ChatBackgroundSettings(settings)
+                    "streaming_output" -> StreamingOutputSettings(settings, controller)
                     "font" -> FontSizeSettings(
                         fontScaleMode = fontScaleMode,
                         customFontScale = customFontScale,
@@ -515,6 +517,7 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "font" -> context.getString(R.string.detail_font)
     "refresh_rate" -> context.getString(R.string.detail_refresh_rate)
     "chat_background" -> context.getString(R.string.detail_chat_background)
+    "streaming_output" -> context.getString(R.string.detail_streaming_output)
     "permissions" -> context.getString(R.string.detail_permissions)
     "system_permissions" -> context.getString(R.string.detail_system_permissions)
     "tools" -> context.getString(R.string.detail_tools)
@@ -1723,6 +1726,7 @@ internal fun ThemeSettings(
     onOpenFontSettings: () -> Unit,
     onOpenRefreshRateSettings: () -> Unit,
     onOpenChatBackgroundSettings: () -> Unit,
+    onOpenStreamingOutputSettings: () -> Unit,
 ) {
     val hasBackground = !settings.chatBackgroundPath.isNullOrBlank()
     KimiCardBox {
@@ -1746,11 +1750,76 @@ internal fun ThemeSettings(
         KimiMenuRow(Icons.Default.Speed, uiText("刷新率"), refreshRateName(refreshRateMode), onOpenRefreshRateSettings)
         KimiDivider()
         KimiMenuRow(
+            Icons.Default.Animation,
+            stringResource(R.string.streaming_output_title),
+            streamingAnimationModeName(settings.streamingAnimationMode),
+            onOpenStreamingOutputSettings,
+        )
+        KimiDivider()
+        KimiMenuRow(
             Icons.Default.Image,
             uiText("聊天背景"),
             if (hasBackground) uiText("已设置自定义背景") else uiText("纯色背景"),
             onOpenChatBackgroundSettings,
         )
+    }
+}
+
+internal fun streamingAnimationModeName(mode: String): String = when (AppSettings.normalizeStreamingAnimationMode(mode)) {
+    AppSettings.STREAMING_ANIMATION_FADE -> uiText("渐变显示")
+    else -> uiText("逐字显示")
+}
+
+@Composable
+internal fun StreamingOutputSettings(settings: AppSettings, controller: ChatController) {
+    var selected by remember { mutableStateOf(settings.streamingAnimationMode) }
+    KimiCardBox {
+        StreamingAnimationOptionRow(
+            icon = Icons.Default.Keyboard,
+            title = stringResource(R.string.streaming_typewriter_title),
+            subtitle = stringResource(R.string.streaming_typewriter_desc),
+            value = AppSettings.STREAMING_ANIMATION_TYPEWRITER,
+            selected = selected,
+        ) { value ->
+            selected = value
+            settings.streamingAnimationMode = value
+            controller.settingsRevision.intValue++
+        }
+        KimiDivider()
+        StreamingAnimationOptionRow(
+            icon = Icons.Default.Gradient,
+            title = stringResource(R.string.streaming_fade_title),
+            subtitle = stringResource(R.string.streaming_fade_desc),
+            value = AppSettings.STREAMING_ANIMATION_FADE,
+            selected = selected,
+        ) { value ->
+            selected = value
+            settings.streamingAnimationMode = value
+            controller.settingsRevision.intValue++
+        }
+    }
+}
+
+@Composable
+private fun StreamingAnimationOptionRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    value: String,
+    selected: String,
+    onSelect: (String) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable { onSelect(value) }.padding(vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.width(36.dp).size(24.dp), tint = MaterialTheme.colorScheme.primary)
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Text(subtitle, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        }
+        if (value == selected) Icon(Icons.Default.Check, contentDescription = stringResource(R.string.streaming_selected), tint = MaterialTheme.colorScheme.primary)
     }
 }
 

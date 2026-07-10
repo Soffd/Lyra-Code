@@ -44,6 +44,7 @@ import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
@@ -52,6 +53,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -104,6 +106,7 @@ import org.intellij.markdown.parser.MarkdownParser
 import ru.noties.jlatexmath.JLatexMathDrawable
 import java.io.File
 import kotlin.math.max
+import kotlin.math.pow
 
 private val richMarkdownFlavour by lazy {
     GFMFlavourDescriptor(makeHttpsAutoLinks = true, useSafeLinks = true)
@@ -119,6 +122,24 @@ private val displayLatexRegex = Regex("""\$\$([\s\S]+?)\$\$""")
 private val codeBlockRegex = Regex("```[\\s\\S]*?```|`[^`\n]*`", RegexOption.DOT_MATCHES_ALL)
 private const val latexDrawablePaddingPx = 2
 
+internal data class StreamingTextFade(
+    val contentLength: Int,
+    val opaquePosition: Float,
+    val maximumTailCharacters: Int = 120,
+) {
+    private val fadeStart: Float
+        get() = max(opaquePosition, (contentLength - maximumTailCharacters).toFloat()).coerceAtLeast(0f)
+
+    fun alphaAt(sourceIndex: Int): Float {
+        if (sourceIndex + 1 <= fadeStart || contentLength <= 0) return 1f
+        val tailLength = (contentLength - fadeStart).coerceAtLeast(1f)
+        val progress = ((sourceIndex + 1f - fadeStart) / tailLength).coerceIn(0f, 1f)
+        return (0.08f + 0.92f * (1f - progress).pow(1.35f)).coerceIn(0.08f, 1f)
+    }
+}
+
+private val LocalStreamingTextFade = staticCompositionLocalOf<StreamingTextFade?> { null }
+
 private data class RichMarkdownParseResult(
     val content: String,
     val root: ASTNode,
@@ -130,6 +151,7 @@ internal fun RichMarkdownContent(
     markdown: String,
     modifier: Modifier = Modifier,
     style: TextStyle = LocalTextStyle.current,
+    streamingFade: StreamingTextFade? = null,
 ) {
     var data by remember(markdown) { mutableStateOf(parseRichMarkdown(markdown)) }
     val currentMarkdown by rememberUpdatedState(markdown)
@@ -142,10 +164,12 @@ internal fun RichMarkdownContent(
             .collect { data = it }
     }
 
-    ProvideTextStyle(style) {
-        Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            data.root.children.fastForEach { child ->
-                RichMarkdownNode(child, data.content)
+    CompositionLocalProvider(LocalStreamingTextFade provides streamingFade) {
+        ProvideTextStyle(style) {
+            Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                data.root.children.fastForEach { child ->
+                    RichMarkdownNode(child, data.content)
+                }
             }
         }
     }
@@ -323,7 +347,8 @@ private fun RichListItem(node: ASTNode, content: String, marker: String, level: 
     }
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Row(verticalAlignment = Alignment.Top) {
-            Text(marker, color = MaterialTheme.colorScheme.primary, modifier = Modifier.width(28.dp))
+            val markerAlpha = LocalStreamingTextFade.current?.alphaAt(node.startOffset) ?: 1f
+            Text(marker, color = MaterialTheme.colorScheme.primary.copy(alpha = markerAlpha), modifier = Modifier.width(28.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 direct.fastForEach { RichMarkdownNode(it, content, level) }
             }
@@ -593,9 +618,10 @@ private fun RichInlineTextLine(nodes: List<ASTNode>, content: String) {
     val colorScheme = MaterialTheme.colorScheme
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
+    val streamingFade = LocalStreamingTextFade.current
     val inlineContents = remember { mutableStateMapOf<String, InlineTextContent>() }
     val key = remember(nodes, content) { nodes.joinToString("|") { "${it.startOffset}:${it.endOffset}:${it.type}" } }
-    val annotated = remember(key, colorScheme, textStyle, density) {
+    val annotated = remember(key, colorScheme, textStyle, density, streamingFade) {
         inlineContents.clear()
         buildAnnotatedString {
             nodes.fastForEach {
@@ -606,6 +632,7 @@ private fun RichInlineTextLine(nodes: List<ASTNode>, content: String) {
                     colorScheme,
                     density,
                     textStyle,
+                    streamingFade,
                 )
             }
         }
@@ -627,21 +654,22 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
     colorScheme: androidx.compose.material3.ColorScheme,
     density: Density,
     style: TextStyle,
+    streamingFade: StreamingTextFade?,
 ) {
     when (node.type) {
         MarkdownElementTypes.EMPH -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
             node.children.trimMarkdownMarkers(MarkdownTokenTypes.EMPH, 1).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
             }
         }
         MarkdownElementTypes.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
             node.children.trimMarkdownMarkers(MarkdownTokenTypes.EMPH, 2).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
             }
         }
         GFMElementTypes.STRIKETHROUGH -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
             node.children.trimMarkdownMarkers(GFMTokenTypes.TILDE, 2).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
             }
         }
         MarkdownElementTypes.CODE_SPAN -> withStyle(
@@ -656,8 +684,8 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
             append(node.getTextInNode(content).trim('`'))
             append(" ")
         }
-        MarkdownElementTypes.INLINE_LINK -> appendInlineLink(node, content, colorScheme)
-        MarkdownElementTypes.AUTOLINK -> appendInlineLink(node, content, colorScheme)
+        MarkdownElementTypes.INLINE_LINK -> appendInlineLink(node, content, colorScheme, streamingFade)
+        MarkdownElementTypes.AUTOLINK -> appendInlineLink(node, content, colorScheme, streamingFade)
         GFMElementTypes.INLINE_MATH -> {
             val formula = node.getTextInNode(content)
             val id = "math-${node.startOffset}-${node.endOffset}"
@@ -687,27 +715,45 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
         MarkdownTokenTypes.EOL -> append("\n")
         else -> {
             if (node is LeafASTNode) {
-                append(node.getTextInNode(content))
+                appendStreamingFadedText(node.getTextInNode(content), node.startOffset, streamingFade, colorScheme.onSurface)
             } else {
                 node.children.fastForEach {
-                    appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style)
+                    appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
                 }
             }
         }
     }
 }
 
+private fun AnnotatedString.Builder.appendStreamingFadedText(
+    value: String,
+    sourceStart: Int,
+    streamingFade: StreamingTextFade?,
+    baseColor: Color,
+) {
+    if (streamingFade == null || value.isEmpty()) {
+        append(value)
+        return
+    }
+    value.forEachIndexed { index, char ->
+        withStyle(SpanStyle(color = baseColor.copy(alpha = streamingFade.alphaAt(sourceStart + index)))) {
+            append(char)
+        }
+    }
+}
 private fun AnnotatedString.Builder.appendInlineLink(
     node: ASTNode,
     content: String,
     colorScheme: androidx.compose.material3.ColorScheme,
+    streamingFade: StreamingTextFade?,
 ) {
     val destination = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_DESTINATION)?.getTextInNode(content)
         ?: node.getTextInNode(content).trim('<', '>')
     val label = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_TEXT)?.getTextInNode(content)?.trim('[', ']')
         ?: destination
     withLink(LinkAnnotation.Url(destination)) {
-        withStyle(SpanStyle(color = colorScheme.primary, textDecoration = TextDecoration.Underline)) {
+        val alpha = streamingFade?.alphaAt(node.endOffset - 1) ?: 1f
+        withStyle(SpanStyle(color = colorScheme.primary.copy(alpha = alpha), textDecoration = TextDecoration.Underline)) {
             append(label)
         }
     }

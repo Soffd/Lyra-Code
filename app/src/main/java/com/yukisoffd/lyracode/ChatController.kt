@@ -24,6 +24,7 @@ import com.yukisoffd.lyracode.data.ConversationStore
 import com.yukisoffd.lyracode.workspace.UploadedFile
 import com.yukisoffd.lyracode.workspace.UploadedFileManager
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
+import com.yukisoffd.lyracode.workspace.WorkspaceFileReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -263,6 +264,10 @@ class ChatController(
 
     fun workspaceDisplayName(): String = workspaceManager.displayName()
 
+    fun hasWorkspace(): Boolean = workspaceManager.rootUri() != null
+
+    fun searchWorkspaceFiles(query: String): List<WorkspaceFileReference> = workspaceManager.searchFiles(query)
+
     fun isAutoApprovalEnabledForActiveSession(): Boolean {
         val conversationId = activeConversationId.value
         return if (conversationId > 0L) conversationId in autoApprovedConversations else transientAutoApprovalEnabled
@@ -306,15 +311,15 @@ class ChatController(
         reloadConversations()
     }
 
-    fun send(text: String, forcedSkillIds: List<String> = emptyList()) {
+    fun send(text: String, forcedSkillIds: List<String> = emptyList(), workspaceFiles: List<WorkspaceFileReference> = emptyList()) {
         val uploads = pendingUploads.toList()
-        if (text.isBlank() && uploads.isEmpty()) return
+        if (text.isBlank() && uploads.isEmpty() && workspaceFiles.isEmpty()) return
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: createPersistedConversation()
         conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         if (jobs[conversationId]?.isActive == true) return
        val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
-        val userInput = composeUserInput(text, uploads)
+        val userInput = composeUserInput(text, uploads, workspaceFiles)
         conversationStore.setConversationMeta(
             conversationId,
             title = if (activeConversation()?.title == appContext.getString(R.string.default_conversation_title)) {
@@ -451,15 +456,31 @@ class ChatController(
         uploadingStatus.value = if (pendingUploads.isEmpty()) "" else appContext.getString(R.string.label_pending_attachments, pendingUploads.size)
     }
 
-    private fun composeUserInput(text: String, uploads: List<UploadedFile>): String {
+    private fun composeUserInput(text: String, uploads: List<UploadedFile>, workspaceFiles: List<WorkspaceFileReference> = emptyList()): String {
         return buildString {
             val cleanText = text.trim()
             if (cleanText.isNotBlank()) append(cleanText)
+            workspaceFiles.distinctBy { it.relativePath }.take(24).takeIf { it.isNotEmpty() }?.let { files ->
+                if (isNotBlank()) append("\n\n")
+                append(workspaceReferenceMarker(files))
+            }
             uploads.forEach { file ->
                 if (isNotBlank()) append("\n\n")
                 append(uploadedAttachmentMarker(file))
             }
         }
+    }
+
+
+    private fun workspaceReferenceMarker(files: List<WorkspaceFileReference>): String {
+        val payload = JSONObject()
+            .put("instruction", "优先读取并处理这些用户明确选中的工作区文件；路径均为工作区相对路径。")
+            .put("files", org.json.JSONArray().also { array ->
+                files.forEach { file ->
+                    array.put(JSONObject().put("name", file.name).put("path", file.relativePath).put("size", file.size))
+                }
+            })
+        return "$WORKSPACE_REFERENCE_MARKER_START$payload$WORKSPACE_REFERENCE_MARKER_END"
     }
 
     private fun uploadedAttachmentMarker(file: UploadedFile): String {
@@ -480,22 +501,30 @@ class ChatController(
     private companion object {
         const val ATTACHMENT_MARKER_START = "<lyra_attachment_v1>"
         const val ATTACHMENT_MARKER_END = "</lyra_attachment_v1>"
+        const val WORKSPACE_REFERENCE_MARKER_START = "<lyra_workspace_refs_v1>"
+        const val WORKSPACE_REFERENCE_MARKER_END = "</lyra_workspace_refs_v1>"
     }
     private fun fallbackConversationTitle(userInput: String): String {
         val markerRegex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
+        val workspaceRegex = Regex("<lyra_workspace_refs_v1>([\\s\\S]*?)</lyra_workspace_refs_v1>")
+        val workspaceTitle = workspaceRegex.find(userInput)?.let { match ->
+            runCatching { JSONObject(match.groupValues[1]).optJSONArray("files")?.optJSONObject(0)?.optString("name") }.getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "@$it" }
+        }
         val attachmentTitle = markerRegex.find(userInput)?.let { match ->
             runCatching { JSONObject(match.groupValues[1]).optString("name") }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?.let { "上传附件：$it" }
         }
-        return markerRegex.replace(userInput, "")
+        return workspaceRegex.replace(markerRegex.replace(userInput, ""), "")
             .lineSequence()
             .firstOrNull()
             .orEmpty()
             .replace(Regex("""\s+"""), " ")
             .trim()
             .take(36)
-            .ifBlank { attachmentTitle ?: appContext.getString(R.string.default_conversation_title) }
+            .ifBlank { workspaceTitle ?: attachmentTitle ?: appContext.getString(R.string.default_conversation_title) }
     }
 
     fun fetchModels(onDone: (Result<List<String>>) -> Unit) {
@@ -588,10 +617,47 @@ class ChatController(
 
     fun reloadMessages() {
         val id = activeConversationId.value
-        _messages.value = if (id <= 0) emptyList() else conversationStore.messages(id).map { it.toRecord() }
+        _messages.value = if (id <= 0) {
+            emptyList()
+        } else {
+            enrichToolRecords(conversationStore.messages(id).map { it.toRecord() })
+        }
         lastMessageReloadAt = System.currentTimeMillis()
     }
 
+    private fun enrichToolRecords(records: List<ChatRecord>): List<ChatRecord> {
+        val calls = mutableMapOf<String, Pair<String, String>>()
+        return records.map { record ->
+            if (record.role == "assistant") {
+                runCatching { JSONObject(record.rawJson.orEmpty()) }.getOrNull()
+                    ?.optJSONArray("tool_calls")
+                    ?.let { array ->
+                        for (index in 0 until array.length()) {
+                            val call = array.optJSONObject(index) ?: continue
+                            val id = call.optString("id")
+                            val function = call.optJSONObject("function") ?: continue
+                            if (id.isNotBlank()) {
+                                calls[id] = function.optString("name") to prettyToolJson(function.optString("arguments"))
+                            }
+                        }
+                    }
+                record
+            } else if (record.role == "tool") {
+                val details = calls[record.toolCallId]
+                record.copy(toolName = details?.first.orEmpty(), toolInput = details?.second.orEmpty())
+            } else {
+                record
+            }
+        }
+    }
+
+    private fun prettyToolJson(value: String): String {
+        val trimmed = value.trim()
+        if (trimmed.isBlank()) return "{}"
+        return runCatching { JSONObject(trimmed).toString(2) }
+            .recoverCatching { org.json.JSONArray(trimmed).toString(2) }
+            .getOrDefault(trimmed)
+    }
     fun reloadTodos() {
         todoItems.clear()
         todoItems.addAll(todoByConversation[activeConversationId.value].orEmpty())
