@@ -2,6 +2,7 @@ package com.yukisoffd.lyracode
 
 import android.Manifest
 import android.app.Activity
+import android.app.WallpaperManager
 import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
@@ -14,7 +15,9 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
+import android.os.Handler
 import android.os.LocaleList
+import android.os.Looper
 import android.provider.Settings
 import android.provider.MediaStore
 import android.util.Base64
@@ -259,12 +262,32 @@ class MainActivity : ComponentActivity() {
             var refreshRateMode by remember { mutableStateOf(settings.refreshRateMode) }
             var fontScaleMode by remember { mutableStateOf(settings.fontScaleMode) }
             var customFontScale by remember { mutableStateOf(settings.customFontScale) }
+            var wallpaperColorRevision by remember { mutableIntStateOf(0) }
             val localizedContext = remember(languageMode) { this.localizedContext(languageMode) }
             UiTextBridge.languageMode = languageMode
             val systemDark = isSystemInDarkTheme()
             val systemFontScale = LocalDensity.current.fontScale
+            val settingsRevision = chatController.settingsRevision.intValue
+            val customThemeColorEnabled = settings.customThemeColorEnabled
+            val customThemeIsDark = remember(settingsRevision, customThemeColorEnabled, settings.customThemeColor) {
+                if (!customThemeColorEnabled) false else runCatching {
+                    val color = android.graphics.Color.parseColor(settings.customThemeColor)
+                    val luminance = (android.graphics.Color.red(color) * 299 + android.graphics.Color.green(color) * 587 + android.graphics.Color.blue(color) * 114) / 1000
+                    luminance < 128
+                }.getOrDefault(false)
+            }
             LaunchedEffect(refreshRateMode) {
                 applyPreferredRefreshRate(refreshRateMode)
+            }
+            DisposableEffect(dynamicColorEnabled) {
+                if (dynamicColorEnabled && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    val wallpaperManager = WallpaperManager.getInstance(this@MainActivity)
+                    val listener = WallpaperManager.OnColorsChangedListener { _, _ -> wallpaperColorRevision++ }
+                    wallpaperManager.addOnColorsChangedListener(listener, Handler(Looper.getMainLooper()))
+                    onDispose { wallpaperManager.removeOnColorsChangedListener(listener) }
+                } else {
+                    onDispose { }
+                }
             }
             val effectiveFontScale = when (fontScaleMode) {
                 AppSettings.FONT_SCALE_SMALL -> 0.9f
@@ -274,7 +297,9 @@ class MainActivity : ComponentActivity() {
                 AppSettings.FONT_SCALE_CUSTOM -> customFontScale
                 else -> systemFontScale
             }.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE)
-            val darkMode = when (themeMode) {
+            val darkMode = if (customThemeColorEnabled) {
+                customThemeIsDark
+            } else when (themeMode) {
                 AppSettings.THEME_LIGHT -> false
                 AppSettings.THEME_DARK -> true
                 else -> systemDark
@@ -288,6 +313,9 @@ class MainActivity : ComponentActivity() {
                     darkMode = darkMode,
                     dynamicColor = dynamicColorEnabled,
                     fontScale = effectiveFontScale,
+                    settings = settings,
+                    settingsRevision = settingsRevision,
+                    dynamicColorRevision = wallpaperColorRevision,
                 ) {
                     LyraCodeApp(
                         settings = settings,

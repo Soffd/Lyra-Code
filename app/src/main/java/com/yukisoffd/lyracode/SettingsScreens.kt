@@ -10,6 +10,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -200,6 +201,7 @@ import com.yukisoffd.lyracode.data.AppUpdateInfo
 import com.yukisoffd.lyracode.data.UpdateDownloadProgress
 import com.yukisoffd.lyracode.data.UpdateManager
 import com.yukisoffd.lyracode.data.FileTransferServerConfig
+import com.yukisoffd.lyracode.data.FontLibraryItem
 import com.yukisoffd.lyracode.data.WebDavServerConfig
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
 import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
@@ -281,6 +283,8 @@ internal fun SettingsScreen(
     fun navigateBackFromDetail() {
         detail = when (detail) {
             "device" -> "about"
+            "custom_theme_color" -> "theme_mode"
+            "font_library" -> "font"
             "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
             "mini_server_logs" -> "mini_server"
             else -> null
@@ -299,6 +303,10 @@ internal fun SettingsScreen(
             val forward = when {
                 initialState == "device" && targetState == "about" -> false
                 initialState == "about" && targetState == "device" -> true
+                initialState == "custom_theme_color" && targetState == "theme_mode" -> false
+                initialState == "font_library" && targetState == "font" -> false
+                initialState == "theme_mode" && targetState == "custom_theme_color" -> true
+                initialState == "font" && targetState == "font_library" -> true
                 initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
                 initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
                 initialState == "mini_server_logs" && targetState == "mini_server" -> false
@@ -313,11 +321,12 @@ internal fun SettingsScreen(
     ) { target ->
         if (target != null) {
             SettingsDetailPage(
-                scroll = target !in setOf("prompts", "licenses", "about", "device"),
+                scroll = target !in setOf("prompts", "licenses", "about", "device", "font_library"),
             ) {
                 when (target) {
                     "profile" -> ProfileSettingsSummary(settings)
                     "model" -> ModelServiceSettings(settings, controller)
+                    "topic_summary_model" -> TopicSummaryModelSettings(settings, controller)
                     "sub_agents" -> SubAgentSettings(settings, controller)
 
                     "theme" -> ThemeSettings(
@@ -338,9 +347,13 @@ internal fun SettingsScreen(
                         onOpenStreamingOutputSettings = { detail = "streaming_output" },
                     )
                     "theme_mode" -> ThemeModeSettings(
+                        settings = settings,
+                        controller = controller,
                         themeMode = themeMode,
+                        onOpenCustomThemeColor = { detail = "custom_theme_color" },
                         onThemeModeChange = onThemeModeChange,
                     )
+                    "custom_theme_color" -> CustomThemeColorSettings(settings, controller)
                     "language" -> LanguageSettings(
                         languageMode = languageMode,
                         onLanguageModeChange = onLanguageModeChange,
@@ -352,11 +365,15 @@ internal fun SettingsScreen(
                     "chat_background" -> ChatBackgroundSettings(settings)
                     "streaming_output" -> StreamingOutputSettings(settings, controller)
                     "font" -> FontSizeSettings(
+                        settings = settings,
+                        controller = controller,
                         fontScaleMode = fontScaleMode,
                         customFontScale = customFontScale,
                         onFontScaleModeChange = onFontScaleModeChange,
                         onCustomFontScaleChange = onCustomFontScaleChange,
+                        onOpenFontLibrary = { detail = "font_library" },
                     )
+                    "font_library" -> FontLibrarySettings(settings, controller)
                     "permissions" -> PermissionSettings(termuxExecutor)
                     "system_permissions" -> SystemPermissionSettings(settings, systemCommandExecutor)
                     "tools" -> AgentToolSettings(settings, termuxExecutor, controller.settingsRevision.intValue)
@@ -427,6 +444,8 @@ internal fun SettingsScreen(
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Cloud, context.getString(R.string.menu_model_service), context.getString(R.string.menu_model_service_desc)) { detail = "model" }
                 KimiDivider()
+                KimiMenuRow(Icons.Default.Topic, context.getString(R.string.menu_topic_summary_model), context.getString(R.string.menu_topic_summary_model_desc)) { detail = "topic_summary_model" }
+                KimiDivider()
                 KimiMenuRow(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc)) { detail = "sub_agents" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Search, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc)) { detail = "web_search" }
@@ -450,7 +469,7 @@ internal fun SettingsScreen(
                 KimiMenuRow(
                     Icons.Default.Palette,
                     context.getString(R.string.menu_theme),
-                    context.getString(R.string.menu_theme_current_full, themeName(themeMode), languageName(languageMode), refreshRateName(refreshRateMode), fontScaleName(fontScaleMode, customFontScale)),
+                    context.getString(R.string.menu_theme_current_full, if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode), languageName(languageMode), refreshRateName(refreshRateMode), fontScaleName(fontScaleMode, customFontScale)),
                 ) { detail = "theme" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.EditNote, context.getString(R.string.menu_system_prompt), context.getString(R.string.menu_system_prompt_desc)) { detail = "prompts" }
@@ -508,13 +527,16 @@ internal fun SettingsDetailPage(
 internal fun settingsDetailTitle(context: Context, detail: String): String = when (detail) {
     "profile" -> context.getString(R.string.detail_profile)
     "model" -> context.getString(R.string.detail_model)
+    "topic_summary_model" -> context.getString(R.string.detail_topic_summary_model)
     "sub_agents" -> context.getString(R.string.detail_sub_agents)
     "web_search" -> context.getString(R.string.detail_web_search)
     "workspace" -> context.getString(R.string.detail_workspace)
     "theme" -> context.getString(R.string.detail_theme)
+    "custom_theme_color" -> uiText("设置自定义主题色")
     "theme_mode" -> context.getString(R.string.detail_theme_mode)
     "language" -> context.getString(R.string.detail_language)
-    "font" -> context.getString(R.string.detail_font)
+    "font" -> uiText("字体与大小")
+    "font_library" -> uiText("字体库")
     "refresh_rate" -> context.getString(R.string.detail_refresh_rate)
     "chat_background" -> context.getString(R.string.detail_chat_background)
     "streaming_output" -> context.getString(R.string.detail_streaming_output)
@@ -551,6 +573,67 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
                 Text(uiText("头像和昵称可在侧边栏顶部点击编辑。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
+    }
+}
+
+@Composable
+internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatController) {
+    val profiles = controller.profiles.toList()
+    var profileId by remember { mutableStateOf(settings.topicSummaryProfile().id) }
+    val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    var model by remember(profileId) {
+        mutableStateOf(
+            settings.topicSummaryModel.takeIf { profileId == settings.topicSummaryProfileId && it.isNotBlank() }
+                ?: selectedProfile?.selectedModel.orEmpty(),
+        )
+    }
+    var notice by remember { mutableStateOf("") }
+    KimiCardBox {
+        Text(uiText("独立话题总结模型"), style = MaterialTheme.typography.titleMedium)
+        Text(
+            uiText("每次新对话首次发送消息后，由此模型单独生成会话标题，不再占用主对话模型的工具调用。可选择轻量模型以降低消耗。"),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        SubAgentDropdownPicker(
+            label = uiText("模型服务"),
+            value = selectedProfile?.name ?: uiText("未配置"),
+            subtitle = selectedProfile?.selectedModel.orEmpty(),
+            items = profiles,
+            itemTitle = { it.name },
+            itemSubtitle = { it.selectedModel },
+            isSelected = { it.id == profileId },
+            onSelect = { profile ->
+                profileId = profile.id
+                model = profile.selectedModel
+            },
+        )
+        SubAgentDropdownPicker(
+            label = uiText("话题总结模型"),
+            value = model.ifBlank { uiText("未选择") },
+            items = selectedProfile?.savedModels.orEmpty(),
+            itemTitle = { it },
+            isSelected = { it == model },
+            onSelect = { model = it },
+        )
+        OutlinedTextField(
+            value = model,
+            onValueChange = { model = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(uiText("话题总结模型")) },
+            singleLine = true,
+        )
+        Button(
+            enabled = selectedProfile != null && model.isNotBlank(),
+            onClick = {
+                settings.topicSummaryProfileId = selectedProfile?.id.orEmpty()
+                settings.topicSummaryModel = model
+                controller.settingsRevision.intValue++
+                notice = uiText("话题总结模型已保存")
+            },
+            shape = KimiPillShape,
+        ) { Text(uiText("保存")) }
+        if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -1741,11 +1824,11 @@ internal fun ThemeSettings(
             Switch(checked = dynamicColorEnabled, onCheckedChange = onDynamicColorChange)
         }
         KimiDivider()
-        KimiMenuRow(Icons.Default.Palette, uiText("主题模式"), themeName(themeMode), onOpenThemeModeSettings)
+        KimiMenuRow(Icons.Default.Palette, uiText("主题模式"), if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode), onOpenThemeModeSettings)
         KimiDivider()
         KimiMenuRow(Icons.Default.Language, uiText("文本语言"), languageName(languageMode), onOpenLanguageSettings)
         KimiDivider()
-        KimiMenuRow(Icons.Default.FormatSize, uiText("字体大小"), fontScaleName(fontScaleMode, customFontScale), onOpenFontSettings)
+        KimiMenuRow(Icons.Default.FormatSize, uiText("字体与大小"), fontScaleName(fontScaleMode, customFontScale), onOpenFontSettings)
         KimiDivider()
         KimiMenuRow(Icons.Default.Speed, uiText("刷新率"), refreshRateName(refreshRateMode), onOpenRefreshRateSettings)
         KimiDivider()
@@ -2148,25 +2231,163 @@ internal fun WebSearchSettings(
 
 @Composable
 internal fun ThemeModeSettings(
+    settings: AppSettings,
+    controller: ChatController,
     themeMode: String,
+    onOpenCustomThemeColor: () -> Unit,
     onThemeModeChange: (String) -> Unit,
 ) {
+    var customEnabled by remember { mutableStateOf(settings.customThemeColorEnabled) }
+    KimiCardBox {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(uiText("自定义主题色"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText("开启后会使用所选颜色协调界面背景、卡片、输入框和侧边栏等表面。按钮动态取色和聊天背景图不受影响。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(
+                checked = customEnabled,
+                onCheckedChange = {
+                    customEnabled = it
+                    settings.customThemeColorEnabled = it
+                    controller.settingsRevision.intValue++
+                },
+            )
+        }
+        if (customEnabled) Text(
+            uiText("自定义主题色已接管明暗判断，关闭后可恢复主题模式选择。"),
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        KimiDivider()
+        KimiMenuRow(
+            Icons.Default.ColorLens,
+            uiText("设置自定义主题色"),
+            uiText("当前颜色：${AppSettings.normalizeHexColor(settings.customThemeColor)}"),
+            onOpenCustomThemeColor,
+        )
+    }
     KimiCardBox {
         Text(uiText("主题模式"), style = MaterialTheme.typography.titleMedium)
         Text(
-            uiText("选择跟随系统、浅色或深色模式。返回主题设置后，其他外观选项会保持当前位置。"),
+            if (customEnabled) uiText("关闭自定义主题色后可重新选择主题模式。") else uiText("选择跟随系统、浅色或深色模式。返回主题设置后，其他外观选项会保持当前位置。"),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         KimiDivider()
-        ThemeOptionRow(uiText("跟随系统"), AppSettings.THEME_SYSTEM, themeMode, onThemeModeChange)
+        ThemeOptionRow(uiText("跟随系统"), AppSettings.THEME_SYSTEM, themeMode, onThemeModeChange, !customEnabled)
         KimiDivider()
-        ThemeOptionRow(uiText("浅色"), AppSettings.THEME_LIGHT, themeMode, onThemeModeChange)
+        ThemeOptionRow(uiText("浅色"), AppSettings.THEME_LIGHT, themeMode, onThemeModeChange, !customEnabled)
         KimiDivider()
-        ThemeOptionRow(uiText("深色"), AppSettings.THEME_DARK, themeMode, onThemeModeChange)
+        ThemeOptionRow(uiText("深色"), AppSettings.THEME_DARK, themeMode, onThemeModeChange, !customEnabled)
     }
 }
 
+@Composable
+internal fun CustomThemeColorSettings(settings: AppSettings, controller: ChatController) {
+    var colorText by remember { mutableStateOf(sanitizeThemeColorInput(settings.customThemeColor)) }
+    var confirmSave by remember { mutableStateOf(false) }
+    var savedNotice by remember { mutableStateOf("") }
+    val inputValid = colorText.matches(Regex("#[0-9A-F]{6}"))
+    val normalized = if (inputValid) colorText else AppSettings.normalizeHexColor(settings.customThemeColor)
+
+    KimiCardBox {
+        Text(uiText("选择主题色"), style = MaterialTheme.typography.titleMedium)
+        Text(
+            uiText("色环和输入框只修改预览，保存并再次确认后才会应用，返回不会改变当前主题色。"),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        ThemeColorRing(normalized) { selected ->
+            colorText = selected
+            savedNotice = ""
+        }
+        OutlinedTextField(
+            value = colorText,
+            onValueChange = { value ->
+                colorText = sanitizeThemeColorInput(value)
+                savedNotice = ""
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(uiText("16 进制颜色代码")) },
+            supportingText = {
+                Text(if (inputValid) colorText else uiText("请输入 6 位颜色代码，例如 #F6F6F4"))
+            },
+            isError = !inputValid,
+            singleLine = true,
+        )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = { colorText = sanitizeThemeColorInput(settings.customThemeColor) }) {
+                Text(uiText("撤销更改"))
+            }
+            Button(onClick = { confirmSave = true }, enabled = inputValid) {
+                Text(uiText("保存主题色"))
+            }
+        }
+        if (savedNotice.isNotBlank()) Text(savedNotice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+    }
+
+    if (confirmSave) AlertDialog(
+        onDismissRequest = { confirmSave = false },
+        title = { Text(uiText("确认应用主题色？")) },
+        text = { Text(uiText("主题色将更新为 $colorText，界面配色会立即变化。")) },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    settings.customThemeColor = colorText
+                    controller.settingsRevision.intValue++
+                    savedNotice = uiText("主题色已更新为 $colorText")
+                    confirmSave = false
+                },
+            ) { Text(uiText("确认应用")) }
+        },
+        dismissButton = { TextButton(onClick = { confirmSave = false }) { Text(uiText("取消")) } },
+    )
+}
+
+internal fun sanitizeThemeColorInput(value: String): String {
+    val candidate = if (value.count { it == '#' } > 1) value.substringAfterLast('#') else value.removePrefix("#")
+    val digits = candidate.filter { it in '0'..'9' || it.lowercaseChar() in 'a'..'f' }.take(6).uppercase(Locale.ROOT)
+    return "#$digits"
+}
+
+@Composable
+private fun ThemeColorRing(color: String, onColorSelected: (String) -> Unit) {
+    val selectedColor = remember(color) { runCatching { Color(android.graphics.Color.parseColor(color)) }.getOrDefault(Color.White) }
+    val ringOutline = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.25f)
+    Canvas(
+        Modifier
+            .fillMaxWidth()
+            .height(210.dp)
+            .pointerInput(Unit) {
+                detectTapGestures { offset -> selectThemeRingColor(offset, size.width, size.height, onColorSelected) }
+            }
+            .pointerInput(Unit) {
+                detectDragGestures(
+                    onDragStart = { offset -> selectThemeRingColor(offset, size.width, size.height, onColorSelected) },
+                    onDrag = { change, _ -> selectThemeRingColor(change.position, size.width, size.height, onColorSelected) },
+                )
+            },
+    ) {
+        val radius = size.minDimension * 0.38f
+        drawCircle(
+            brush = Brush.sweepGradient(listOf(Color.Red, Color.Yellow, Color.Green, Color.Cyan, Color.Blue, Color.Magenta, Color.Red), center),
+            radius = radius,
+            style = Stroke(width = 30.dp.toPx()),
+        )
+        drawCircle(selectedColor, radius = radius * 0.52f)
+        drawCircle(ringOutline, radius = radius * 0.52f, style = Stroke(1.dp.toPx()))
+    }
+}
+private fun selectThemeRingColor(offset: Offset, width: Int, height: Int, onColorSelected: (String) -> Unit) {
+    val center = Offset(width / 2f, height / 2f)
+    val angle = (Math.toDegrees(kotlin.math.atan2((offset.y - center.y).toDouble(), (offset.x - center.x).toDouble())) + 360.0) % 360.0
+    val argb = android.graphics.Color.HSVToColor(floatArrayOf(angle.toFloat(), 0.82f, 0.92f))
+    onColorSelected(String.format("#%06X", 0xFFFFFF and argb))
+}
 @Composable
 internal fun LanguageSettings(
     languageMode: String,
@@ -2214,12 +2435,12 @@ internal fun RefreshRateSettings(
 }
 
 @Composable
-internal fun ThemeOptionRow(title: String, value: String, selected: String, onSelect: (String) -> Unit) {
+internal fun ThemeOptionRow(title: String, value: String, selected: String, onSelect: (String) -> Unit, enabled: Boolean = true) {
     Row(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .clickable { onSelect(value) }
+            .clickable(enabled = enabled) { onSelect(value) }
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -2229,8 +2450,8 @@ internal fun ThemeOptionRow(title: String, value: String, selected: String, onSe
             modifier = Modifier.width(36.dp).size(24.dp),
             tint = MaterialTheme.colorScheme.primary,
         )
-        Text(title, modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-        if (value == selected) {
+        Text(title, modifier = Modifier.weight(1f), color = if (enabled) MaterialTheme.colorScheme.onSurface else KimiMuted, style = MaterialTheme.typography.titleMedium)
+        if (value == selected && enabled) {
             Icon(Icons.Default.Check, contentDescription = uiText("已选择"), tint = MaterialTheme.colorScheme.primary)
         }
     }
@@ -2293,11 +2514,17 @@ internal fun RefreshRateOptionRow(title: String, value: String, selected: String
 
 @Composable
 internal fun FontSizeSettings(
+    settings: AppSettings,
+    controller: ChatController,
     fontScaleMode: String,
     customFontScale: Float,
     onFontScaleModeChange: (String) -> Unit,
     onCustomFontScaleChange: (Float) -> Unit,
+    onOpenFontLibrary: () -> Unit,
 ) {
+    val fontSettingsRevision = controller.settingsRevision.intValue
+    val currentTextFontName = remember(fontSettingsRevision) { settings.textFontName?.takeIf { settings.textFontPath != null } }
+    val currentCodeFontName = remember(fontSettingsRevision) { settings.codeFontName?.takeIf { settings.codeFontPath != null } }
     val currentDensity = LocalDensity.current
     val activeFontScale = currentDensity.fontScale
     val initialScale = remember(fontScaleMode, customFontScale) {
@@ -2313,16 +2540,11 @@ internal fun FontSizeSettings(
     val followSystem = fontScaleMode == AppSettings.FONT_SCALE_SYSTEM
     val previewScale = if (followSystem) activeFontScale.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE) else draftScale
     Column(
-        Modifier
-            .fillMaxSize()
-            .padding(top = 18.dp),
+        Modifier.fillMaxSize().padding(top = 18.dp),
         verticalArrangement = Arrangement.SpaceBetween,
     ) {
         Column(
-            modifier = Modifier
-                .weight(1f)
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 24.dp),
+            modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(26.dp),
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -2347,6 +2569,37 @@ internal fun FontSizeSettings(
             }
         }
         KimiCardBox {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).clickable(onClick = onOpenFontLibrary).padding(vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Default.FontDownload, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(uiText("字体库"), style = MaterialTheme.typography.titleMedium)
+                    Text(uiText("在字体库中批量导入、预览和切换字体。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                }
+                Icon(Icons.Default.ChevronRight, contentDescription = uiText("进入字体库"), tint = KimiMuted)
+            }
+            KimiDivider()
+            FontSelectionSummary(
+                title = uiText("文本字体"),
+                currentName = currentTextFontName,
+                onClear = {
+                    settings.clearFont(codeFont = false)
+                    controller.settingsRevision.intValue++
+                },
+            )
+            FontSelectionSummary(
+                title = uiText("代码字体"),
+                currentName = currentCodeFontName,
+                onClear = {
+                    settings.clearFont(codeFont = true)
+                    controller.settingsRevision.intValue++
+                },
+            )
+        }
+        KimiCardBox {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(uiText("跟随系统"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 Switch(
@@ -2367,13 +2620,9 @@ internal fun FontSizeSettings(
                     Text(fontScaleLabel(draftScale), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     Slider(
                         value = draftScale,
-                        onValueChange = {
-                            draftScale = it.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE)
-                        },
+                        onValueChange = { draftScale = it.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE) },
                         onValueChangeFinished = {
-                            val finalScale = (
-                                draftScale / AppSettings.FONT_SCALE_STEP
-                            ).roundToInt() * AppSettings.FONT_SCALE_STEP
+                            val finalScale = (draftScale / AppSettings.FONT_SCALE_STEP).roundToInt() * AppSettings.FONT_SCALE_STEP
                             val committedScale = finalScale.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE)
                             draftScale = committedScale
                             onFontScaleModeChange(AppSettings.FONT_SCALE_CUSTOM)
@@ -2390,6 +2639,182 @@ internal fun FontSizeSettings(
     }
 }
 
+@Composable
+private fun FontLibrarySettings(
+    settings: AppSettings,
+    controller: ChatController,
+) {
+    var fontRevision by remember { mutableIntStateOf(0) }
+    var notice by remember { mutableStateOf("") }
+    var previewItem by remember { mutableStateOf<FontLibraryItem?>(null) }
+    val fontLibrary = remember(fontRevision) { settings.fontLibrary() }
+    val fontMimeTypes = arrayOf(
+        "font/ttf", "font/otf", "font/ttc", "font/collection", "application/x-font-ttf",
+        "application/x-font-opentype", "application/x-font-ttc", "application/octet-stream",
+    )
+    val fontLibraryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNotEmpty()) {
+            settings.importFonts(uris).fold(
+                onSuccess = { imported ->
+                    notice = uiText("已导入 ${imported.size} 个字体")
+                    fontRevision++
+                },
+                onFailure = { error -> notice = uiText(error.message.orEmpty().ifBlank { "字体导入失败" }) },
+            )
+        }
+    }
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(top = 4.dp, bottom = 24.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        item {
+            KimiCardBox {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(uiText("字体库"), style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            uiText("支持批量导入 TTF、OTF 和 TTC 字体。导入后可预览，并分别设为文本字体或代码字体。"),
+                            color = KimiMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    OutlinedButton(onClick = { fontLibraryLauncher.launch(fontMimeTypes) }, shape = KimiPillShape) {
+                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(uiText("导入字体"), maxLines = 1)
+                    }
+                }
+            }
+        }
+        if (notice.isNotBlank()) {
+            item { Text(notice, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall) }
+        }
+        if (fontLibrary.isEmpty()) {
+            item {
+                KimiCardBox {
+                    Text(uiText("字体库为空，点击“导入字体”可一次选择多个文件。"), color = KimiMuted, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        } else {
+            items(fontLibrary, key = { it.id }) { item ->
+                FontLibraryRow(
+                    item = item,
+                    textSelected = settings.textFontPath == item.path,
+                    codeSelected = settings.codeFontPath == item.path,
+                    onPreview = { previewItem = item },
+                    onSelectText = {
+                        settings.selectFont(item, codeFont = false)
+                        notice = uiText("已切换文本字体：${item.name}")
+                        fontRevision++
+                        controller.settingsRevision.intValue++
+                    },
+                    onSelectCode = {
+                        settings.selectFont(item, codeFont = true)
+                        notice = uiText("已切换代码字体：${item.name}")
+                        fontRevision++
+                        controller.settingsRevision.intValue++
+                    },
+                    onDelete = {
+                        settings.deleteFont(item)
+                        notice = uiText("已从字体库删除：${item.name}")
+                        fontRevision++
+                        controller.settingsRevision.intValue++
+                    },
+                )
+            }
+        }
+    }
+    previewItem?.let { item ->
+        val previewFamily = remember(item.path) {
+            runCatching { FontFamily(Typeface.createFromFile(item.path)) }.getOrDefault(FontFamily.Default)
+        }
+        AlertDialog(
+            onDismissRequest = { previewItem = null },
+            title = { Text(uiText("字体预览")) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(item.name, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        uiText("春风又绿江南岸 · The quick brown fox jumps over the lazy dog. · 0123456789"),
+                        fontFamily = previewFamily,
+                        style = MaterialTheme.typography.headlineSmall,
+                    )
+                    Text(
+                        uiText("常规 Regular  粗体 Bold  斜体 Italic"),
+                        fontFamily = previewFamily,
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+            },
+            confirmButton = { TextButton(onClick = { previewItem = null }) { Text(uiText("关闭")) } },
+        )
+    }
+}
+@Composable
+private fun FontSelectionSummary(
+    title: String,
+    currentName: String?,
+    onClear: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.titleSmall)
+            Text(
+                currentName ?: uiText("系统默认"),
+                color = KimiMuted,
+                style = MaterialTheme.typography.bodySmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (currentName != null) TextButton(onClick = onClear) { Text(uiText("恢复默认"), maxLines = 1) }
+    }
+}
+
+@Composable
+private fun FontLibraryRow(
+    item: FontLibraryItem,
+    textSelected: Boolean,
+    codeSelected: Boolean,
+    onPreview: () -> Unit,
+    onSelectText: () -> Unit,
+    onSelectCode: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val itemFamily = remember(item.path) {
+        runCatching { FontFamily(Typeface.createFromFile(item.path)) }.getOrDefault(FontFamily.Default)
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+    ) {
+        Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(item.name, fontFamily = itemFamily, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(item.extension, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                }
+                IconButton(onClick = onPreview) { Icon(Icons.Default.Visibility, contentDescription = uiText("预览")) }
+                IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = uiText("从字体库删除")) }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = onSelectText) {
+                    if (textSelected) Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(if (textSelected) uiText("文本字体（当前）") else uiText("设为文本字体"))
+                }
+                TextButton(onClick = onSelectCode) {
+                    if (codeSelected) Icon(Icons.Default.Check, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Text(if (codeSelected) uiText("代码字体（当前）") else uiText("设为代码字体"))
+                }
+            }
+        }
+    }
+}
 internal fun fontScaleLabel(scale: Float): String = when {
     scale < 0.65f -> uiText("最小 ${(scale * 100).roundToInt()}%")
     scale < 0.8f -> uiText("极小 ${(scale * 100).roundToInt()}%")
@@ -4865,7 +5290,6 @@ internal fun agentToolCatalog(): List<AgentToolInfo> = listOf(
     AgentToolInfo("get_file_info", uiText("文件信息"), uiText("读取文件大小、修改时间等元数据。")),
     AgentToolInfo("list_skill_files", uiText("列出 Skill 文件"), uiText("浏览已启用 Skill 包内文件。")),
     AgentToolInfo("read_skill_file", uiText("读取 Skill 文件"), uiText("读取相关 Skill 包内说明或脚本。")),
-    AgentToolInfo("set_conversation_topic", uiText("话题总结"), uiText("新会话首次对话时，根据用户第一条消息设置简短主题标题。")),
     AgentToolInfo("update_roleplay_state", uiText("角色扮演状态"), uiText("沉浸扮演模式下调整好感度并触发表情短代码。")),
     AgentToolInfo("run_command", uiText("执行命令"), uiText("通过 Termux 执行命令并返回 stdout/stderr。")),
     AgentToolInfo("web_search", uiText("联网搜索"), uiText("使用内嵌 WebView 搜索互联网。")),

@@ -472,6 +472,8 @@
     <string name="menu_profile_desc">Nickname, avatar, and display information</string>
     <string name="menu_model_service">Model services</string>
     <string name="menu_model_service_desc">Configure AI providers, API keys, and default models</string>
+    <string name="menu_topic_summary_model">Topic summary model</string>
+    <string name="menu_topic_summary_model_desc">Use a separate lightweight model to title new conversations</string>
     <string name="menu_sub_agents">Sub-agent orchestration</string>
     <string name="menu_sub_agents_desc">Choose sub-agent models and describe their strengths</string>
     <string name="menu_web_search">Web search</string>
@@ -521,6 +523,7 @@
     <string name="menu_about_desc">Version, package name, and security notes</string>
     <string name="detail_profile">Profile</string>
     <string name="detail_model">Model services</string>
+    <string name="detail_topic_summary_model">Topic summary model</string>
     <string name="detail_sub_agents">Sub-agent orchestration</string>
     <string name="detail_web_search">Web search</string>
     <string name="detail_workspace">Workspace</string>
@@ -775,8 +778,6 @@
     <string name="tool_list_skill_files_desc">List Skill Files Desc</string>
     <string name="tool_read_skill_file">Read Skill File</string>
     <string name="tool_read_skill_file_desc">Read Skill File Desc</string>
-    <string name="tool_set_topic">Set Topic</string>
-    <string name="tool_set_topic_desc">Set Topic Desc</string>
     <string name="tool_update_roleplay">Update Roleplay</string>
     <string name="tool_update_roleplay_desc">Update Roleplay Desc</string>
     <string name="tool_run_command">Run Command</string>
@@ -1198,6 +1199,11 @@
     <string name="streaming_fade_title">Fade in</string>
     <string name="streaming_fade_desc">New content smoothly fades from transparent to clear</string>
     <string name="streaming_selected">Selected</string>
+    <!-- Chat composer -->
+    <string name="label_sub_agent_short">Sub-agent</string>
+    <string name="action_fullscreen_input">Fullscreen input</string>
+    <string name="action_exit_fullscreen_input">Exit fullscreen input</string>
+    <string name="title_fullscreen_input">Fullscreen input</string>
 </resources>
 
 

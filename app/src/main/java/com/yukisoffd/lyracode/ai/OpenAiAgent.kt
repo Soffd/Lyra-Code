@@ -266,6 +266,59 @@ class OpenAiAgent(
         }
     }
 
+    suspend fun summarizeConversationTopic(
+        profile: ApiProfile,
+        model: String,
+        firstUserMessage: String,
+    ): String = withContext(Dispatchers.IO) {
+        require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        val input = firstUserMessage.trim().take(4000)
+        require(input.isNotBlank()) { "首条消息不能为空" }
+        val instruction = "为下面的新对话生成一个简短标题。中文用4到12个汉字，英文用2到6个词。只输出标题，不要引号、前缀、标点或解释。"
+        val rawTitle = when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> {
+                val payload = JSONObject().put("model", model).put("max_tokens", 48).put("temperature", 0.2)
+                    .put("system", instruction).put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", input)))
+                val request = Request.Builder().url(profile.chatEndpoint).addHeader("x-api-key", profile.apiKey)
+                    .addHeader("anthropic-version", ANTHROPIC_VERSION).addHeader("Content-Type", "application/json")
+                    .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error("话题总结请求失败 ${response.code}: ${body.take(300)}")
+                    val blocks = JSONObject(body).optJSONArray("content") ?: JSONArray()
+                    buildString { for (index in 0 until blocks.length()) blocks.optJSONObject(index)?.takeIf { it.optString("type") == "text" }?.optString("text")?.let(::append) }
+                }
+            }
+            ApiProfile.API_FORMAT_GEMINI -> {
+                val payload = JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", input)))))
+                    .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instruction))))
+                    .put("generationConfig", JSONObject().put("temperature", 0.2).put("maxOutputTokens", 48))
+                val request = Request.Builder().url(profile.geminiGenerateContentEndpoint(model)).addHeader("x-goog-api-key", profile.apiKey)
+                    .addHeader("Content-Type", "application/json").post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error("话题总结请求失败 ${response.code}: ${body.take(300)}")
+                    val parts = JSONObject(body).optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts") ?: JSONArray()
+                    buildString { for (index in 0 until parts.length()) parts.optJSONObject(index)?.optString("text")?.let(::append) }
+                }
+            }
+            else -> {
+                val payload = JSONObject().put("model", model)
+                    .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", instruction)).put(JSONObject().put("role", "user").put("content", input)))
+                    .put("temperature", 0.2).put("max_tokens", 48).put("stream", false)
+                val request = Request.Builder().url(profile.chatEndpoint).addHeader("Authorization", "Bearer ${profile.apiKey}")
+                    .addHeader("Content-Type", "application/json").post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error("话题总结请求失败 ${response.code}: ${body.take(300)}")
+                    JSONObject(body).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
+                }
+            }
+        }
+        sanitizeConversationTopic(rawTitle)
+    }
+
     suspend fun continueConversation(
         conversationId: Long,
         profile: ApiProfile,
@@ -1430,7 +1483,7 @@ class OpenAiAgent(
                 "get_file_info" -> ToolExecution(nativeFileManager.fileInfo(args.getString("path")).getOrThrow())
                 "list_skill_files" -> ToolExecution(settings.listSkillFiles(args.getString("skill_id")).getOrThrow())
                 "read_skill_file" -> ToolExecution(settings.readSkillFile(args.getString("skill_id"), args.getString("path")).getOrThrow())
-                "set_conversation_topic" -> ToolExecution(setConversationTopic(conversationId, args.optString("title")))
+
                 "update_roleplay_state" -> ToolExecution(updateRoleplayState(args))
                 "get_current_time" -> ToolExecution(currentTimeInfo())
                 "get_current_location" -> ToolExecution(currentLocationInfo())
@@ -1885,25 +1938,13 @@ class OpenAiAgent(
             .toString()
     }
 
-    private fun setConversationTopic(conversationId: Long, rawTitle: String): String {
-        val title = rawTitle.lineSequence()
-            .firstOrNull()
-            .orEmpty()
-            .replace(Regex("""[\r\n\t]+"""), " ")
-            .replace(Regex("""\s+"""), " ")
-            .trim()
-            .trim('"', '\'', '“', '”', '‘', '’', '。', '.', ':', '：')
-            .take(24)
-            .ifBlank { return JSONObject().put("schema", "lyra_conversation_topic_v1").put("updated", false).put("title", "").toString() }
-        conversationStore.setConversationMeta(conversationId, title = title)
-        return JSONObject()
-            .put("schema", "lyra_conversation_topic_v1")
-            .put("updated", true)
-            .put("title", title)
-            .put("instruction", "标题已保存到当前会话。继续正常回答用户，不要在正文中重复说明标题设置过程。")
-            .toString()
+    private fun sanitizeConversationTopic(rawTitle: String): String {
+        return rawTitle.lineSequence().firstOrNull().orEmpty()
+            .replace(Regex("""^(标题|话题|主题|title|topic)\s*[:：]\s*""", RegexOption.IGNORE_CASE), "")
+            .replace(Regex("""[\r\n\t]+"""), " ").replace(Regex("""\s+"""), " ")
+            .trim().trim('"', '\'', '“', '”', '‘', '’', '。', '.', ':', '：', '#', '*').take(24).trim()
+            .also { require(it.isNotBlank()) { "话题总结模型未返回有效标题" } }
     }
-
     private suspend fun executeMcpTool(
         server: McpServerConfig,
         tool: McpToolDefinition,
@@ -3703,7 +3744,7 @@ class OpenAiAgent(
             FTP/FTPS/SFTP 文件传输服务器由 list_file_transfer_servers、file_transfer_list、file_transfer_search、file_transfer_download_to_workspace、file_transfer_upload_from_workspace 管理；下载或上传前必须获得用户确认。FTP 是明文协议，涉及密码或敏感文件时建议用户改用 SFTP 或 FTPS。
             当用户要求“帮我添加/配置/安装/启用/禁用/删除/修改”MCP 服务器、SSH 连接、WebDAV、FTP/FTPS/SFTP 文件传输服务器、Skills 或 Agent 工具时，使用 manage_app_config。若用户给的是介绍网页，先 web_search/read_web_page 获取配置 JSON、zip 下载链接或连接参数；缺少 API key、密码、私钥等必要敏感信息时，先向用户索取，不能编造。manage_app_config 会触发用户确认；被拒绝后按用户反馈调整，不要重复提交相同配置。
             manage_app_config 添加的 MCP、SSH、WebDAV、FTP/FTPS/SFTP、Skills 与用户在设置页手动添加完全等价，会出现在设置中；Agent 工具只能启用或禁用，不能删除，且不得禁用 manage_app_config 自身。
-            如果当前是新会话的首次用户请求，且工具列表中存在 set_conversation_topic，请先调用它为本次对话设置一个 4-12 个汉字或 2-6 个英文词的简短主题标题；标题只概括用户第一条消息，不要包含“关于/请问/帮我”等空泛词。调用后继续正常回答用户。若工具不可用，不要提及标题设置。
+
             如果工具、MCP 或代码执行生成图片、音频、视频等媒体结果，优先用 Markdown 媒体语法输出，方便 Lyra Code 直接预览：图片使用 ![说明](data:image/png;base64,...) 或 ![说明](https://.../file.png)；视频/音频可输出 ![说明](https://.../file.mp4) 或 ![说明](file:///.../file.mp3)。如果只有原始 base64，尽量补成 data:<mime>;base64,<内容>；如果只有本地路径或远程 URL，直接输出完整路径/URL，不要只写“已生成”。
             媒体文件较大时不要把完整 base64 重复粘贴多次；优先输出可访问 URL 或本地文件路径。只有用户明确需要内联文件，或工具只返回 base64 时，才输出 data URL。
             SSH 工具用于用户已配置的远程服务器。调用 ssh_exec 前必须先调用 list_ssh_servers 获取 server_id；任何 ssh_exec 都会请求用户确认。安装软件、编译服务、修改系统配置前必须先检查目标服务器系统、CPU/GPU、内存、磁盘和权限，避免安装不兼容或超出服务器承载能力的软件。禁止直接读取 /var/log 或 *.log；先查看文件属性和行数，确认范围安全后只读取小片段。不要尝试 vim、top、交互式 ssh 等复杂交互 shell。
@@ -3858,7 +3899,7 @@ class OpenAiAgent(
         .put(function("get_file_info", "获取文件元数据", "path" to "string"))
         .put(function("list_skill_files", "列出已启用 Skill 包内文件。先根据 LYRA_ACTIVE_SKILLS_V1 判断相关 Skill，再调用此工具。", "skill_id" to "string"))
         .put(function("read_skill_file", "读取指定 Skill 包内文本文件。优先读取 SKILL.md；只读取和当前任务相关的文件。", "skill_id" to "string", "path" to "string"))
-        .put(function("set_conversation_topic", "话题总结工具。仅在新会话首次用户请求时调用一次，根据用户第一条消息设置 4-12 个汉字或 2-6 个英文词的简短会话标题；不要把完整用户问题当标题。", "title" to "string"))
+
         .put(function("update_roleplay_state", "沉浸扮演模式专用工具。根据剧情发展和用户消息情感调整当前角色对用户的好感度，并可声明想发送的表情短代码。affection_delta 范围 -20 到 20；reason 说明角色内原因；stickers 可填 [sti_happy] 这类短代码数组。", "affection_delta" to "integer", "reason" to "string", "stickers" to "array"))
         if (termuxExecutor.hasRunCommandPermission()) {
             definitions.put(
@@ -4388,7 +4429,6 @@ class OpenAiAgent(
             "get_file_info",
             "list_skill_files",
     "read_skill_file",
-    "set_conversation_topic",
     "update_roleplay_state",
     "run_command",
             "web_search",

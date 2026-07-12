@@ -317,16 +317,20 @@ class ChatController(
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: createPersistedConversation()
         conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         if (jobs[conversationId]?.isActive == true) return
-       val profile = currentProfile()
+        val isFirstUserMessage = conversationStore.messages(conversationId).none { it.role == "user" }
+        val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
         val userInput = composeUserInput(text, uploads, workspaceFiles)
+        val titleBeforeSend = activeConversation()?.title
+        val provisionalTitle = if (titleBeforeSend == appContext.getString(R.string.default_conversation_title)) {
+            fallbackConversationTitle(userInput)
+        } else {
+            null
+        }
+        val topicTitleGuard = provisionalTitle ?: titleBeforeSend
         conversationStore.setConversationMeta(
             conversationId,
-            title = if (activeConversation()?.title == appContext.getString(R.string.default_conversation_title)) {
-                fallbackConversationTitle(userInput)
-            } else {
-                null
-            },
+            title = provisionalTitle,
             status = ConversationStore.STATUS_RUNNING,
             profileId = profile.id,
             model = model,
@@ -336,6 +340,21 @@ class ChatController(
         reloadConversations()
         pendingUploads.clear()
         uploadingStatus.value = ""
+        if (isFirstUserMessage) {
+            val topicProfile = settings.topicSummaryProfile()
+            val topicModel = settings.topicSummaryModel.ifBlank { topicProfile.selectedModel }
+            val topicInput = text.trim().ifBlank { fallbackConversationTitle(userInput) }
+            scope.launch {
+                runCatching { agent.summarizeConversationTopic(topicProfile, topicModel, topicInput) }
+                    .onSuccess { title ->
+                        val current = conversationStore.conversation(conversationId)
+                        if (current != null && current.title == topicTitleGuard) {
+                            conversationStore.setConversationMeta(conversationId, title = title)
+                            reloadConversations()
+                        }
+                    }
+            }
+        }
         jobs[conversationId] = scope.launch {
             status.value = appContext.getString(R.string.status_running)
             agent.chat(conversationId, userInput, profile, model, userMessagePersisted = true, forcedSkillIds = forcedSkillIds) {

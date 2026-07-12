@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.graphics.Paint
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -97,6 +98,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Typography
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -125,6 +127,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -133,6 +136,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -205,40 +209,81 @@ import kotlin.math.max
 import kotlin.math.abs
 import android.graphics.Canvas as AndroidCanvas
 
+internal val LocalCodeFontFamily = staticCompositionLocalOf<FontFamily> { FontFamily.Monospace }
+
 @Composable
 internal fun LyraCodeTheme(
     darkMode: Boolean,
     dynamicColor: Boolean,
     fontScale: Float,
+    settings: AppSettings,
+    settingsRevision: Int,
+    dynamicColorRevision: Int,
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
     val density = LocalDensity.current
+    val textFontFamily = remember(settingsRevision, settings.textFontPath) {
+        settings.textFontPath?.let { path ->
+            runCatching { FontFamily(Typeface.createFromFile(path)) }.getOrNull()
+        } ?: FontFamily.Default
+    }
+    val codeFontFamily = remember(settingsRevision, settings.codeFontPath) {
+        settings.codeFontPath?.let { path ->
+            runCatching { FontFamily(Typeface.createFromFile(path)) }.getOrNull()
+        } ?: FontFamily.Monospace
+    }
+    val customBackground = remember(settingsRevision, settings.customThemeColorEnabled, settings.customThemeColor) {
+        if (settings.customThemeColorEnabled) {
+            runCatching { Color(android.graphics.Color.parseColor(settings.customThemeColor)) }.getOrNull()
+        } else null
+    }
+    val lightSurface = customBackground?.let { lerp(it, Color.White, 0.72f) } ?: Color(0xFFFFFFFF)
+    val lightSurfaceVariant = customBackground?.let { lerp(it, Color.White, 0.56f) } ?: Color(0xFFEDEDEB)
+    val darkSurface = customBackground?.let { lerp(it, Color.Black, 0.55f) } ?: KimiCard
+    val darkSurfaceVariant = customBackground?.let { lerp(it, Color.Black, 0.40f) } ?: KimiCardAlt
     val light = lightColorScheme(
         primary = Color(0xFF181818),
         secondary = Color(0xFF4E7DFF),
-        background = Color(0xFFF6F6F4),
-        surface = Color(0xFFFFFFFF),
-        surfaceVariant = Color(0xFFEDEDEB),
+        background = customBackground ?: Color(0xFFF6F6F4),
+        surface = lightSurface,
+        surfaceVariant = lightSurfaceVariant,
+        surfaceContainerLowest = customBackground?.let { lerp(it, Color.White, 0.82f) } ?: Color.White,
+        surfaceContainerLow = customBackground?.let { lerp(it, Color.White, 0.76f) } ?: lightSurface,
+        surfaceContainer = lightSurface,
+        surfaceContainerHigh = customBackground?.let { lerp(it, Color.White, 0.64f) } ?: lightSurfaceVariant,
+        surfaceContainerHighest = lightSurfaceVariant,
         onBackground = Color(0xFF111111),
         onSurface = Color(0xFF171717),
-        onSurfaceVariant = Color(0xFF6F6F6F),
+        onSurfaceVariant = Color(0xFF4F4F4F),
+        outline = customBackground?.let { lerp(it, Color.Black, 0.42f) } ?: Color(0xFF797979),
+        outlineVariant = customBackground?.let { lerp(it, Color.White, 0.38f) } ?: Color(0xFFC8C8C8),
     )
     val dark = darkColorScheme(
         primary = Color(0xFFE8E8E8),
         secondary = Color(0xFF70A4FF),
-        background = KimiBg,
-        surface = KimiCard,
-        surfaceVariant = KimiCardAlt,
-        onBackground = Color(0xFFE8E8E8),
-        onSurface = Color(0xFFE6E6E6),
-        onSurfaceVariant = Color(0xFF8E8E8E),
-        outline = KimiLine,
+        background = customBackground ?: KimiBg,
+        surface = darkSurface,
+        surfaceVariant = darkSurfaceVariant,
+        surfaceContainerLowest = customBackground?.let { lerp(it, Color.Black, 0.68f) } ?: KimiBg,
+        surfaceContainerLow = customBackground?.let { lerp(it, Color.Black, 0.60f) } ?: darkSurface,
+        surfaceContainer = darkSurface,
+        surfaceContainerHigh = customBackground?.let { lerp(it, Color.Black, 0.48f) } ?: darkSurfaceVariant,
+        surfaceContainerHighest = darkSurfaceVariant,
+        onBackground = Color(0xFFF2F2F2),
+        onSurface = Color(0xFFF0F0F0),
+        onSurfaceVariant = Color(0xFFC8C8C8),
+        outline = customBackground?.let { lerp(it, Color.White, 0.34f) } ?: KimiLine,
+        outlineVariant = customBackground?.let { lerp(it, Color.Black, 0.25f) } ?: KimiLine,
     )
     val baseScheme = if (darkMode) dark else light
     val colorScheme = if (dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        val dynamicScheme = if (darkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        baseScheme.copy(
+        val dynamicScheme = remember(dynamicColorRevision, darkMode, context) {
+            if (darkMode) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        }
+        if (customBackground == null) {
+            dynamicScheme
+        } else baseScheme.copy(
             primary = dynamicScheme.primary,
             onPrimary = dynamicScheme.onPrimary,
             primaryContainer = dynamicScheme.primaryContainer,
@@ -261,11 +306,31 @@ internal fun LyraCodeTheme(
     } else {
         baseScheme
     }
-    CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE))) {
-        MaterialTheme(colorScheme = colorScheme, content = content)
+    val defaults = Typography()
+    val typography = defaults.copy(
+        displayLarge = defaults.displayLarge.copy(fontFamily = textFontFamily),
+        displayMedium = defaults.displayMedium.copy(fontFamily = textFontFamily),
+        displaySmall = defaults.displaySmall.copy(fontFamily = textFontFamily),
+        headlineLarge = defaults.headlineLarge.copy(fontFamily = textFontFamily),
+        headlineMedium = defaults.headlineMedium.copy(fontFamily = textFontFamily),
+        headlineSmall = defaults.headlineSmall.copy(fontFamily = textFontFamily),
+        titleLarge = defaults.titleLarge.copy(fontFamily = textFontFamily),
+        titleMedium = defaults.titleMedium.copy(fontFamily = textFontFamily),
+        titleSmall = defaults.titleSmall.copy(fontFamily = textFontFamily),
+        bodyLarge = defaults.bodyLarge.copy(fontFamily = textFontFamily),
+        bodyMedium = defaults.bodyMedium.copy(fontFamily = textFontFamily),
+        bodySmall = defaults.bodySmall.copy(fontFamily = textFontFamily),
+        labelLarge = defaults.labelLarge.copy(fontFamily = textFontFamily),
+        labelMedium = defaults.labelMedium.copy(fontFamily = textFontFamily),
+        labelSmall = defaults.labelSmall.copy(fontFamily = textFontFamily),
+    )
+    CompositionLocalProvider(
+        LocalDensity provides Density(density.density, fontScale.coerceIn(AppSettings.MIN_FONT_SCALE, AppSettings.MAX_FONT_SCALE)),
+        LocalCodeFontFamily provides codeFontFamily,
+    ) {
+        MaterialTheme(colorScheme = colorScheme, typography = typography, content = content)
     }
 }
-
 internal val KimiBg = Color(0xFF0B0B0B)
 internal val KimiCard = Color(0xFF202020)
 internal val KimiCardAlt = Color(0xFF2A2A2A)

@@ -34,6 +34,7 @@ import androidx.compose.foundation.text.appendInlineContent
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -43,6 +44,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -56,6 +58,8 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
@@ -371,6 +375,8 @@ private fun RichCodeFence(node: ASTNode, content: String) {
 private fun RichCodeBlock(code: String, language: String = "text") {
     val clipboard = LocalClipboardManager.current
     val colorScheme = MaterialTheme.colorScheme
+    val codeFontFamily = LocalCodeFontFamily.current
+    val navigationSwipeGuard = LocalNavigationSwipeGuard.current
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -397,16 +403,17 @@ private fun RichCodeBlock(code: String, language: String = "text") {
                 onClick = { clipboard.setText(AnnotatedString(code)) },
                 modifier = Modifier.size(34.dp),
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制代码"), modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制代码"), modifier = Modifier.size(18.dp), tint = colorScheme.primary)
             }
         }
         Text(
             text = remember(code, language, colorScheme) { highlightedCode(code, language, colorScheme) },
             modifier = Modifier
                 .fillMaxWidth()
+                .blockNavigationRevealOnTouch(navigationSwipeGuard)
                 .horizontalScroll(rememberScrollState())
                 .padding(12.dp),
-            fontFamily = FontFamily.Monospace,
+            fontFamily = codeFontFamily,
             style = MaterialTheme.typography.bodySmall,
         )
     }
@@ -424,23 +431,44 @@ private fun RichTable(node: ASTNode, content: String) {
     if (columnCount == 0) return
     val context = LocalContext.current
     val csv = remember(headerCells, rowCells, columnCount) { buildCsv(headerCells, rowCells, columnCount) }
+    var exportConfirmOpen by remember { mutableStateOf(false) }
+    if (exportConfirmOpen) {
+        AlertDialog(
+            onDismissRequest = { exportConfirmOpen = false },
+            title = { Text(uiText("导出为 CSV？")) },
+            text = { Text(uiText("将此表格保存到 Download 文件夹。")) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val name = "lyra_table_${System.currentTimeMillis()}.csv"
+                    val result = saveCsvToDownloads(context, name, csv)
+                    Toast.makeText(
+                        context,
+                        result.fold({ uiText("已导出到 Download/") + name }, { uiText("导出失败: ") + it.message.orEmpty() }),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                    exportConfirmOpen = false
+                }) { Text(uiText("导出 CSV")) }
+            },
+            dismissButton = {
+                TextButton(onClick = { exportConfirmOpen = false }) { Text(uiText("取消")) }
+            },
+        )
+    }
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
     ) {
         IconButton(
-            onClick = {
-                val name = "lyra_table_${System.currentTimeMillis()}.csv"
-                val result = saveCsvToDownloads(context, name, csv)
-                Toast.makeText(
-                    context,
-                    result.fold({ uiText("已导出到 Download/") + name }, { uiText("导出失败: ") + it.message.orEmpty() }),
-                    Toast.LENGTH_SHORT,
-                ).show()
-            },
-            modifier = Modifier.size(36.dp),
+            onClick = { exportConfirmOpen = true },
+            modifier = Modifier
+                .size(36.dp),
         ) {
-            Icon(Icons.Default.FileDownload, contentDescription = uiText("导出 CSV"), modifier = Modifier.size(19.dp))
+            Icon(
+                Icons.Default.FileDownload,
+                contentDescription = uiText("导出 CSV"),
+                modifier = Modifier.size(19.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
     }
     RichDataTable(
@@ -469,6 +497,18 @@ private fun RichTableCell(text: String, header: Boolean) {
     }
 }
 
+private fun Modifier.blockNavigationRevealOnTouch(guard: NavigationSwipeGuard?): Modifier {
+    if (guard == null) return this
+    return pointerInput(guard) {
+        awaitPointerEventScope {
+            while (true) {
+                val change = awaitPointerEvent(PointerEventPass.Initial).changes.firstOrNull() ?: continue
+                if (change.pressed && !change.previousPressed) guard.blockCurrentGesture = true
+            }
+        }
+    }
+}
+
 @Composable
 private fun RichDataTable(
     headers: List<@Composable () -> Unit>,
@@ -478,12 +518,14 @@ private fun RichDataTable(
     modifier: Modifier = Modifier,
 ) {
     val scroll = rememberScrollState()
+    val navigationSwipeGuard = LocalNavigationSwipeGuard.current
     Box(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 8.dp)
             .clip(RoundedCornerShape(4.dp))
             .border(BorderStroke(0.5.dp, MaterialTheme.colorScheme.outlineVariant), RoundedCornerShape(4.dp))
+            .blockNavigationRevealOnTouch(navigationSwipeGuard)
             .horizontalScroll(scroll),
     ) {
         SubcomposeLayout { constraints ->
@@ -619,9 +661,10 @@ private fun RichInlineTextLine(nodes: List<ASTNode>, content: String) {
     val textStyle = LocalTextStyle.current
     val density = LocalDensity.current
     val streamingFade = LocalStreamingTextFade.current
+    val codeFontFamily = LocalCodeFontFamily.current
     val inlineContents = remember { mutableStateMapOf<String, InlineTextContent>() }
     val key = remember(nodes, content) { nodes.joinToString("|") { "${it.startOffset}:${it.endOffset}:${it.type}" } }
-    val annotated = remember(key, colorScheme, textStyle, density, streamingFade) {
+    val annotated = remember(key, colorScheme, textStyle, density, streamingFade, codeFontFamily) {
         inlineContents.clear()
         buildAnnotatedString {
             nodes.fastForEach {
@@ -633,6 +676,7 @@ private fun RichInlineTextLine(nodes: List<ASTNode>, content: String) {
                     density,
                     textStyle,
                     streamingFade,
+                    codeFontFamily,
                 )
             }
         }
@@ -655,26 +699,27 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
     density: Density,
     style: TextStyle,
     streamingFade: StreamingTextFade?,
+    codeFontFamily: FontFamily,
 ) {
     when (node.type) {
         MarkdownElementTypes.EMPH -> withStyle(SpanStyle(fontStyle = FontStyle.Italic)) {
             node.children.trimMarkdownMarkers(MarkdownTokenTypes.EMPH, 1).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade, codeFontFamily)
             }
         }
         MarkdownElementTypes.STRONG -> withStyle(SpanStyle(fontWeight = FontWeight.SemiBold)) {
             node.children.trimMarkdownMarkers(MarkdownTokenTypes.EMPH, 2).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade, codeFontFamily)
             }
         }
         GFMElementTypes.STRIKETHROUGH -> withStyle(SpanStyle(textDecoration = TextDecoration.LineThrough)) {
             node.children.trimMarkdownMarkers(GFMTokenTypes.TILDE, 2).fastForEach {
-                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
+                appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade, codeFontFamily)
             }
         }
         MarkdownElementTypes.CODE_SPAN -> withStyle(
             SpanStyle(
-                fontFamily = FontFamily.Monospace,
+                fontFamily = codeFontFamily,
                 fontSize = 0.95.em,
                 background = colorScheme.surfaceVariant.copy(alpha = 0.75f),
                 color = colorScheme.primary,
@@ -718,7 +763,7 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
                 appendStreamingFadedText(node.getTextInNode(content), node.startOffset, streamingFade, colorScheme.onSurface)
             } else {
                 node.children.fastForEach {
-                    appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade)
+                    appendInlineMarkdownNode(it, content, inlineContents, colorScheme, density, style, streamingFade, codeFontFamily)
                 }
             }
         }

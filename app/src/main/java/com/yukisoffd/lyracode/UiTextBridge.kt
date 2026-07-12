@@ -56,6 +56,14 @@ internal object UiTextBridge {
         "用于兼容非默认 OpenAI 路径的服务商。留空时使用当前接口格式的默认请求路径。" to "Use this for providers with non-default OpenAI-compatible paths. Leave blank to use the default request path for the selected API format.",
         "安全提示：当前基础 URL 使用 HTTP 明文传输，API Key 和对话内容可能被同一网络中的第三方截获。" to "Security warning: this base URL uses plain HTTP. API keys and chat content may be intercepted on the same network.",
         "默认模型" to "Default model",
+        "独立话题总结模型" to "Independent topic summary model",
+        "话题总结模型" to "Topic summary model",
+        "每次新对话首次发送消息后，由此模型单独生成会话标题，不再占用主对话模型的工具调用。可选择轻量模型以降低消耗。" to "After the first message in each new conversation, this model generates the title independently without using the main chat model's tool calls. Choose a lightweight model to reduce usage.",
+        "话题总结模型已保存" to "Topic summary model saved",
+        "返回顶部" to "Back to top",
+        "上一条用户消息" to "Previous user message",
+        "下一条用户消息" to "Next user message",
+        "返回底部" to "Back to bottom",
         "预保存模型，每行一个" to "Saved models, one per line",
         "保存" to "Save",
         "正在获取模型..." to "Fetching models...",
@@ -93,7 +101,45 @@ internal object UiTextBridge {
         "Termux 路径" to "Termux path",
         "仅 primary" to "primary only",
         "右上角加号选择目录后会立即刷新对话页顶部的小字目录名。" to "After choosing a folder from the top-right plus button, the folder name in the chat header updates immediately.",
-        "聊天背景已保存" to "Chat background saved",
+        "字体与大小" to "Fonts and size",
+        "自定义主题色" to "Custom theme color",
+        "设置自定义主题色" to "Set custom theme color",
+        "开启后会使用所选颜色协调界面背景、卡片、输入框和侧边栏等表面。按钮动态取色和聊天背景图不受影响。" to "When enabled, the selected color coordinates the interface background, cards, text fields, drawer, and other surfaces. Dynamic button colors and the chat background image are not affected.",
+        "自定义主题色已接管明暗判断，跟随系统、浅色和深色模式暂时不可用；关闭此功能即可恢复。" to "Custom theme color now controls light/dark contrast. Follow system, Light, and Dark are unavailable until this option is turned off.",
+        "自定义主题色已接管明暗判断，关闭后可恢复主题模式选择。" to "Custom theme color controls light/dark contrast. Turn it off to restore theme mode selection.",
+        "选择主题色" to "Choose theme color",
+        "色环和输入框只修改预览，保存并再次确认后才会应用，返回不会改变当前主题色。" to "The color ring and input only update the preview. The color is applied only after saving and confirming; going back keeps the current theme color.",
+        "16 进制颜色代码" to "Hex color code",
+        "请输入 6 位颜色代码，例如 #F6F6F4" to "Enter a 6-digit color code, for example #F6F6F4",
+        "撤销更改" to "Discard changes",
+        "保存主题色" to "Save theme color",
+        "确认应用主题色？" to "Apply theme color?",
+        "确认应用" to "Apply",
+        "关闭自定义主题色后可重新选择主题模式。" to "Turn off custom theme color to select a theme mode again.",
+        "字体导入" to "Font import",
+        "字体库" to "Font library",
+        "在字体库中批量导入、预览和切换字体。" to "Import, preview, and switch fonts in the font library.",
+        "进入字体库" to "Open font library",
+        "支持批量导入 TTF、OTF 和 TTC 字体。导入后可预览，并分别设为文本字体或代码字体。" to "Import multiple TTF, OTF, and TTC fonts. Preview each font and assign it separately for text or code.",
+        "导入字体" to "Import fonts",
+        "字体库为空，点击“导入字体”可一次选择多个文件。" to "The font library is empty. Tap Import fonts to select multiple files at once.",
+        "文本字体" to "Text font",
+        "代码字体" to "Code font",
+        "字体导入失败" to "Font import failed",
+        "文本字体已恢复为系统字体" to "Text font restored to the system default",
+        "代码字体已恢复为系统等宽字体" to "Code font restored to the system monospace font",
+        "系统默认" to "System default",
+        "恢复默认" to "Restore default",
+        "字体预览" to "Font preview",
+        "预览" to "Preview",
+        "从字体库删除" to "Remove from font library",
+        "文本字体（当前）" to "Text font (current)",
+        "代码字体（当前）" to "Code font (current)",
+        "设为文本字体" to "Use for text",
+        "设为代码字体" to "Use for code",
+        "春风又绿江南岸 · The quick brown fox jumps over the lazy dog. · 0123456789" to "The quick brown fox jumps over the lazy dog. · ABCDEFGHIJKLMNOPQRSTUVWXYZ · 0123456789",
+        "常规 Regular  粗体 Bold  斜体 Italic" to "Regular · Bold · Italic",
+        "未选择字体文件" to "No font files selected",        "聊天背景已保存" to "Chat background saved",
         "Material You 动态配色" to "Material You dynamic colors",
         "主题模式" to "Theme mode",
         "文本语言" to "Text language",
@@ -154,11 +200,14 @@ internal object UiTextBridge {
         "音频" to "Audio",
         "过程记录已展开" to "Process log expanded",
         "过程记录已收起" to "Process log collapsed",
+        "工具" to "Tools",
         "任务处理中" to "Processing",
         "任务耗时" to "Elapsed",
         "确认工具调用" to "Confirm tool call",
         "拒绝时给 AI 的修改要求" to "Instructions for the AI if rejected",
         "无审批" to "No approval",
+        "全屏输入" to "Fullscreen input",
+        "退出全屏输入" to "Exit fullscreen input",
         "仅当前会话生效，开启前需要确认风险" to "Current chat only; confirmation required before enabling",
         "已开启：需要审批的操作将自动同意" to "Enabled: approval requests will be accepted automatically",
         "开启无审批" to "Enable no approval",
@@ -682,7 +731,6 @@ internal object UiTextBridge {
         "时间感知" to "Time awareness",
         "地理感知" to "Location awareness",
         "配置管理" to "Configuration manager",
-        "话题总结" to "Topic summary",
         "网页来源标注" to "Web source citation",
         "网页下载" to "Web download",
         "联网搜索" to "Web search",
@@ -943,6 +991,8 @@ internal object UiTextBridge {
         "本机作为 MCP 服务端" to "Use this device as an MCP server",
         "不弹出更新提示" to "Do not show update prompts",
         "导出 CSV" to "Export CSV",
+        "导出为 CSV？" to "Export as CSV?",
+        "将此表格保存到 Download 文件夹。" to "Save this table to the Download folder.",
         "导出内容" to "Export content",
         "点击检测新版本" to "Tap to check for updates",
         "点击收起工具名称和简介" to "Tap to collapse tool names and descriptions",
@@ -1070,6 +1120,21 @@ internal object UiTextBridge {
     private fun translateDynamic(text: String): String {
         val t = text.trim()
         return when {
+            t.startsWith("过程记录已收起 · thinking ") -> t.replace("过程记录已收起", "Process log collapsed").replace(" / 工具 ", " / tools ")
+            t.startsWith("已导入 ") && t.endsWith(" 个字体") -> t.replace("已导入 ", "Imported ").replace(" 个字体", " fonts")
+            t.startsWith("已切换文本字体：") -> "Text font changed to: " + t.removePrefix("已切换文本字体：")
+            t.startsWith("已切换代码字体：") -> "Code font changed to: " + t.removePrefix("已切换代码字体：")
+            t.startsWith("已从字体库删除：") -> "Removed from font library: " + t.removePrefix("已从字体库删除：")
+            t.startsWith("仅支持 TTF、OTF 和 TTC 字体文件：") -> "Only TTF, OTF, and TTC font files are supported: " + t.removePrefix("仅支持 TTF、OTF 和 TTC 字体文件：")
+            t.startsWith("无法读取字体文件：") -> "Unable to read font file: " + t.removePrefix("无法读取字体文件：")
+            t.startsWith("字体文件无效：") -> "Invalid font file: " + t.removePrefix("字体文件无效：")
+            t.startsWith("无法保存字体文件：") -> "Unable to save font file: " + t.removePrefix("无法保存字体文件：")
+            t.startsWith("文本字体已导入：") -> "Text font imported: " + t.removePrefix("文本字体已导入：")
+            t.startsWith("代码字体已导入：") -> "Code font imported: " + t.removePrefix("代码字体已导入：")
+            t.startsWith("当前颜色：") -> "Current color: " + t.removePrefix("当前颜色：")
+            t.startsWith("主题色已更新为 ") -> "Theme color updated to " + t.removePrefix("主题色已更新为 ")
+            t.startsWith("主题色将更新为 ") -> "Theme color will change to " + t.removePrefix("主题色将更新为 ").replace("，界面配色会立即变化。", "; interface colors will update immediately.")
+            t.startsWith("自定义 #") -> "Custom #" + t.removePrefix("自定义 #")
             t.startsWith("已导入 ") -> "Imported " + t.removePrefix("已导入 ")
             t.startsWith("已添加表情 ") -> "Sticker added " + t.removePrefix("已添加表情 ")
             t.startsWith("已删除 ") -> "Deleted " + t.removePrefix("已删除 ")

@@ -491,6 +491,8 @@
     <string name="menu_profile_desc">昵称、头像与用户显示信息</string>
     <string name="menu_model_service">模型服务</string>
     <string name="menu_model_service_desc">配置 AI 服务商、API Key 与默认模型</string>
+    <string name="menu_topic_summary_model">话题总结模型</string>
+    <string name="menu_topic_summary_model_desc">为新对话单独选择轻量标题总结模型</string>
     <string name="menu_sub_agents">子代理编排</string>
     <string name="menu_sub_agents_desc">选择子代理模型并描述各自擅长的任务</string>
     <string name="menu_web_search">联网搜索</string>
@@ -542,6 +544,7 @@
     <!-- Settings Detail Titles -->
     <string name="detail_profile">个人资料</string>
     <string name="detail_model">模型服务</string>
+    <string name="detail_topic_summary_model">话题总结模型</string>
     <string name="detail_sub_agents">子代理编排</string>
     <string name="detail_web_search">联网搜索</string>
     <string name="detail_workspace">工作目录</string>
@@ -822,8 +825,6 @@
     <string name="tool_list_skill_files_desc">浏览已启用 Skill 包内文件。</string>
     <string name="tool_read_skill_file">读取 Skill 文件</string>
     <string name="tool_read_skill_file_desc">读取相关 Skill 包内说明或脚本。</string>
-    <string name="tool_set_topic">话题总结</string>
-    <string name="tool_set_topic_desc">新会话首次对话时，根据用户第一条消息设置简短主题标题。</string>
     <string name="tool_update_roleplay">角色扮演状态</string>
     <string name="tool_update_roleplay_desc">沉浸扮演模式下调整好感度并触发表情短代码。</string>
     <string name="tool_run_command">执行命令</string>
@@ -1282,6 +1283,11 @@
     <string name="streaming_fade_title">渐变显示</string>
     <string name="streaming_fade_desc">新内容从高透明度平滑过渡至清晰</string>
     <string name="streaming_selected">已选择</string>
+    <!-- Chat composer -->
+    <string name="label_sub_agent_short">子代理</string>
+    <string name="action_fullscreen_input">全屏输入</string>
+    <string name="action_exit_fullscreen_input">退出全屏输入</string>
+    <string name="title_fullscreen_input">全屏输入</string>
 </resources>
 
 

@@ -2,6 +2,7 @@ package com.yukisoffd.lyracode.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.graphics.Typeface
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.security.crypto.EncryptedSharedPreferences
@@ -12,6 +13,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
@@ -185,6 +187,15 @@ data class FileTransferServerConfig(
         get() = "${protocol.trim().lowercase()}://${username.trim()}@${host.trim()}:${port.coerceIn(1, 65535)}"
 }
 
+data class FontLibraryItem(
+    val id: String,
+    val name: String,
+    val path: String,
+) {
+    val extension: String
+        get() = name.substringAfterLast('.', "").uppercase()
+}
+
 class AppSettings(context: Context) {
     private val appContext = context.applicationContext
     private val plainPrefs = appContext.getSharedPreferences("lyra_settings", Context.MODE_PRIVATE)
@@ -210,6 +221,21 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getString(KEY_MODEL, DEFAULT_MODEL).orEmpty().ifBlank { DEFAULT_MODEL }
         set(value) = plainPrefs.edit().putString(KEY_MODEL, value.trim().ifBlank { DEFAULT_MODEL }).apply()
 
+    var topicSummaryProfileId: String
+        get() = plainPrefs.getString(KEY_TOPIC_SUMMARY_PROFILE_ID, "").orEmpty()
+        set(value) = plainPrefs.edit().putString(KEY_TOPIC_SUMMARY_PROFILE_ID, value.trim()).apply()
+
+    var topicSummaryModel: String
+        get() = plainPrefs.getString(KEY_TOPIC_SUMMARY_MODEL, "").orEmpty()
+        set(value) = plainPrefs.edit().putString(KEY_TOPIC_SUMMARY_MODEL, value.trim()).apply()
+
+    fun topicSummaryProfile(): ApiProfile {
+        val available = profiles()
+        return available.firstOrNull { it.id == topicSummaryProfileId }
+            ?: available.firstOrNull { it.id == selectedApiProfileId }
+            ?: available.first()
+    }
+
     var darkMode: Boolean
         get() = plainPrefs.getBoolean(KEY_DARK_MODE, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DARK_MODE, value).apply()
@@ -223,6 +249,14 @@ class AppSettings(context: Context) {
     var dynamicColorEnabled: Boolean
         get() = plainPrefs.getBoolean(KEY_DYNAMIC_COLOR_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DYNAMIC_COLOR_ENABLED, value).apply()
+
+    var customThemeColorEnabled: Boolean
+        get() = plainPrefs.getBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, false)
+        set(value) = plainPrefs.edit().putBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, value).apply()
+
+    var customThemeColor: String
+        get() = normalizeHexColor(plainPrefs.getString(KEY_CUSTOM_THEME_COLOR, DEFAULT_CUSTOM_THEME_COLOR).orEmpty())
+        set(value) = plainPrefs.edit().putString(KEY_CUSTOM_THEME_COLOR, normalizeHexColor(value)).apply()
 
     var languageMode: String
         get() = normalizeLanguageMode(
@@ -267,6 +301,110 @@ class AppSettings(context: Context) {
         else -> systemFontScale
     }.coerceIn(MIN_FONT_SCALE, MAX_FONT_SCALE)
 
+    var textFontPath: String?
+        get() = plainPrefs.getString(KEY_TEXT_FONT_PATH, null)?.takeIf { File(it).isFile }
+        private set(value) = plainPrefs.edit().putString(KEY_TEXT_FONT_PATH, value).apply()
+
+    var codeFontPath: String?
+        get() = plainPrefs.getString(KEY_CODE_FONT_PATH, null)?.takeIf { File(it).isFile }
+        private set(value) = plainPrefs.edit().putString(KEY_CODE_FONT_PATH, value).apply()
+
+    var textFontName: String?
+        get() = plainPrefs.getString(KEY_TEXT_FONT_NAME, null)
+        private set(value) = plainPrefs.edit().putString(KEY_TEXT_FONT_NAME, value).apply()
+
+    var codeFontName: String?
+        get() = plainPrefs.getString(KEY_CODE_FONT_NAME, null)
+        private set(value) = plainPrefs.edit().putString(KEY_CODE_FONT_NAME, value).apply()
+
+    fun fontLibrary(): List<FontLibraryItem> {
+        val saved = runCatching {
+            val array = JSONArray(plainPrefs.getString(KEY_FONT_LIBRARY, "[]").orEmpty())
+            buildList {
+                for (index in 0 until array.length()) {
+                    val item = array.optJSONObject(index) ?: continue
+                    val path = item.optString("path")
+                    if (File(path).isFile) add(
+                        FontLibraryItem(
+                            id = item.optString("id").ifBlank { path },
+                            name = item.optString("name").ifBlank { File(path).name },
+                            path = path,
+                        ),
+                    )
+                }
+            }
+        }.getOrDefault(emptyList())
+        val legacy = listOfNotNull(
+            textFontPath?.let { FontLibraryItem("legacy_text", textFontName ?: File(it).name, it) },
+            codeFontPath?.let { FontLibraryItem("legacy_code", codeFontName ?: File(it).name, it) },
+        )
+        return (saved + legacy).distinctBy { it.path }
+    }
+
+    fun importFonts(uris: List<Uri>): Result<List<FontLibraryItem>> = runCatching {
+        require(uris.isNotEmpty()) { "未选择字体文件" }
+        val existing = fontLibrary().toMutableList()
+        val imported = mutableListOf<FontLibraryItem>()
+        val dir = File(appContext.filesDir, "custom_fonts/library").apply { mkdirs() }
+        try {
+            for (uri in uris) {
+                val name = displayName(uri).ifBlank { "font.ttf" }
+                val extension = name.substringAfterLast('.', "").lowercase()
+                require(extension in SUPPORTED_FONT_EXTENSIONS) { "仅支持 TTF、OTF 和 TTC 字体文件：$name" }
+                val id = UUID.randomUUID().toString()
+                val target = File(dir, "$id.$extension")
+                val temporary = File(dir, "$id.importing")
+                try {
+                    appContext.contentResolver.openInputStream(uri)?.use { input ->
+                        temporary.outputStream().use { output -> input.copyTo(output) }
+                    } ?: error("无法读取字体文件：$name")
+                    runCatching { Typeface.createFromFile(temporary) }
+                        .getOrElse { throw IllegalArgumentException("字体文件无效：$name", it) }
+                    require(temporary.renameTo(target)) { "无法保存字体文件：$name" }
+                    FontLibraryItem(id, name, target.absolutePath).also {
+                        existing += it
+                        imported += it
+                    }
+                } finally {
+                    if (temporary.exists()) temporary.delete()
+                }
+            }
+        } catch (error: Throwable) {
+            imported.forEach { runCatching { File(it.path).delete() } }
+            throw error
+        }
+        saveFontLibrary(existing)
+        imported
+    }
+    fun selectFont(item: FontLibraryItem?, codeFont: Boolean) {
+        if (codeFont) {
+            codeFontPath = item?.path
+            codeFontName = item?.name
+        } else {
+            textFontPath = item?.path
+            textFontName = item?.name
+        }
+    }
+
+    fun deleteFont(item: FontLibraryItem) {
+        if (textFontPath == item.path) selectFont(null, codeFont = false)
+        if (codeFontPath == item.path) selectFont(null, codeFont = true)
+        saveFontLibrary(fontLibrary().filterNot { it.path == item.path })
+        runCatching { File(item.path).delete() }
+    }
+
+    private fun saveFontLibrary(items: List<FontLibraryItem>) {
+        val array = JSONArray().also { result ->
+            items.distinctBy { it.path }.forEach { item ->
+                result.put(JSONObject().put("id", item.id).put("name", item.name).put("path", item.path))
+            }
+        }
+        plainPrefs.edit().putString(KEY_FONT_LIBRARY, array.toString()).apply()
+    }
+
+    fun clearFont(codeFont: Boolean) {
+        selectFont(null, codeFont)
+    }
     var requestRootAccess: Boolean
         get() = plainPrefs.getBoolean(KEY_REQUEST_ROOT_ACCESS, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_REQUEST_ROOT_ACCESS, value).apply()
@@ -1260,6 +1398,8 @@ class AppSettings(context: Context) {
             .put("schema", "lyra_settings_backup_v1")
             .put("themeMode", themeMode)
             .put("dynamicColorEnabled", dynamicColorEnabled)
+            .put("customThemeColorEnabled", customThemeColorEnabled)
+            .put("customThemeColor", customThemeColor)
             .put("languageMode", languageMode)
             .put("refreshRateMode", refreshRateMode)
             .put("fontScaleMode", fontScaleMode)
@@ -1300,6 +1440,8 @@ class AppSettings(context: Context) {
             })
             .put("webSearchBlacklist", webSearchBlacklistText)
             .put("selectedApiProfileId", selectedApiProfileId)
+            .put("topicSummaryProfileId", topicSummaryProfileId)
+            .put("topicSummaryModel", topicSummaryModel)
             .put("profiles", JSONArray().also { array ->
                 profiles().forEach { profile ->
                     array.put(
@@ -1366,6 +1508,8 @@ class AppSettings(context: Context) {
         val supplement = mode != "replace"
         val messages = mutableListOf<String>()
         root.optString("themeMode").takeIf { it.isNotBlank() }?.let { themeMode = it }
+        if (root.has("customThemeColorEnabled")) customThemeColorEnabled = root.optBoolean("customThemeColorEnabled")
+        root.optString("customThemeColor").takeIf { it.isNotBlank() }?.let { customThemeColor = it }
         if (root.has("dynamicColorEnabled")) dynamicColorEnabled = root.optBoolean("dynamicColorEnabled")
         root.optString("languageMode").takeIf { it.isNotBlank() }?.let { languageMode = it }
         root.optString("refreshRateMode").takeIf { it.isNotBlank() }?.let { refreshRateMode = it }
@@ -1407,6 +1551,8 @@ class AppSettings(context: Context) {
             messages += "系统提示词 ${imported.size} 项"
         }
         root.optString("reasoningDepth").takeIf { it in reasoningDepthValues }?.let { reasoningDepth = it }
+        root.optString("topicSummaryProfileId").takeIf { it.isNotBlank() }?.let { topicSummaryProfileId = it }
+        root.optString("topicSummaryModel").takeIf { it.isNotBlank() }?.let { topicSummaryModel = it }
         if (root.has("subAgentOrchestrationEnabled")) subAgentOrchestrationEnabled = root.optBoolean("subAgentOrchestrationEnabled")
         root.optJSONArray("subAgents")?.let { array ->
             val imported = parseSubAgents(array)
@@ -1969,17 +2115,26 @@ class AppSettings(context: Context) {
         private const val KEY_API_KEY = "api_key"
         private const val KEY_API_ENDPOINT = "api_endpoint"
         private const val KEY_MODEL = "model"
+        private const val KEY_TOPIC_SUMMARY_PROFILE_ID = "topic_summary_profile_id"
+        private const val KEY_TOPIC_SUMMARY_MODEL = "topic_summary_model"
         private const val KEY_API_PROFILES = "api_profiles"
         private const val KEY_SELECTED_API_PROFILE_ID = "selected_api_profile_id"
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_DYNAMIC_COLOR_ENABLED = "dynamic_color_enabled"
+        private const val KEY_CUSTOM_THEME_COLOR_ENABLED = "custom_theme_color_enabled"
+        private const val KEY_CUSTOM_THEME_COLOR = "custom_theme_color"
         private const val KEY_LANGUAGE_MODE = "language_mode"
         private const val KEY_REFRESH_RATE_MODE = "refresh_rate_mode"
         private const val KEY_DOWNLOAD_COMPLETION_NOTIFICATIONS = "download_completion_notifications"
         private const val KEY_MINI_SERVER_CONFIG = "mini_server_config"
         private const val KEY_FONT_SCALE_MODE = "font_scale_mode"
         private const val KEY_CUSTOM_FONT_SCALE = "custom_font_scale"
+        private const val KEY_TEXT_FONT_PATH = "text_font_path"
+        private const val KEY_CODE_FONT_PATH = "code_font_path"
+        private const val KEY_TEXT_FONT_NAME = "text_font_name"
+        private const val KEY_CODE_FONT_NAME = "code_font_name"
+        private const val KEY_FONT_LIBRARY = "font_library"
         private const val KEY_REQUEST_ROOT_ACCESS = "request_root_access"
         private const val KEY_REQUEST_SHELL_ACCESS = "request_shell_access"
         private const val KEY_CUSTOM_SU_COMMAND = "custom_su_command"
@@ -2034,6 +2189,12 @@ class AppSettings(context: Context) {
         const val THEME_SYSTEM = "system"
         const val THEME_LIGHT = "light"
         const val THEME_DARK = "dark"
+        const val DEFAULT_CUSTOM_THEME_COLOR = "#F6F6F4"
+
+        fun normalizeHexColor(value: String): String {
+            val raw = value.trim().removePrefix("#")
+            return if (raw.matches(Regex("[0-9A-Fa-f]{6}"))) "#${raw.uppercase()}" else DEFAULT_CUSTOM_THEME_COLOR
+        }
         const val LANGUAGE_SYSTEM = "system"
         const val LANGUAGE_ZH_CN = "zh-CN"
         const val LANGUAGE_EN = "en"
@@ -2051,6 +2212,7 @@ class AppSettings(context: Context) {
         const val MIN_FONT_SCALE = 0.5f
         const val MAX_FONT_SCALE = 2.5f
         const val FONT_SCALE_STEP = 0.025f
+        private val SUPPORTED_FONT_EXTENSIONS = setOf("ttf", "otf", "ttc")
         const val DEFAULT_SU_COMMAND = "su -c"
         const val MINI_SERVER_PROTOCOL_HTTP = "http"
         const val MINI_SERVER_PROTOCOL_HTTPS = "https"

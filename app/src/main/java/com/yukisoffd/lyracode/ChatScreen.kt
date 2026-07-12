@@ -37,6 +37,8 @@ import androidx.compose.animation.expandIn
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -52,6 +54,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.gestures.detectDragGestures
+
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -115,11 +118,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.material3.DrawerValue
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -131,19 +137,23 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -397,6 +407,16 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     }
     var autoFollowOutput by remember(controller.activeConversationId.value) { mutableStateOf(true) }
     var keyboardShouldLiftOutput by remember(controller.activeConversationId.value) { mutableStateOf(false) }
+    var navigationVisible by remember(controller.activeConversationId.value) { mutableStateOf(false) }
+    var navigationRevealToken by remember(controller.activeConversationId.value) { mutableIntStateOf(0) }
+    val navigationSwipeGuard = remember { NavigationSwipeGuard() }
+    LaunchedEffect(navigationRevealToken) {
+        if (navigationRevealToken <= 0) return@LaunchedEffect
+        navigationVisible = true
+        val token = navigationRevealToken
+        delay(2600L)
+        if (navigationRevealToken == token) navigationVisible = false
+    }
     val isInterrupted = controller.activeConversation()?.status == ConversationStore.STATUS_INTERRUPTED
     controller.pendingToolApproval.value?.let { pending ->
         ToolApprovalDialog(
@@ -484,8 +504,14 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             listState = listState,
             keyboardLiftPx = keyboardLiftPx,
             keyboardLiftDp = keyboardLiftDp,
+            navigationVisible = navigationVisible,
+            onRevealNavigation = { navigationRevealToken++ },
             onOpenMenu = {
                 attachmentMenuPage = "root"
+                attachmentMenuOpen = true
+            },
+            onOpenReasoning = {
+                attachmentMenuPage = "reasoning"
                 attachmentMenuOpen = true
             },
             onSend = {
@@ -582,12 +608,14 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             Modifier
                 .weight(1f)
                 .fillMaxWidth()
+                .observeLeftSwipe(controller.activeConversationId.value, navigationSwipeGuard) { navigationRevealToken++ }
                 .clickable(
                     interactionSource = blankTapInteraction,
                     indication = null,
                     onClick = { selectionResetKey++ },
                 ),
         ) {
+            CompositionLocalProvider(LocalNavigationSwipeGuard provides navigationSwipeGuard) {
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
@@ -620,17 +648,28 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                     Spacer(Modifier.height(1.dp))
                 }
             }
-            if (messageSnapshot.isNotEmpty() && !isNearOutputEnd && !listState.isScrollInProgress) {
-                IconButton(
-                    onClick = { scope.launch { listState.animateScrollToItem(listState.layoutInfo.totalItemsCount - 1) } },
-                    modifier = Modifier
-                        .align(Alignment.BottomEnd)
-                        .padding(8.dp)
-                        .size(48.dp)
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), CircleShape),
-                ) {
-                    Icon(Icons.Default.KeyboardArrowDown, contentDescription = uiText("回到底部"))
+            }
+            ConversationNavigationVisibility(
+                visible = navigationVisible && messageSnapshot.isNotEmpty(),
+                modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+            ) {
+                val userItemIndices = remember(renderItems) {
+                    renderItems.mapIndexedNotNull { index, item -> index.takeIf { item.message?.role == "user" } }
                 }
+                ConversationNavigationControls(
+                    onInteraction = { navigationRevealToken++ },
+                    onTop = { scope.launch { listState.animateScrollToItem(0) } },
+                    onPreviousUser = {
+                        val target = userItemIndices.lastOrNull { it < listState.firstVisibleItemIndex } ?: 0
+                        scope.launch { listState.animateScrollToItem(target) }
+                    },
+                    onNextUser = {
+                        val target = userItemIndices.firstOrNull { it > listState.firstVisibleItemIndex }
+                            ?: (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+                        scope.launch { listState.animateScrollToItem(target) }
+                    },
+                    onBottom = { scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) } },
+                )
             }
         }
         val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, fetchStatus)
@@ -642,7 +681,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
         Card(
             Modifier.fillMaxWidth().keyboardAwareInputOffset(keyboardLiftPx),
             shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {
             Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 ForcedSkillControls(
@@ -678,68 +717,36 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                 if (pendingUploads.isNotEmpty()) {
                     PendingUploadStrip(pendingUploads, onRemove = controller::removePendingUpload)
                 }
-                Row(
-                    Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Box {
-                        TextButton(
-                            onClick = {
-                                attachmentMenuPage = "root"
-                                attachmentMenuOpen = !attachmentMenuOpen
-                            },
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(42.dp),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = uiText("添加附件"))
-                        }
-                    }
-                    CapsuleTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier.weight(1f),
-                        minLines = 1,
-                        maxLines = 4,
-                        placeholder = uiText("输入消息"),
-                        enabled = !isRunning,
-                    )
-                    AnimatedVisibility(isRunning) {
-                        Button(
-                            modifier = Modifier.size(42.dp),
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            onClick = { controller.stopActive() },
-                        ) {
-                            Icon(Icons.Default.Stop, contentDescription = uiText("停止"), tint = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    }
-                    AnimatedVisibility(canSend && !isRunning) {
-                        Button(
-                            modifier = Modifier.size(42.dp),
-                            enabled = canSend,
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                            onClick = {
-                                val text = input
-                                val skills = forcedSkillIds
-                                val workspaceFiles = selectedWorkspaceFiles
-                                controller.clearInputDraft()
-                                input = ""
-                                forcedSkillIds = emptyList()
-                                selectedWorkspaceFiles = emptyList()
-                                workspaceFileMatches = emptyList()
-                                attachmentMenuOpen = false
-                                controller.send(text, skills, workspaceFiles)
-                            },
-                        ) {
-                            Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
-                        }
-                    }
-                }
+                ChatMessageComposer(
+                    controller = controller,
+                    settings = settings,
+                    value = input,
+                    onValueChange = { input = it },
+                    enabled = !isRunning,
+                    canSend = canSend,
+                    isRunning = isRunning,
+                    onOpenMenu = {
+                        attachmentMenuPage = "root"
+                        attachmentMenuOpen = !attachmentMenuOpen
+                    },
+                    onStop = { controller.stopActive() },
+                    onOpenReasoning = {
+                        attachmentMenuPage = "reasoning"
+                        attachmentMenuOpen = true
+                    },
+                    onSend = {
+                        val text = input
+                        val skills = forcedSkillIds
+                        val workspaceFiles = selectedWorkspaceFiles
+                        controller.clearInputDraft()
+                        input = ""
+                        forcedSkillIds = emptyList()
+                        selectedWorkspaceFiles = emptyList()
+                        workspaceFileMatches = emptyList()
+                        attachmentMenuOpen = false
+                        controller.send(text, skills, workspaceFiles)
+                    },
+                )
             }
         }
     }
@@ -980,6 +987,94 @@ private fun removeSkillSlashPrefix(input: String): String {
     if (firstWhitespace < 0) return ""
     return body.drop(firstWhitespace + 1).trimStart()
 }
+
+internal class NavigationSwipeGuard {
+    var blockCurrentGesture: Boolean = false
+}
+
+internal val LocalNavigationSwipeGuard = staticCompositionLocalOf<NavigationSwipeGuard?> { null }
+private fun Modifier.observeLeftSwipe(
+    key: Any?,
+    navigationSwipeGuard: NavigationSwipeGuard,
+    onLeftSwipe: () -> Unit,
+): Modifier = pointerInput(key, navigationSwipeGuard, onLeftSwipe) {
+    awaitPointerEventScope {
+        var startX: Float? = null
+        var startY: Float? = null
+        while (true) {
+            val change = awaitPointerEvent(PointerEventPass.Final).changes.firstOrNull() ?: continue
+            when {
+                change.pressed && !change.previousPressed -> {
+                    startX = change.position.x
+                    startY = change.position.y
+                }
+                !change.pressed && change.previousPressed -> {
+                    val originX = startX
+                    val originY = startY
+                    val blocked = navigationSwipeGuard.blockCurrentGesture
+                    navigationSwipeGuard.blockCurrentGesture = false
+                    if (!blocked && originX != null && originY != null) {
+                        val deltaX = change.position.x - originX
+                        val deltaY = change.position.y - originY
+                        if (deltaX < -80f && abs(deltaX) > abs(deltaY) * 1.2f) onLeftSwipe()
+                    }
+                    startX = null
+                    startY = null
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ConversationNavigationVisibility(
+    visible: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    AnimatedVisibility(
+        visible = visible,
+        modifier = modifier,
+        enter = slideInHorizontally { it } + fadeIn(),
+        exit = slideOutHorizontally { it } + fadeOut(),
+    ) { content() }
+}
+
+@Composable
+internal fun ConversationNavigationControls(
+    onInteraction: () -> Unit,
+    onTop: () -> Unit,
+    onPreviousUser: () -> Unit,
+    onNextUser: () -> Unit,
+    onBottom: () -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        listOf(
+            Triple(Icons.Default.KeyboardDoubleArrowUp, uiText("返回顶部"), onTop),
+            Triple(Icons.Default.KeyboardArrowUp, uiText("上一条用户消息"), onPreviousUser),
+            Triple(Icons.Default.KeyboardArrowDown, uiText("下一条用户消息"), onNextUser),
+            Triple(Icons.Default.KeyboardDoubleArrowDown, uiText("返回底部"), onBottom),
+        ).forEach { (icon, description, action) ->
+            IconButton(
+                onClick = {
+                    onInteraction()
+                    action()
+                },
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+            ) {
+                Icon(
+                    icon,
+                    contentDescription = description,
+                    modifier = Modifier.size(28.dp),
+                    tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+        }
+    }
+}
+
 @Composable
 internal fun RoleplayChatScreen(
     controller: ChatController,
@@ -995,7 +1090,10 @@ internal fun RoleplayChatScreen(
     listState: androidx.compose.foundation.lazy.LazyListState,
     keyboardLiftPx: Int,
     keyboardLiftDp: androidx.compose.ui.unit.Dp,
+    navigationVisible: Boolean,
+    onRevealNavigation: () -> Unit,
     onOpenMenu: () -> Unit,
+    onOpenReasoning: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -1019,6 +1117,7 @@ internal fun RoleplayChatScreen(
     }
     val scope = rememberCoroutineScope()
     var keyboardShouldLiftOutput by remember(controller.activeConversationId.value) { mutableStateOf(false) }
+    val navigationSwipeGuard = remember { NavigationSwipeGuard() }
     val isNearOutputEnd by remember {
         derivedStateOf {
             val total = listState.layoutInfo.totalItemsCount
@@ -1086,7 +1185,13 @@ internal fun RoleplayChatScreen(
                 .padding(horizontal = 12.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .observeLeftSwipe(controller.activeConversationId.value, navigationSwipeGuard, onRevealNavigation),
+            ) {
+                CompositionLocalProvider(LocalNavigationSwipeGuard provides navigationSwipeGuard) {
                 LazyColumn(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
@@ -1116,6 +1221,29 @@ internal fun RoleplayChatScreen(
                     }
                     item("roleplay-bottom-anchor") { Spacer(Modifier.height(1.dp)) }
                 }
+                }
+                ConversationNavigationVisibility(
+                    visible = navigationVisible && visibleMessages.isNotEmpty(),
+                    modifier = Modifier.align(Alignment.CenterEnd).padding(end = 8.dp),
+                ) {
+                    val userIndices = remember(visibleMessages) {
+                        visibleMessages.mapIndexedNotNull { index, message -> index.takeIf { message.role == "user" } }
+                    }
+                    ConversationNavigationControls(
+                        onInteraction = onRevealNavigation,
+                        onTop = { scope.launch { listState.animateScrollToItem(0) } },
+                        onPreviousUser = {
+                            val target = userIndices.lastOrNull { it < listState.firstVisibleItemIndex } ?: 0
+                            scope.launch { listState.animateScrollToItem(target) }
+                        },
+                        onNextUser = {
+                            val target = userIndices.firstOrNull { it > listState.firstVisibleItemIndex }
+                                ?: (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
+                            scope.launch { listState.animateScrollToItem(target) }
+                        },
+                        onBottom = { scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) } },
+                    )
+                }
                 Row(
                     modifier = Modifier
                         .align(Alignment.BottomStart)
@@ -1140,7 +1268,7 @@ internal fun RoleplayChatScreen(
             Card(
                 Modifier.fillMaxWidth().keyboardAwareInputOffset(keyboardLiftPx),
                 shape = RoundedCornerShape(28.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.96f)),
             ) {
                 Column(Modifier.padding(horizontal = 10.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     ForcedSkillControls(
@@ -1154,58 +1282,317 @@ internal fun RoleplayChatScreen(
                     if (pendingUploads.isNotEmpty()) {
                         PendingUploadStrip(pendingUploads, onRemove = controller::removePendingUpload)
                     }
-                    Row(
-                        Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(
-                            onClick = onOpenMenu,
-                            shape = CircleShape,
-                            contentPadding = PaddingValues(0.dp),
-                            modifier = Modifier.size(42.dp),
-                        ) {
-                            Icon(Icons.Default.Add, contentDescription = uiText("添加"))
-                        }
-                        CapsuleTextField(
-                            value = input,
-                            onValueChange = onInputChange,
-                            modifier = Modifier.weight(1f),
-                            minLines = 1,
-                            maxLines = 4,
-                            placeholder = uiText("输入消息"),
-                            enabled = !isRunning,
-                        )
-                        AnimatedVisibility(isRunning) {
-                            Button(
-                                modifier = Modifier.size(42.dp),
-                                shape = CircleShape,
-                                contentPadding = PaddingValues(0.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                onClick = onStop,
-                            ) {
-                                Icon(Icons.Default.Stop, contentDescription = uiText("停止"), tint = MaterialTheme.colorScheme.onPrimary)
-                            }
-                        }
-                        AnimatedVisibility(canSend && !isRunning) {
-                            Button(
-                                modifier = Modifier.size(42.dp),
-                                enabled = canSend,
-                                shape = CircleShape,
-                                contentPadding = PaddingValues(0.dp),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-                                onClick = onSend,
-                            ) {
-                                Icon(Icons.Default.Send, contentDescription = uiText("发送"), tint = MaterialTheme.colorScheme.onPrimary)
-                            }
-                        }
-                    }
+                    ChatMessageComposer(
+                        controller = controller,
+                        settings = settings,
+                        value = input,
+                        onValueChange = onInputChange,
+                        enabled = !isRunning,
+                        canSend = canSend,
+                        isRunning = isRunning,
+                        onOpenMenu = onOpenMenu,
+                        onOpenReasoning = onOpenReasoning,
+                        onSend = onSend,
+                        onStop = onStop,
+                    )
                 }
             }
         }
     }
 }
 
+@Composable
+private fun ChatMessageComposer(
+    controller: ChatController,
+    settings: AppSettings,
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    canSend: Boolean,
+    isRunning: Boolean,
+    onOpenMenu: () -> Unit,
+    onOpenReasoning: () -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    var fullscreen by rememberSaveable { mutableStateOf(false) }
+
+    ComposerTextEditor(
+        value = value,
+        onValueChange = onValueChange,
+        enabled = enabled,
+        fullscreen = false,
+    )
+    ComposerActionBar(
+        controller = controller,
+        settings = settings,
+        canSend = canSend,
+        isRunning = isRunning,
+        onFullscreen = { fullscreen = true },
+        onOpenMenu = onOpenMenu,
+        onOpenReasoning = onOpenReasoning,
+        onSend = onSend,
+        onStop = onStop,
+    )
+
+    if (fullscreen) {
+        Dialog(
+            onDismissRequest = { fullscreen = false },
+            properties = DialogProperties(
+                usePlatformDefaultWidth = false,
+                decorFitsSystemWindows = false,
+            ),
+        ) {
+            Card(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .systemBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(12.dp),
+                shape = RoundedCornerShape(28.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            ) {
+                Column(
+                    Modifier.fillMaxSize().padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 80.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            uiText(stringResource(R.string.title_fullscreen_input)),
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        IconButton(onClick = { fullscreen = false }) {
+                            Icon(Icons.Default.Close, contentDescription = uiText(stringResource(R.string.action_exit_fullscreen_input)))
+                        }
+                    }
+                    ComposerTextEditor(
+                        value = value,
+                        onValueChange = onValueChange,
+                        enabled = enabled,
+                        fullscreen = true,
+                        modifier = Modifier.weight(1f),
+                    )
+                    ComposerActionBar(
+                        controller = controller,
+                        settings = settings,
+                        canSend = canSend,
+                        isRunning = isRunning,
+                        showFullscreen = false,
+                        onFullscreen = {},
+                        onOpenMenu = {
+                            fullscreen = false
+                            onOpenMenu()
+                        },
+                        onOpenReasoning = {
+                            fullscreen = false
+                            onOpenReasoning()
+                        },
+                        onSend = {
+                            fullscreen = false
+                            onSend()
+                        },
+                        onStop = onStop,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerTextEditor(
+    value: String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    fullscreen: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (fullscreen) Modifier.fillMaxHeight() else Modifier.heightIn(min = 24.dp, max = 108.dp))
+            .padding(horizontal = 8.dp, vertical = if (fullscreen) 6.dp else 2.dp),
+        enabled = enabled,
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+        minLines = if (fullscreen) 8 else 1,
+        maxLines = if (fullscreen) Int.MAX_VALUE else 4,
+        decorationBox = { innerTextField ->
+            Box(Modifier.fillMaxWidth()) {
+                if (value.isEmpty()) {
+                    Text(
+                        uiText(stringResource(R.string.placeholder_input_message)),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                }
+                innerTextField()
+            }
+        },
+    )
+}
+
+@Composable
+private fun ComposerActionBar(
+    controller: ChatController,
+    settings: AppSettings,
+    canSend: Boolean,
+    isRunning: Boolean,
+    showFullscreen: Boolean = true,
+    onFullscreen: () -> Unit,
+    onOpenMenu: () -> Unit,
+    onOpenReasoning: () -> Unit,
+    onSend: () -> Unit,
+    onStop: () -> Unit,
+) {
+    var autoApproveConfirmOpen by rememberSaveable { mutableStateOf(false) }
+    val composerAccent = composerSystemAccentColors()
+    val autoApprovalEnabled = controller.settingsRevision.intValue.let {
+        controller.isAutoApprovalEnabledForActiveSession()
+    }
+
+    if (autoApproveConfirmOpen) {
+        AlertDialog(
+            onDismissRequest = { autoApproveConfirmOpen = false },
+            title = { Text(uiText(stringResource(R.string.title_enable_auto_approve))) },
+            text = { Text(uiText(stringResource(R.string.auto_approve_warning))) },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.setAutoApprovalForActiveSession(true)
+                    autoApproveConfirmOpen = false
+                }) { Text(uiText(stringResource(R.string.action_enable_auto_approve))) }
+            },
+            dismissButton = {
+                TextButton(onClick = { autoApproveConfirmOpen = false }) {
+                    Text(uiText(stringResource(R.string.action_cancel)))
+                }
+            },
+        )
+    }
+
+    Row(
+        Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        ComposerIconButton(
+            icon = Icons.Default.AdminPanelSettings,
+            description = uiText(stringResource(R.string.label_auto_approve)),
+            selected = autoApprovalEnabled,
+            onClick = {
+                if (autoApprovalEnabled) controller.setAutoApprovalForActiveSession(false)
+                else autoApproveConfirmOpen = true
+            },
+        )
+        ComposerIconButton(
+            icon = Icons.Default.Lightbulb,
+            description = "${uiText(stringResource(R.string.label_reasoning_depth))}: ${reasoningDepthLabel(settings.reasoningDepth)}",
+            onClick = onOpenReasoning,
+        )
+        if (showFullscreen) {
+            ComposerIconButton(
+                icon = Icons.Default.OpenInFull,
+                description = uiText(stringResource(R.string.action_fullscreen_input)),
+                onClick = onFullscreen,
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .border(1.25.dp, composerAccent.first, CircleShape)
+                .clickable(onClick = onOpenMenu),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.Add,
+                contentDescription = uiText(stringResource(R.string.cd_add_attachment)),
+                modifier = Modifier.size(16.dp),
+                tint = composerAccent.first,
+            )
+        }
+        AnimatedVisibility(isRunning) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(composerAccent.first)
+                    .clickable(onClick = onStop),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Stop,
+                    contentDescription = uiText(stringResource(R.string.cd_stop)),
+                    modifier = Modifier.size(15.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+        AnimatedVisibility(canSend && !isRunning) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(composerAccent.first)
+                    .clickable(enabled = canSend, onClick = onSend),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.ArrowUpward,
+                    contentDescription = uiText(stringResource(R.string.cd_send)),
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComposerIconButton(
+    icon: ImageVector,
+    description: String,
+    selected: Boolean = false,
+    onClick: () -> Unit,
+) {
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    val accent = composerSystemAccentColors()
+    val inactiveForeground = if (dark) Color(0xFFCAC4D0) else Color(0xFF49454F)
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier.size(38.dp),
+    ) {
+        Icon(
+            icon,
+            contentDescription = description,
+            modifier = Modifier.size(20.dp),
+            tint = if (selected) accent.first else inactiveForeground,
+        )
+    }
+}
+
+@Composable
+private fun composerSystemAccentColors(): Triple<Color, Color, Color> {
+    val context = LocalContext.current
+    val dark = MaterialTheme.colorScheme.background.luminance() < 0.5f
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val scheme = if (dark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        return Triple(scheme.primary, scheme.primaryContainer, scheme.onPrimaryContainer)
+    }
+    return if (dark) {
+        Triple(Color(0xFFD0BCFF), Color(0xFF4F378B), Color(0xFFEADDFF))
+    } else {
+        Triple(Color(0xFF6750A4), Color(0xFFEADDFF), Color(0xFF21005D))
+    }
+}
 @Composable
 internal fun RoleplayMessageBubble(
     message: ChatRecord,
@@ -1329,22 +1716,6 @@ internal fun AttachmentActionBottomSheet(
         settings.systemPromptPresets().filterNot { it.id == "roleplay" }
     }
     val activePrompt = prompts.firstOrNull { it.id == settings.selectedSystemPromptId } ?: prompts.firstOrNull()
-    var autoApproveConfirmOpen by rememberSaveable { mutableStateOf(false) }
-    val autoApprovalEnabled = controller.isAutoApprovalEnabledForActiveSession()
-    if (autoApproveConfirmOpen) {
-        AlertDialog(
-            onDismissRequest = { autoApproveConfirmOpen = false },
-            title = { Text(uiText(stringResource(R.string.title_enable_auto_approve))) },
-            text = { Text(uiText(stringResource(R.string.auto_approve_warning))) },
-            confirmButton = {
-                TextButton(onClick = {
-                    controller.setAutoApprovalForActiveSession(true)
-                    autoApproveConfirmOpen = false
-                }) { Text(uiText(stringResource(R.string.action_enable_auto_approve))) }
-            },
-            dismissButton = { TextButton(onClick = { autoApproveConfirmOpen = false }) { Text(uiText(stringResource(R.string.action_cancel))) } },
-        )
-    }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -1456,7 +1827,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "reasoning" -> {
-                            SheetBackTitle(uiText(stringResource(R.string.label_reasoning_depth))) { onPageChange("root") }
+                            Text(
+                                uiText(stringResource(R.string.label_reasoning_depth)),
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                            )
                             val values = AppSettings.reasoningDepthValues
                             val current = settings.reasoningDepth.takeIf { it in values } ?: AppSettings.REASONING_AUTO
                             var sliderPosition by remember(current) { mutableStateOf(values.indexOf(current).coerceAtLeast(0).toFloat()) }
@@ -1500,15 +1876,6 @@ internal fun AttachmentActionBottomSheet(
                                 ActionSheetTile(Icons.Default.PhotoCamera, uiText(stringResource(R.string.action_camera)), Modifier.weight(1f), onTakePhoto)
                                 ActionSheetTile(Icons.Default.AttachFile, uiText(stringResource(R.string.action_file)), Modifier.weight(1f), onPickFile)
                             }
-                            ActionSheetSwitchRow(
-                                icon = Icons.Default.AdminPanelSettings,
-                                title = uiText(stringResource(R.string.label_auto_approve)),
-                                subtitle = uiText(stringResource(if (autoApprovalEnabled) R.string.subtitle_auto_approve_on else R.string.subtitle_auto_approve_off)),
-                                checked = autoApprovalEnabled,
-                                onCheckedChange = { enabled ->
-                                    if (enabled) autoApproveConfirmOpen = true else controller.setAutoApprovalForActiveSession(false)
-                                },
-                            )
                             if (controller.isRoleplayMode()) {
                                 KimiDivider()
                                 ActionSheetRow(
@@ -2396,16 +2763,18 @@ internal fun MessageCard(
                                                 style = MaterialTheme.typography.labelSmall,
                                             )
                                             Spacer(Modifier.weight(1f))
-                                            IconButton(
-                                                onClick = { clipboard.setText(AnnotatedString(message.content)) },
-                                                modifier = Modifier.size(36.dp),
-                                            ) {
-                                                Icon(
-                                                    Icons.Default.ContentCopy,
-                                                    contentDescription = uiText("复制"),
-                                                    tint = KimiMuted,
-                                                    modifier = Modifier.size(20.dp),
-                                                )
+                                            if (!isStreaming) {
+                                                IconButton(
+                                                    onClick = { clipboard.setText(AnnotatedString(message.content)) },
+                                                    modifier = Modifier.size(36.dp),
+                                                ) {
+                                                    Icon(
+                                                        Icons.Default.ContentCopy,
+                                                        contentDescription = uiText("复制"),
+                                                        tint = MaterialTheme.colorScheme.primary,
+                                                        modifier = Modifier.size(20.dp),
+                                                    )
+                                                }
                                             }
                                         }
                                     }
@@ -2904,6 +3273,7 @@ internal fun ToolCallDetailPage(
 @Composable
 private fun ToolJsonSection(title: String, content: String, onCopy: () -> Unit) {
     val colorScheme = MaterialTheme.colorScheme
+    val codeFontFamily = LocalCodeFontFamily.current
     val highlightedJson = remember(content, colorScheme) {
         highlightedJsonForDisplay(
             value = content,
@@ -2927,7 +3297,7 @@ private fun ToolJsonSection(title: String, content: String, onCopy: () -> Unit) 
                     Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text("json", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = FontFamily.Monospace)
+                    Text("json", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = codeFontFamily)
                     IconButton(onClick = onCopy) {
                         Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制"), tint = MaterialTheme.colorScheme.primary)
                     }
@@ -2937,7 +3307,7 @@ private fun ToolJsonSection(title: String, content: String, onCopy: () -> Unit) 
                     Text(
                         highlightedJson,
                         modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(16.dp),
-                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                        style = MaterialTheme.typography.bodySmall.copy(fontFamily = codeFontFamily),
                     )
                 }
             }

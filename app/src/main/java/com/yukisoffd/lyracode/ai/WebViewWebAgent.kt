@@ -4,12 +4,15 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import android.webkit.WebChromeClient
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import com.yukisoffd.lyracode.data.AppSettings
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -34,6 +37,7 @@ data class WebPageResult(
     val title: String,
     val url: String,
     val text: String,
+    val extraction: String = "unknown",
 )
 
 class WebViewWebAgent(
@@ -51,13 +55,14 @@ class WebViewWebAgent(
         require(cleanQuery.isNotBlank()) { context.getString(com.yukisoffd.lyracode.R.string.error_search_keyword_empty) }
         val maxResults = limit.coerceIn(1, 10)
         val engines = listOf(
+            SearchEngine("DuckDuckGo", "https://html.duckduckgo.com/html/?q=${Uri.encode(cleanQuery)}"),
             SearchEngine("Google", "https://www.google.com/search?hl=zh-CN&q=${Uri.encode(cleanQuery)}"),
             SearchEngine("Bing", "https://www.bing.com/search?q=${Uri.encode(cleanQuery)}"),
             SearchEngine(context.getString(com.yukisoffd.lyracode.R.string.search_engine_bing), "https://cn.bing.com/search?q=${Uri.encode(cleanQuery)}"),
             SearchEngine(context.getString(com.yukisoffd.lyracode.R.string.search_engine_baidu), "https://www.baidu.com/s?wd=${Uri.encode(cleanQuery)}"),
         )
         var lastError = ""
-        val results = (withTimeoutOrNull(18_000L) { httpSearch(engines, cleanQuery, maxResults * 3) } ?: emptyList())
+        val results = (withTimeoutOrNull(18_000L) { httpSearch(engines, cleanQuery, maxResults * 4) } ?: emptyList())
             .takeIf { it.isNotEmpty() }
             ?: engines.firstNotNullOfOrNull { engine ->
                 runCatching {
@@ -91,26 +96,27 @@ class WebViewWebAgent(
         }.trim()
     }
 
-    private suspend fun httpSearch(engines: List<SearchEngine>, query: String, limit: Int): List<WebSearchResult> = withContext(Dispatchers.IO) {
-        val collected = mutableListOf<WebSearchResult>()
-        for (engine in engines) {
-            runCatching {
-                val results = when (engine.name) {
-                    "Bing" -> parseBingRss(httpGet("https://www.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
-                        .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
-                    context.getString(com.yukisoffd.lyracode.R.string.search_engine_bing) -> parseBingRss(httpGet("https://cn.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
-                        .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
-                    else -> parseLinksFromHtml(httpGet(engine.url), limit)
-                }
-                collected += results.map { it.copy(source = engine.name) }
-            }.onFailure {
-                Log.w(TAG, "HTTP search failed: ${engine.name}", it)
+    private suspend fun httpSearch(engines: List<SearchEngine>, query: String, limit: Int): List<WebSearchResult> = coroutineScope {
+        val collected = engines.map { engine ->
+            async(Dispatchers.IO) {
+                runCatching {
+                    val results = when (engine.name) {
+                        "DuckDuckGo" -> parseLinksFromHtml(httpGet(engine.url), limit)
+                        "Bing" -> parseBingRss(httpGet("https://www.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
+                            .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
+                        context.getString(com.yukisoffd.lyracode.R.string.search_engine_bing) ->
+                            parseBingRss(httpGet("https://cn.bing.com/search?q=${Uri.encode(query)}&format=rss"), limit)
+                                .ifEmpty { parseLinksFromHtml(httpGet(engine.url), limit) }
+                        else -> parseLinksFromHtml(httpGet(engine.url), limit)
+                    }
+                    results.map { it.copy(source = engine.name) }
+                }.onFailure {
+                    Log.w(TAG, "HTTP search failed: ${engine.name}", it)
+                }.getOrDefault(emptyList())
             }
-            if (collected.size >= limit) break
-        }
+        }.awaitAll().flatten()
         rankSearchResults(query, collected, limit)
     }
-
     suspend fun readPage(url: String): String {
         val cleanUrl = url.trim()
         require(cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) { context.getString(com.yukisoffd.lyracode.R.string.error_only_http_url) }
@@ -124,11 +130,13 @@ class WebViewWebAgent(
             Log.w(TAG, "WebView read page failed: $cleanUrl", it)
         }.getOrElse {
             withTimeoutOrNull(8_000L) { httpReadFallback(cleanUrl) }
-                ?: WebPageResult("", cleanUrl, context.getString(com.yukisoffd.lyracode.R.string.web_page_timeout))
+                ?: WebPageResult("", cleanUrl, context.getString(com.yukisoffd.lyracode.R.string.web_page_timeout), "timeout")
         }
         if (pageReadStatus(page.text) != "readable") {
             val fallback = withTimeoutOrNull(8_000L) { runCatching { httpReadFallback(cleanUrl) }.getOrNull() }
-            if (fallback != null && pageReadStatus(fallback.text) == "readable") page = fallback
+            if (fallback != null && pageReadStatus(fallback.text) != "blocked_or_dynamic" && contentQuality(fallback.text) > contentQuality(page.text)) {
+                page = fallback
+            }
         }
         val status = pageReadStatus(page.text)
         val note = when (status) {
@@ -136,49 +144,74 @@ class WebViewWebAgent(
             "limited" -> "note: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_limited)}"
             else -> "note: ${context.getString(com.yukisoffd.lyracode.R.string.web_page_ok)}"
         }
-        return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: $status\ntitle: ${page.title}\nurl: ${page.url}\n$note\n\n${page.text.ifBlank { context.getString(com.yukisoffd.lyracode.R.string.web_page_no_text) }}"
+        return "WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: $status\ntitle: ${page.title}\nurl: ${page.url}\nextraction: ${page.extraction}\n$note\n\n${page.text.ifBlank { context.getString(com.yukisoffd.lyracode.R.string.web_page_no_text) }}"
     }
 
     private fun rankSearchResults(query: String, results: List<WebSearchResult>, limit: Int): List<WebSearchResult> {
         val tokens = queryTokens(query)
         val seen = mutableSetOf<String>()
-        return results.asSequence()
+        val ranked = results.asSequence()
             .mapNotNull { result ->
                 val url = canonicalSearchUrl(result.url)
-                if (url.isBlank() || isSearchEngineUrl(url)) return@mapNotNull null
-                if (isBlockedUrl(url)) return@mapNotNull null
-                if (!seen.add(url)) return@mapNotNull null
+                if (url.isBlank() || isSearchEngineUrl(url) || isBlockedUrl(url)) return@mapNotNull null
+                val dedupeKey = url.removePrefix("https://").removePrefix("http://").removePrefix("www.")
+                if (!seen.add(dedupeKey)) return@mapNotNull null
                 val title = result.title.trim().take(200)
                 if (title.length < 2) return@mapNotNull null
-                val scored = scoreSearchResult(tokens, result.copy(title = title, url = url))
+                val scored = scoreSearchResult(query, tokens, result.copy(title = title, url = url))
                 result.copy(title = title, url = url, score = scored.first, reason = scored.second)
             }
+            .filter { it.score >= MIN_RELEVANCE_SCORE }
             .sortedWith(compareByDescending<WebSearchResult> { it.score }.thenBy { it.title.length })
-            .take(limit)
             .toList()
+        val hostCounts = mutableMapOf<String, Int>()
+        return ranked.filter { result ->
+            val host = runCatching { Uri.parse(result.url).host.orEmpty().lowercase().removePrefix("www.") }.getOrDefault("")
+            val count = hostCounts.getOrDefault(host, 0)
+            if (count >= MAX_RESULTS_PER_HOST) false else {
+                hostCounts[host] = count + 1
+                true
+            }
+        }.take(limit)
     }
 
-    private fun scoreSearchResult(tokens: List<String>, result: WebSearchResult): Pair<Int, String> {
+    private fun scoreSearchResult(query: String, tokens: List<String>, result: WebSearchResult): Pair<Int, String> {
         val host = runCatching { Uri.parse(result.url).host.orEmpty().lowercase() }.getOrDefault("")
         val path = runCatching { Uri.parse(result.url).path.orEmpty().lowercase() }.getOrDefault("")
-        val haystack = "${result.title} ${result.snippet} $host $path".lowercase()
-        val matched = tokens.count { token -> token.length >= 2 && haystack.contains(token) }
-        var score = 20 + matched * 12
+        val title = result.title.lowercase()
+        val snippet = result.snippet.lowercase()
+        val urlText = "$host $path"
+        val titleMatches = tokens.count { title.contains(it) }
+        val snippetMatches = tokens.count { snippet.contains(it) }
+        val urlMatches = tokens.count { urlText.contains(it) }
+        val matchedTokens = tokens.count { title.contains(it) || snippet.contains(it) || urlText.contains(it) }
+        val coverage = if (tokens.isEmpty()) 0 else matchedTokens * 100 / tokens.size
+        val phrase = query.trim().lowercase()
+        var score = titleMatches * 18 + snippetMatches * 7 + urlMatches * 4 + coverage / 4
         val reasons = mutableListOf<String>()
-        if (matched > 0) reasons += context.getString(com.yukisoffd.lyracode.R.string.search_keyword_match, matched, tokens.size.coerceAtLeast(1))
-        if (hostQualityBonus(host, path) > 0) {
-            val bonus = hostQualityBonus(host, path)
-            score += bonus
-            reasons += context.getString(com.yukisoffd.lyracode.R.string.search_source_trusted, bonus)
+        if (phrase.length >= 3 && (title.contains(phrase) || snippet.contains(phrase))) {
+            score += 35
+            reasons += "完整查询短语命中"
+        }
+        if (matchedTokens > 0) {
+            reasons += context.getString(com.yukisoffd.lyracode.R.string.search_keyword_match, matchedTokens, tokens.size.coerceAtLeast(1))
+        }
+        val sourceBonus = hostQualityBonus(host, path)
+        if (sourceBonus > 0) {
+            score += sourceBonus
+            reasons += context.getString(com.yukisoffd.lyracode.R.string.search_source_trusted, sourceBonus)
         }
         val penalty = lowQualityPenalty(host, result.title, result.snippet)
         if (penalty > 0) {
             score -= penalty
             reasons += context.getString(com.yukisoffd.lyracode.R.string.search_low_quality, penalty)
         }
-        if (tokens.isNotEmpty() && matched == 0) {
-            score -= 20
-            reasons += "标题摘要与关键词弱相关"
+        if (tokens.isNotEmpty() && matchedTokens == 0) {
+            score -= 60
+            reasons += "标题摘要与关键词无关，已降权"
+        } else if (tokens.size >= 3 && coverage < 25) {
+            score -= 15
+            reasons += "关键词覆盖率偏低"
         }
         return score to reasons.ifEmpty { listOf("普通候选结果") }.joinToString("；")
     }
@@ -198,19 +231,13 @@ class WebViewWebAgent(
         val text = "$title $snippet".lowercase()
         var penalty = 0
         val noisyHosts = listOf(
-            "baijiahao.baidu.com",
-            "m.sm.cn",
-            "so.com",
-            "pinterest.",
-            "facebook.com",
-            "instagram.com",
-            "tiktok.com",
-            "x.com",
-            "twitter.com",
+            "baijiahao.baidu.com", "m.sm.cn", "so.com", "pinterest.", "facebook.com",
+            "instagram.com", "tiktok.com", "x.com", "twitter.com",
         )
         if (noisyHosts.any { host.contains(it) }) penalty += 35
-        if (listOf("广告", "推广", "最新地址", "转载", "采集", "seo", "站长").any { text.contains(it) }) penalty += 18
+        if (listOf("广告", "推广", "最新地址", "转载", "采集", "seo", "站长", "点击查看", "猜你喜欢").any { text.contains(it) }) penalty += 18
         if (title.length > 90 && snippet.isBlank()) penalty += 10
+        if (snippet.isBlank()) penalty += 5
         return penalty
     }
 
@@ -219,20 +246,21 @@ class WebViewWebAgent(
         val tokens = Regex("""[a-z0-9][a-z0-9_.+-]{1,}|[\u4E00-\u9FFF]{2,}""")
             .findAll(clean)
             .map { it.value.trim() }
-            .filter { it.length >= 2 }
+            .filter { it.length >= 2 && it !in SEARCH_STOP_WORDS }
             .distinct()
             .toMutableList()
         clean.split(Regex("""[\s,，。；;:：/\\|"'“”‘’()（）\[\]{}<>《》]+"""))
             .map { it.trim() }
-            .filter { it.length >= 2 }
+            .filter { it.length >= 2 && it !in SEARCH_STOP_WORDS }
             .forEach { if (it !in tokens) tokens += it }
         Regex("""[\u4E00-\u9FFF]{4,}""").findAll(clean).forEach { match ->
-            val value = match.value
-            value.windowed(2, 1).take(8).forEach { if (it !in tokens) tokens += it }
+            match.value.windowed(2, 1)
+                .filterNot { it in SEARCH_STOP_WORDS }
+                .take(10)
+                .forEach { if (it !in tokens) tokens += it }
         }
-        return tokens.take(12)
+        return tokens.take(16)
     }
-
     private fun canonicalSearchUrl(url: String): String {
         val parsed = runCatching { Uri.parse(url.trim()) }.getOrNull() ?: return ""
         val scheme = parsed.scheme.orEmpty().lowercase()
@@ -269,8 +297,9 @@ class WebViewWebAgent(
             "登录后查看",
             "网页读取超时",
         )
+        val blockedPrefix = lower.take(2_000)
         return when {
-            blockedSignals.any { lower.contains(it) } -> "blocked_or_dynamic"
+            blockedSignals.any { blockedPrefix.contains(it) } && clean.length < 4_000 -> "blocked_or_dynamic"
             clean.length < 600 -> "limited"
             else -> "readable"
         }
@@ -284,6 +313,9 @@ class WebViewWebAgent(
             webView.settings.domStorageEnabled = true
             webView.settings.loadsImagesAutomatically = false
             webView.settings.blockNetworkImage = true
+            webView.settings.userAgentString = DESKTOP_USER_AGENT
+            CookieManager.getInstance().setAcceptCookie(true)
+            CookieManager.getInstance().setAcceptThirdPartyCookies(webView, true)
             try {
                 suspendCancellableCoroutine { continuation ->
                     var evaluated = false
@@ -295,14 +327,10 @@ class WebViewWebAgent(
                                 Log.d(TAG, "Loaded $url, resultChars=${value?.length ?: 0}")
                                 if (continuation.isActive) continuation.resume(value.orEmpty())
                             }
-                        }, 400L)
+                        }, 1_200L)
                     }
                     continuation.invokeOnCancellation { webView.destroy() }
-                    webView.webChromeClient = object : WebChromeClient() {
-                        override fun onProgressChanged(view: WebView, newProgress: Int) {
-                            if (newProgress >= 100) evaluate(view)
-                        }
-                    }
+
                     webView.webViewClient = object : WebViewClient() {
                         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean = false
 
@@ -368,44 +396,147 @@ class WebViewWebAgent(
 
     private fun pageScript(): String = """
         (function() {
-            const blocked = ['script', 'style', 'noscript', 'svg', 'canvas', 'iframe', 'nav', 'footer'];
-            const clone = document.body ? document.body.cloneNode(true) : document.documentElement.cloneNode(true);
-            for (const tag of blocked) {
-                clone.querySelectorAll(tag).forEach(function(node) { node.remove(); });
-            }
-            const text = (clone.innerText || clone.textContent || '').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
-            return {
-                title: document.title || '',
-                url: location.href,
-                text: text.slice(0, 20000)
+            const remove = 'script,style,noscript,svg,canvas,iframe,nav,footer,header,aside,form,[role="navigation"],[role="dialog"],.cookie,.cookies,.advertisement,.ads,.sidebar';
+            const normalize = value => (value || '').replace(/\n{3,}/g, '\n\n').replace(/[ \t]{2,}/g, ' ').trim();
+            const structured = [];
+            const visitJson = value => {
+                if (!value) return;
+                if (Array.isArray(value)) return value.forEach(visitJson);
+                if (typeof value !== 'object') return;
+                for (const [key, child] of Object.entries(value)) {
+                    if (typeof child === 'string' && ['articlebody', 'text', 'content'].includes(key.toLowerCase()) && child.length > 300) structured.push(child);
+                    else if (typeof child === 'object') visitJson(child);
+                }
             };
+            document.querySelectorAll('script[type="application/ld+json"],script#__NEXT_DATA__').forEach(node => {
+                try { visitJson(JSON.parse(node.textContent || '')); } catch (error) {}
+            });
+            const selectors = ['article', 'main', '[role="main"]', '[itemprop="articleBody"]', '.article-body', '.article-content', '.post-content', '.entry-content', '#article', '#content'];
+            const candidates = [];
+            for (const selector of selectors) document.querySelectorAll(selector).forEach(node => candidates.push(node));
+            if (document.body) candidates.push(document.body);
+            let bestText = '';
+            let bestScore = -1;
+            for (const node of candidates) {
+                const clone = node.cloneNode(true);
+                clone.querySelectorAll(remove).forEach(child => child.remove());
+                const text = normalize(clone.innerText || clone.textContent || '');
+                if (!text) continue;
+                const links = Array.from(clone.querySelectorAll('a')).reduce((sum, link) => sum + normalize(link.innerText).length, 0);
+                const paragraphs = clone.querySelectorAll('p').length;
+                const score = text.length + paragraphs * 80 - links * 1.5;
+                if (score > bestScore) { bestScore = score; bestText = text; }
+            }
+            const structuredText = normalize(structured.sort((a, b) => b.length - a.length)[0] || '');
+            let extraction = 'webview_main_content';
+            if (structuredText.length > bestText.length * 1.15) {
+                bestText = structuredText;
+                extraction = 'webview_structured_data';
+            }
+            if (bestText.length < 300) {
+                const description = document.querySelector('meta[name="description"],meta[property="og:description"]')?.content || '';
+                bestText = normalize(bestText + '\n\n' + description);
+            }
+            return { title: document.title || '', url: location.href, text: bestText.slice(0, 30000), extraction };
         })()
     """.trimIndent()
-
     private suspend fun httpReadFallback(url: String): WebPageResult = withContext(Dispatchers.IO) {
-        val html = httpGet(url)
+        val document = httpGetDocument(url)
+        val html = document.body
         val title = Regex("""<title[^>]*>(.*?)</title>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
-            .find(html)
-            ?.groupValues
-            ?.getOrNull(1)
-            ?.htmlToText()
+            .find(html)?.groupValues?.getOrNull(1)?.htmlToText().orEmpty()
+        val mainCandidates = Regex("""<(article|main)\b[^>]*>(.*?)</\1>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+            .findAll(html)
+            .map { it.groupValues[2] }
+            .toList()
+        val mainHtml = mainCandidates.maxByOrNull { it.length } ?: html
+        val visibleText = htmlToPlainText(mainHtml)
+        val structuredText = extractStructuredText(html)
+        val description = extractMetaDescription(html)
+        val best = listOf(visibleText, structuredText)
+            .maxByOrNull { candidate -> contentQuality(candidate) }
             .orEmpty()
-        WebPageResult(title, url, htmlToPlainText(html).take(20_000))
-    }
-
-    private fun httpGet(url: String): String {
-        val request = Request.Builder()
-            .url(url)
-            .header("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Mobile Safari/537.36")
-            .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
-            .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
-            .build()
-        return httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) error("HTTP ${response.code}")
-            response.body?.string().orEmpty()
+            .let { if (it.length < 600 && description.isNotBlank()) "$it\n\n$description".trim() else it }
+        val method = when {
+            structuredText.isNotBlank() && best.startsWith(structuredText.take(120)) -> "http_structured_data"
+            mainCandidates.isNotEmpty() -> "http_main_content"
+            else -> "http_full_html"
         }
+        WebPageResult(title, document.finalUrl, best.take(30_000), method)
     }
 
+    private fun httpGet(url: String): String = httpGetDocument(url).body
+
+    private fun httpGetDocument(url: String): HttpDocument {
+        val userAgents = listOf(DESKTOP_USER_AGENT, MOBILE_USER_AGENT)
+        var lastFailure: Throwable? = null
+        var lastCode = 0
+        for (userAgent in userAgents) {
+            val builder = Request.Builder()
+                .url(url)
+                .header("User-Agent", userAgent)
+                .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,application/json;q=0.8,*/*;q=0.7")
+                .header("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.7")
+                .header("Cache-Control", "no-cache")
+            runCatching {
+                val parsed = Uri.parse(url)
+                if (!parsed.host.isNullOrBlank()) builder.header("Referer", "${parsed.scheme}://${parsed.host}/")
+                httpClient.newCall(builder.build()).execute().use { response ->
+                    lastCode = response.code
+                    if (!response.isSuccessful) error("HTTP ${response.code}")
+                    return HttpDocument(response.body?.string().orEmpty(), response.request.url.toString())
+                }
+            }.onFailure { lastFailure = it }
+            if (lastCode !in setOf(401, 403, 406, 429, 503)) break
+        }
+        throw lastFailure ?: IllegalStateException("HTTP request failed")
+    }
+
+    private fun extractStructuredText(html: String): String {
+        val candidates = mutableListOf<String>()
+        val scriptRegex = Regex(
+            """<script\b[^>]*(?:type=["']application/ld\+json["']|id=["']__NEXT_DATA__["'])[^>]*>(.*?)</script>""",
+            setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL),
+        )
+        fun visit(value: Any?) {
+            when (value) {
+                is JSONObject -> value.keys().forEach { key ->
+                    val child = value.opt(key)
+                    if (child is String && key.lowercase() in STRUCTURED_TEXT_KEYS && child.length > 300) candidates += child
+                    else visit(child)
+                }
+                is JSONArray -> for (index in 0 until value.length()) visit(value.opt(index))
+            }
+        }
+        scriptRegex.findAll(html).forEach { match ->
+            val raw = match.groupValues[1].trim()
+            runCatching {
+                if (raw.startsWith("[")) visit(JSONArray(raw)) else visit(JSONObject(raw))
+            }
+        }
+        return candidates
+            .map { it.htmlToText() }
+            .maxByOrNull { contentQuality(it) }
+            .orEmpty()
+    }
+
+    private fun extractMetaDescription(html: String): String {
+        val tags = Regex("""<meta\b[^>]*>""", RegexOption.IGNORE_CASE).findAll(html).map { it.value }
+        for (tag in tags) {
+            if (!Regex("""(?:name|property)=["'](?:description|og:description)["']""", RegexOption.IGNORE_CASE).containsMatchIn(tag)) continue
+            val content = Regex("""content=["'](.*?)["']""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
+                .find(tag)?.groupValues?.getOrNull(1)?.htmlToText().orEmpty()
+            if (content.isNotBlank()) return content
+        }
+        return ""
+    }
+
+    private fun contentQuality(text: String): Int {
+        if (text.isBlank()) return 0
+        val sentences = Regex("""[。！？.!?]""").findAll(text).count()
+        val lines = text.lineSequence().count { it.trim().length >= 40 }
+        return text.length + sentences * 20 + lines * 30
+    }
     private fun parseLinksFromHtml(html: String, limit: Int): List<WebSearchResult> {
         val seen = mutableSetOf<String>()
         val anchorRegex = Regex("""<a\b[^>]*href=["']([^"']+)["'][^>]*>(.*?)</a>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
@@ -492,6 +623,7 @@ class WebViewWebAgent(
             title = root.optString("title"),
             url = root.optString("url"),
             text = root.optString("text"),
+            extraction = root.optString("extraction", "webview"),
         )
     }
 
@@ -531,6 +663,15 @@ class WebViewWebAgent(
 
     companion object {
         private const val TAG = "LyraWebAgent"
+        private const val MIN_RELEVANCE_SCORE = 20
+        private const val MAX_RESULTS_PER_HOST = 2
+        private const val DESKTOP_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36"
+        private const val MOBILE_USER_AGENT = "Mozilla/5.0 (Linux; Android 14; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Mobile Safari/537.36"
+        private val STRUCTURED_TEXT_KEYS = setOf("articlebody", "text", "content", "body", "description")
+        private val SEARCH_STOP_WORDS = setOf(
+            "the", "a", "an", "and", "or", "of", "to", "for", "in", "on", "with", "is", "are", "how", "what",
+            "的", "了", "和", "与", "或", "在", "是", "有", "如何", "什么", "相关", "关于", "最新", "内容", "问题", "需要",
+        )
         private val TRACKING_QUERY_PARAMS = setOf(
             "utm_source",
             "utm_medium",
@@ -544,6 +685,11 @@ class WebViewWebAgent(
         )
     }
 }
+
+private data class HttpDocument(
+    val body: String,
+    val finalUrl: String,
+)
 
 private data class SearchEngine(
     val name: String,
