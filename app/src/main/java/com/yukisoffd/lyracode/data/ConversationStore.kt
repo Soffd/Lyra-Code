@@ -17,6 +17,7 @@ data class Conversation(
     val createdAt: Long,
     val updatedAt: Long,
     val pinnedAt: Long,
+    val archivedAt: Long,
     val mode: String = ConversationStore.MODE_NORMAL,
     val workspaceUri: String = "",
 )
@@ -54,7 +55,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    7,
+    8,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -68,6 +69,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 created_at INTEGER NOT NULL,
                 updated_at INTEGER NOT NULL,
                 pinned_at INTEGER NOT NULL DEFAULT 0,
+                archived_at INTEGER NOT NULL DEFAULT 0,
                 mode TEXT NOT NULL DEFAULT 'normal',
                 workspace_uri TEXT NOT NULL DEFAULT ''
             )
@@ -173,6 +175,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             db.execSQL("DROP TABLE conversations")
             db.execSQL("ALTER TABLE conversations_new RENAME TO conversations")
         }
+        if (oldVersion < 8) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN archived_at INTEGER NOT NULL DEFAULT 0")
+        }
     }
 
     fun createConversation(
@@ -207,6 +212,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         createdAt: Long,
         updatedAt: Long,
         pinnedAt: Long,
+        archivedAt: Long,
         mode: String,
         workspaceUri: String,
     ): Long {
@@ -221,13 +227,18 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("created_at", createdAt)
                 put("updated_at", updatedAt)
                 put("pinned_at", pinnedAt)
+                put("archived_at", archivedAt)
                 put("mode", mode)
                 put("workspace_uri", workspaceUri)
             },
         )
     }
 
-    fun conversations(mode: String? = null, includeSubAgents: Boolean = false): List<Conversation> {
+    fun conversations(
+        mode: String? = null,
+        includeSubAgents: Boolean = false,
+        archived: Boolean? = false,
+    ): List<Conversation> {
         val clauses = mutableListOf<String>()
         val args = mutableListOf<String>()
         mode?.let {
@@ -238,14 +249,21 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             clauses += "mode<>?"
             args += MODE_SUBAGENT
         }
+        archived?.let {
+            clauses += if (it) "archived_at>0" else "archived_at=0"
+        }
         val cursor = readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "workspace_uri"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "archived_at", "mode", "workspace_uri"),
             clauses.joinToString(" AND ").ifBlank { null },
             args.toTypedArray().ifEmpty { null },
             null,
             null,
-            "CASE WHEN pinned_at > 0 THEN 0 ELSE 1 END ASC, pinned_at DESC, updated_at DESC",
+            if (archived == true) {
+                "archived_at DESC"
+            } else {
+                "CASE WHEN pinned_at > 0 THEN 0 ELSE 1 END ASC, pinned_at DESC, updated_at DESC"
+            },
         )
         return cursor.use {
             buildList {
@@ -260,8 +278,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             createdAt = it.getLong(5),
                             updatedAt = it.getLong(6),
                             pinnedAt = it.getLong(7),
-                            mode = it.getString(8),
-                            workspaceUri = it.getString(9),
+                            archivedAt = it.getLong(8),
+                            mode = it.getString(9),
+                            workspaceUri = it.getString(10),
                         ),
                     )
                 }
@@ -272,7 +291,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun conversation(id: Long): Conversation? {
         return readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "workspace_uri"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "archived_at", "mode", "workspace_uri"),
             "id=?",
             arrayOf(id.toString()),
             null,
@@ -280,7 +299,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             null,
         ).use {
             if (!it.moveToFirst()) return null
-            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getString(8), it.getString(9))
+            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getLong(8), it.getString(9), it.getString(10))
         }
     }
 
@@ -293,7 +312,18 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         )
     }
 
+    fun setArchived(id: Long, archived: Boolean) {
+        writableDatabase.update(
+            "conversations",
+            ContentValues().apply { put("archived_at", if (archived) System.currentTimeMillis() else 0L) },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
     fun deleteConversation(id: Long) {
+        writableDatabase.delete("usage_model_requests", "conversation_id=?", arrayOf(id.toString()))
+        writableDatabase.delete("usage_message_events", "conversation_id=?", arrayOf(id.toString()))
         writableDatabase.delete("messages", "conversation_id=?", arrayOf(id.toString()))
         writableDatabase.delete("conversations", "id=?", arrayOf(id.toString()))
     }
@@ -546,7 +576,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         return JSONObject()
             .put("schema", "lyra_conversations_backup_v1")
             .put("conversations", JSONArray().also { array ->
-                conversations().forEach { conversation ->
+                conversations(archived = null).forEach { conversation ->
                     array.put(
                         JSONObject()
                             .put("id", conversation.id)
@@ -557,6 +587,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             .put("createdAt", conversation.createdAt)
                             .put("updatedAt", conversation.updatedAt)
                             .put("pinnedAt", conversation.pinnedAt)
+                            .put("archivedAt", conversation.archivedAt)
                             .put("mode", conversation.mode)
                             .put("workspaceUri", conversation.workspaceUri)
                             .put("messages", JSONArray().also { messages ->
@@ -583,6 +614,8 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun importJson(root: JSONObject, mode: String): String {
         val array = root.optJSONArray("conversations") ?: return appContext.getString(R.string.notice_no_compatible_data)
         if (mode == "replace") {
+            writableDatabase.delete("usage_model_requests", null, null)
+            writableDatabase.delete("usage_message_events", null, null)
             writableDatabase.delete("messages", null, null)
             writableDatabase.delete("conversations", null, null)
         }
@@ -607,6 +640,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     createdAt = exportedCreatedAt,
                     updatedAt = exportedUpdatedAt,
                     mode = importedMode,
+                    archivedAt = item.optLong("archivedAt", 0L),
                     messages = messages,
                 )
             ) {
@@ -621,6 +655,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 createdAt = exportedCreatedAt,
                 updatedAt = exportedUpdatedAt,
                 pinnedAt = item.optLong("pinnedAt", 0L),
+                archivedAt = item.optLong("archivedAt", 0L),
                 mode = importedMode,
                 workspaceUri = item.optString("workspaceUri"),
             )
@@ -655,14 +690,15 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         createdAt: Long,
         updatedAt: Long,
         mode: String,
+        archivedAt: Long,
         messages: JSONArray,
     ): Boolean {
         val exportedSignature = importedMessagesSignature(messages)
         return readableDatabase.query(
             "conversations",
             arrayOf("id"),
-            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=?",
-            arrayOf(title.take(120), profileId, model, createdAt.toString(), updatedAt.toString(), mode),
+            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=? AND archived_at=?",
+            arrayOf(title.take(120), profileId, model, createdAt.toString(), updatedAt.toString(), mode, archivedAt.toString()),
             null,
             null,
             null,

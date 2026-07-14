@@ -53,6 +53,7 @@ class ChatController(
     private val jobs = mutableMapOf<Long, Job>()
 
     val conversations = mutableStateListOf<Conversation>()
+    val archivedConversations = mutableStateListOf<Conversation>()
     private val _messages = mutableStateOf<List<ChatRecord>>(emptyList())
     val messages: State<List<ChatRecord>> = _messages
     val profiles = mutableStateListOf<ApiProfile>()
@@ -265,6 +266,25 @@ class ChatController(
 
     fun setConversationPinned(id: Long, pinned: Boolean) {
         conversationStore.setPinned(id, pinned)
+        reloadConversations()
+    }
+
+    fun archiveConversation(id: Long) {
+        conversationStore.setArchived(id, true)
+        reloadConversations()
+    }
+
+    fun restoreArchivedConversation(id: Long) {
+        conversationStore.setArchived(id, false)
+        reloadConversations()
+    }
+
+    fun permanentlyDeleteArchivedConversation(id: Long) {
+        if (conversationStore.conversation(id)?.archivedAt?.let { it > 0L } != true) return
+        jobs.remove(id)?.cancel()
+        autoApprovedConversations.remove(id)
+        todoByConversation.remove(id)
+        conversationStore.deleteConversation(id)
         reloadConversations()
     }
 
@@ -597,6 +617,8 @@ class ChatController(
     fun reloadConversations() {
         conversations.clear()
         conversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL))
+        archivedConversations.clear()
+        archivedConversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL, archived = true))
         val active = activeConversationId.value
         if (active > 0 && conversations.none { it.id == active }) {
             val next = conversations.firstOrNull()?.id
@@ -763,7 +785,7 @@ class ChatController(
     }
 
     private fun markAbandonedRunsInterrupted() {
-        conversationStore.conversations()
+        conversationStore.conversations(archived = null)
             .filter { it.status == ConversationStore.STATUS_RUNNING }
             .forEach { conversationStore.setConversationMeta(it.id, status = ConversationStore.STATUS_INTERRUPTED) }
     }

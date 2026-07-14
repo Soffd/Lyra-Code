@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -30,7 +31,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -249,7 +252,6 @@ internal fun SettingsScreen(
                 .padding(horizontal = 18.dp, vertical = 14.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp),
         ) {
-            Text(context.getString(R.string.title_settings), modifier = Modifier.fillMaxWidth(), style = MaterialTheme.typography.headlineMedium)
             KimiSectionLabel(context.getString(R.string.section_model_service))
             KimiCardBox {
                 KimiMenuRow(Icons.Default.AccountCircle, context.getString(R.string.menu_profile), context.getString(R.string.menu_profile_desc)) { detail = "profile" }
@@ -264,7 +266,7 @@ internal fun SettingsScreen(
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Terminal, context.getString(R.string.menu_termux), context.getString(R.string.menu_termux_desc)) { detail = "termux" }
                 KimiDivider()
-                KimiMenuRow(Icons.Default.Extension, context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc)) { detail = "mcp" }
+                KimiMenuRow(ImageVector.vectorResource(R.drawable.ic_mcp), context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc)) { detail = "mcp" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.Hub, context.getString(R.string.menu_local_mcp), context.getString(R.string.menu_local_mcp_desc)) { detail = "local_mcp" }
                 KimiDivider()
@@ -317,6 +319,7 @@ internal fun SettingsDetailPage(
         Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
+            .imePadding()
             .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

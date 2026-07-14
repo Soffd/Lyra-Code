@@ -79,7 +79,8 @@ private const val PAGE_CHAT = 0
 private const val PAGE_LOG = 1
 private const val PAGE_STATS = 2
 private const val PAGE_TASKS = 3
-private const val PAGE_SETTINGS = 4
+private const val PAGE_ARCHIVE = 4
+private const val PAGE_SETTINGS = 5
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,6 +119,7 @@ internal fun LyraCodeApp(
         context.getString(R.string.nav_tab_log),
         context.getString(R.string.nav_tab_statistics),
         context.getString(R.string.nav_tab_tasks),
+        context.getString(R.string.nav_tab_archive),
         context.getString(R.string.nav_tab_settings),
     )
     var selectedPage by rememberSaveable { mutableIntStateOf(PAGE_CHAT) }
@@ -414,6 +416,7 @@ internal fun LyraCodeApp(
                         PAGE_LOG -> LogScreen(auditLogStore)
                         PAGE_STATS -> UsageStatsScreen(controller)
                         PAGE_TASKS -> TaskScreen(settings, downloadTaskManager, scheduledTaskManager)
+                        PAGE_ARCHIVE -> ArchivedConversationsScreen(controller)
                         PAGE_SETTINGS -> SettingsScreen(
                             settings = settings,
                             controller = controller,

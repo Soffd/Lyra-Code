@@ -806,10 +806,12 @@ private fun AnnotatedString.Builder.appendInlineLink(
 
 @Composable
 private fun RichMathBlock(formula: String) {
+    val navigationSwipeGuard = LocalNavigationSwipeGuard.current
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 10.dp)
+            .blockNavigationRevealOnTouch(navigationSwipeGuard)
             .horizontalScroll(rememberScrollState()),
         contentAlignment = Alignment.CenterStart,
     ) {
@@ -1186,4 +1188,3 @@ private fun List<ASTNode>.trimMarkdownMarkers(type: IElementType, size: Int): Li
     }
     return subList(start, end)
 }
-

@@ -120,6 +120,11 @@ internal fun KimiDrawerContent(
                 controller.setConversationPinned(conversation.id, conversation.pinnedAt <= 0L)
                 actionConversation = null
             },
+            onArchive = {
+                controller.archiveConversation(conversation.id)
+                selectedHistoryIds = selectedHistoryIds - conversation.id
+                actionConversation = null
+            },
             onDelete = {
                 controller.deleteConversation(conversation.id)
                 selectedHistoryIds = selectedHistoryIds - conversation.id
@@ -179,9 +184,10 @@ internal fun KimiDrawerContent(
                             1 -> Icons.Default.ReceiptLong
                             2 -> Icons.Default.Analytics
                             3 -> Icons.Default.TaskAlt
-                            4 -> Icons.Default.Settings
-                            5 -> Icons.Default.School
-                            6 -> Icons.Default.Description
+                            4 -> Icons.Default.Archive
+                            5 -> Icons.Default.Settings
+                            6 -> Icons.Default.School
+                            7 -> Icons.Default.Description
                             else -> Icons.Default.Info
                         },
                         title = page,
@@ -442,6 +448,7 @@ internal fun HistoryConversationActionsDialog(
     onDismiss: () -> Unit,
     onRename: (String) -> Unit,
     onPin: () -> Unit,
+    onArchive: () -> Unit,
     onDelete: () -> Unit,
     onMultiSelect: () -> Unit,
 ) {
@@ -473,6 +480,11 @@ internal fun HistoryConversationActionsDialog(
                     Icon(Icons.Default.Check, contentDescription = null)
                     Spacer(Modifier.width(8.dp))
                     Text(context.getString(R.string.action_multi_select))
+                }
+                OutlinedButton(onClick = onArchive, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Archive, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(context.getString(R.string.action_archive_chat))
                 }
                 OutlinedButton(onClick = onDelete, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Default.Delete, contentDescription = null)
