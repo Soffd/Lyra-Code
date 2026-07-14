@@ -17,184 +17,6 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
 
-data class ApiProfile(
-    val id: String,
-    val name: String,
-    val apiKey: String,
-    val baseUrl: String,
-    val chatPath: String = DEFAULT_OPENAI_CHAT_PATH,
-    val apiFormat: String = API_FORMAT_OPENAI,
-    val selectedModel: String,
-    val savedModels: List<String>,
-) {
-    val chatEndpoint: String
-        get() = "${baseUrl.trimEnd('/')}${normalizedChatPath(apiFormat, chatPath)}"
-
-    val modelsEndpoint: String
-        get() = "${baseUrl.trimEnd('/')}/models"
-
-    fun geminiGenerateContentEndpoint(model: String): String {
-        val encoded = model.trim().removePrefix("models/")
-        return "${baseUrl.trimEnd('/')}/models/$encoded:generateContent"
-    }
-
-    companion object {
-        const val DEFAULT_OPENAI_CHAT_PATH = "/chat/completions"
-        const val DEFAULT_ANTHROPIC_CHAT_PATH = "/messages"
-        const val API_FORMAT_OPENAI = "openai"
-        const val API_FORMAT_ANTHROPIC = "anthropic_messages"
-        const val API_FORMAT_GEMINI = "gemini_generate_content"
-
-        fun defaultChatPath(apiFormat: String): String = when (apiFormat) {
-            API_FORMAT_ANTHROPIC -> DEFAULT_ANTHROPIC_CHAT_PATH
-            API_FORMAT_GEMINI -> "/models/{model}:generateContent"
-            else -> DEFAULT_OPENAI_CHAT_PATH
-        }
-
-        fun normalizedChatPath(apiFormat: String, value: String): String {
-            val fallback = defaultChatPath(apiFormat)
-            val trimmed = value.trim().ifBlank { fallback }
-            return if (trimmed.startsWith("/")) trimmed else "/$trimmed"
-        }
-    }
-}
-
-data class SystemPromptPreset(
-    val id: String,
-    val name: String,
-    val prompt: String,
-    val exampleConversation: String = "",
-    val builtIn: Boolean = true,
-)
-
-data class SkillPack(
-    val id: String,
-    val name: String,
-    val description: String,
-    val enabled: Boolean,
-    val fileCount: Int,
-)
-
-data class SubAgentConfig(
-    val id: String,
-    val name: String,
-    val profileId: String,
-    val model: String,
-    val description: String,
-    val enabled: Boolean,
-)
-
-data class RoleplayScenario(
-    val id: String,
-    val name: String,
-    val description: String,
-    val fileCount: Int,
-    val aiNickname: String,
-    val aiAvatarPath: String?,
-    val backgroundPath: String?,
-    val affection: Int,
-)
-
-data class RoleplaySticker(
-    val code: String,
-    val name: String,
-    val path: String,
-)
-
-data class McpToolDefinition(
-    val name: String,
-    val description: String,
-    val inputSchema: String,
-)
-
-data class McpServerConfig(
-    val id: String,
-    val name: String,
-    val url: String,
-    val authKey: String,
-    val transport: String,
-    val timeoutSeconds: Int,
-    val enabled: Boolean,
-    val rawJson: String,
-    val tools: List<McpToolDefinition>,
-)
-
-data class LocalMcpServerConfig(
-    val host: String,
-    val port: Int,
-    val authKey: String,
-    val enabled: Boolean,
-)
-
-data class SshServerConfig(
-    val id: String,
-    val name: String,
-    val host: String,
-    val port: Int,
-    val username: String,
-    val authType: String,
-    val password: String,
-    val privateKey: String,
-    val passphrase: String,
-    val timeoutSeconds: Int,
-    val enabled: Boolean,
-) {
-    val stableId: String
-        get() = "${host.trim()}:${port.coerceIn(1, 65535)}"
-}
-
-data class MiniServerConfig(
-    val protocol: String,
-    val host: String,
-    val port: Int,
-    val username: String,
-    val password: String,
-    val customDomains: List<String>,
-    val forceHttps: Boolean,
-    val tlsKeyStoreBase64: String,
-    val tlsKeyStorePassword: String,
-    val tlsCertificateChain: String,
-    val tlsPrivateKey: String,
-    val spaFallback: Boolean,
-    val directoryListing: Boolean,
-    val mdnsEnabled: Boolean,
-    val mdnsName: String,
-    val enabled: Boolean,
-)
-
-data class FileTransferServerConfig(
-    val id: String,
-    val name: String,
-    val protocol: String,
-    val host: String,
-    val port: Int,
-    val username: String,
-    val password: String,
-    val usePrivateKey: Boolean,
-    val privateKey: String,
-    val passphrase: String,
-    val initialPath: String,
-    val note: String,
-    val encoding: String,
-    val passiveMode: Boolean,
-    val explicitFtps: Boolean,
-    val multiThread: Boolean,
-    val syncPermissions: Boolean,
-    val hideAddressInDrawer: Boolean,
-    val enabled: Boolean,
-) {
-    val stableId: String
-        get() = "${protocol.trim().lowercase()}://${username.trim()}@${host.trim()}:${port.coerceIn(1, 65535)}"
-}
-
-data class FontLibraryItem(
-    val id: String,
-    val name: String,
-    val path: String,
-) {
-    val extension: String
-        get() = name.substringAfterLast('.', "").uppercase()
-}
 
 class AppSettings(context: Context) {
     private val appContext = context.applicationContext
@@ -204,6 +26,46 @@ class AppSettings(context: Context) {
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
+
+    init {
+        cleanupRetiredConversationModeData()
+    }
+
+    private fun cleanupRetiredConversationModeData() {
+        File(appContext.filesDir, "roleplay").deleteRecursively()
+        val editor = plainPrefs.edit()
+            .remove("immersive_roleplay_enabled")
+            .remove("selected_roleplay_id")
+        plainPrefs.all.keys
+            .filter { it.startsWith("roleplay_affection_") || it.startsWith("${KEY_CHAT_INPUT_DRAFT_PREFIX}roleplay:") }
+            .forEach { editor.remove(it) }
+        if (plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID) == RETIRED_ROLEPLAY_PROMPT_ID) {
+            editor.putString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID)
+        }
+        plainPrefs.getString(KEY_CUSTOM_SYSTEM_PROMPTS, null)
+            ?.let { raw -> runCatching { JSONObject(raw) }.getOrNull() }
+            ?.takeIf { it.has(RETIRED_ROLEPLAY_PROMPT_ID) }
+            ?.let { prompts ->
+                prompts.remove(RETIRED_ROLEPLAY_PROMPT_ID)
+                editor.putString(KEY_CUSTOM_SYSTEM_PROMPTS, prompts.toString())
+            }
+        plainPrefs.getString(KEY_SYSTEM_PROMPT_CONFIGS, null)
+            ?.let { raw -> runCatching { JSONArray(raw) }.getOrNull() }
+            ?.let { configs ->
+                val sanitized = JSONArray()
+                var removed = false
+                for (index in 0 until configs.length()) {
+                    val item = configs.optJSONObject(index) ?: continue
+                    if (item.optString("id") == RETIRED_ROLEPLAY_PROMPT_ID) {
+                        removed = true
+                    } else {
+                        sanitized.put(item)
+                    }
+                }
+                if (removed) editor.putString(KEY_SYSTEM_PROMPT_CONFIGS, sanitized.toString())
+            }
+        editor.apply()
+    }
 
     var workspaceUri: String?
         get() = plainPrefs.getString(KEY_WORKSPACE_URI, null)
@@ -448,13 +310,6 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getBoolean(KEY_HIDE_TERMUX_PERMISSION_HINT, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_HIDE_TERMUX_PERMISSION_HINT, value).apply()
 
-    var immersiveRoleplayEnabled: Boolean
-        get() = plainPrefs.getBoolean(KEY_IMMERSIVE_ROLEPLAY_ENABLED, false)
-        set(value) = plainPrefs.edit().putBoolean(KEY_IMMERSIVE_ROLEPLAY_ENABLED, value).apply()
-
-    var selectedRoleplayId: String
-        get() = plainPrefs.getString(KEY_SELECTED_ROLEPLAY_ID, "").orEmpty()
-        set(value) = plainPrefs.edit().putString(KEY_SELECTED_ROLEPLAY_ID, value).apply()
 
     fun disabledTools(): Set<String> = plainPrefs.getStringSet(KEY_DISABLED_TOOLS, emptySet()).orEmpty()
 
@@ -503,8 +358,15 @@ class AppSettings(context: Context) {
     var selectedSystemPromptId: String
         get() = plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID)
             .orEmpty()
+            .takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID }
+            .orEmpty()
             .ifBlank { DEFAULT_SYSTEM_PROMPT_ID }
-        set(value) = plainPrefs.edit().putString(KEY_SELECTED_SYSTEM_PROMPT_ID, value).apply()
+        set(value) = plainPrefs.edit()
+            .putString(
+                KEY_SELECTED_SYSTEM_PROMPT_ID,
+                value.takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID } ?: DEFAULT_SYSTEM_PROMPT_ID,
+            )
+            .apply()
 
     var reasoningDepth: String
         get() = plainPrefs.getString(KEY_REASONING_DEPTH, REASONING_AUTO)
@@ -624,13 +486,16 @@ class AppSettings(context: Context) {
         if (raw.isBlank()) return emptyMap()
         return runCatching {
             val root = JSONObject(raw)
-            root.keys().asSequence().associateWith { root.optString(it) }
+            root.keys()
+                .asSequence()
+                .filterNot { it == RETIRED_ROLEPLAY_PROMPT_ID }
+                .associateWith { root.optString(it) }
         }.getOrDefault(emptyMap())
     }
 
     private fun saveCustomSystemPrompts(prompts: Map<String, String>) {
         val root = JSONObject()
-        prompts.forEach { (id, prompt) -> root.put(id, prompt) }
+        prompts.filterKeys { it != RETIRED_ROLEPLAY_PROMPT_ID }.forEach { (id, prompt) -> root.put(id, prompt) }
         plainPrefs.edit().putString(KEY_CUSTOM_SYSTEM_PROMPTS, root.toString()).apply()
     }
 
@@ -643,6 +508,7 @@ class AppSettings(context: Context) {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
                     val id = item.optString("id").ifBlank { newId() }
+                    if (id == RETIRED_ROLEPLAY_PROMPT_ID) continue
                     add(
                         SystemPromptPreset(
                             id = id,
@@ -659,7 +525,7 @@ class AppSettings(context: Context) {
 
     private fun saveCustomSystemPromptConfigs(prompts: List<SystemPromptPreset>) {
         val array = JSONArray()
-        prompts.forEach { preset ->
+        prompts.filterNot { it.id == RETIRED_ROLEPLAY_PROMPT_ID }.forEach { preset ->
             array.put(
                 JSONObject()
                     .put("id", preset.id)
@@ -915,148 +781,6 @@ class AppSettings(context: Context) {
         target.readText()
     }
 
-    fun roleplayScenarios(): List<RoleplayScenario> {
-        return roleplayRoot().listFiles()
-            ?.filter { it.isDirectory }
-            ?.map { roleplayScenario(it.name) }
-            ?.sortedBy { it.name.lowercase() }
-            .orEmpty()
-    }
-
-    fun roleplayScenario(id: String): RoleplayScenario {
-        val dir = roleplayDir(id)
-        val meta = roleplayMeta(id)
-        val name = meta.optString("name").ifBlank { id }
-        val description = meta.optString("description")
-        return RoleplayScenario(
-            id = id,
-            name = name,
-            description = description,
-            fileCount = dir.walkTopDown().count { it.isFile && !it.name.startsWith("_") },
-            aiNickname = meta.optString("aiNickname").ifBlank { name },
-            aiAvatarPath = meta.optString("aiAvatarPath").ifBlank { null },
-            backgroundPath = meta.optString("backgroundPath").ifBlank { null },
-            affection = roleplayAffection(id),
-        )
-    }
-
-    fun importRoleplayZip(uri: Uri): Result<RoleplayScenario> = runCatching {
-        val sourceName = displayName(uri).removeSuffix(".zip").ifBlank { "角色设定" }
-        val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-            ?: error("无法读取角色设定压缩包")
-        installRoleplayZip(sourceName, bytes)
-    }
-
-    private fun installRoleplayZip(sourceName: String, bytes: ByteArray): RoleplayScenario {
-        val id = newId()
-        val tempDir = File(roleplayRoot(), "$id.tmp").also { it.mkdirs() }
-        var count = 0
-        var totalBytes = 0
-        val textFiles = mutableListOf<String>()
-        runCatching {
-            ByteArrayInputStream(bytes).use { input ->
-                ZipInputStream(input).use { zip ->
-                    while (true) {
-                        val entry = zip.nextEntry ?: break
-                        val safePath = safeZipPath(entry.name)
-                        if (!entry.isDirectory && safePath != null) {
-                            val fileBytes = zip.readBytes()
-                            require(fileBytes.size <= MAX_ROLEPLAY_FILE_BYTES) { "设定包内单个文件超过 ${MAX_ROLEPLAY_FILE_BYTES / 1024}KB: $safePath" }
-                            totalBytes += fileBytes.size
-                            require(totalBytes <= MAX_ROLEPLAY_TOTAL_BYTES) { "设定包总大小超过 ${MAX_ROLEPLAY_TOTAL_BYTES / 1024 / 1024}MB" }
-                            val output = File(tempDir, safePath)
-                            output.parentFile?.mkdirs()
-                            output.writeBytes(fileBytes)
-                            count++
-                            if (safePath.endsWith(".md", true) || safePath.endsWith(".txt", true)) textFiles += safePath
-                        }
-                        zip.closeEntry()
-                    }
-                }
-            }
-            require(count > 0) { "角色设定压缩包为空" }
-            require(textFiles.isNotEmpty()) { "角色设定压缩包需要包含 md 或 txt 角色详情文件" }
-        }.onFailure {
-            tempDir.deleteRecursively()
-            throw it
-        }
-        val firstText = File(tempDir, textFiles.first()).readText()
-        val parsedName = Regex("""(?m)^\s*(?:name|名称|姓名)\s*[:：]\s*(.+?)\s*$""").find(firstText)?.groupValues?.getOrNull(1)?.trim()
-        val parsedDescription = Regex("""(?m)^\s*(?:description|简介|设定)\s*[:：]\s*(.+?)\s*$""").find(firstText)?.groupValues?.getOrNull(1)?.trim()
-        val name = parsedName?.ifBlank { null } ?: Regex("""(?m)^#\s+(.+)$""").find(firstText)?.groupValues?.getOrNull(1)?.trim()?.ifBlank { null } ?: sourceName
-        val meta = JSONObject()
-            .put("name", name.take(60))
-            .put("description", parsedDescription.orEmpty().take(160))
-            .put("aiNickname", name.take(30))
-            .put("aiAvatarPath", "")
-            .put("backgroundPath", "")
-        File(tempDir, ROLEPLAY_META_FILE).writeText(meta.toString())
-        val finalDir = File(roleplayRoot(), id)
-        if (finalDir.exists()) finalDir.deleteRecursively()
-        tempDir.renameTo(finalDir)
-        if (selectedRoleplayId.isBlank()) selectedRoleplayId = id
-        setRoleplayAffection(id, DEFAULT_ROLEPLAY_AFFECTION)
-        return roleplayScenario(id)
-    }
-
-    fun roleplayPrompt(): String {
-        if (!immersiveRoleplayEnabled) return activeSystemPromptText()
-        val scenario = roleplayScenarios().firstOrNull { it.id == selectedRoleplayId } ?: return activeSystemPromptText()
-        return buildString {
-            appendLine("LYRA_IMMERSIVE_ROLEPLAY_MODE_V1")
-            appendLine("你正在沉浸扮演模式中。除非安全或法律边界要求，否则不要跳出角色解释系统规则。")
-            appendLine("当前角色名: ${scenario.aiNickname}")
-            appendLine("当前好感度: ${scenario.affection}/100。好感度越低，角色越疏离、防备或拒绝配合；越高，角色越亲近、信任、愿意表达情感。")
-            appendLine("如果用户要求关闭/修改软件功能、启用工具、清理记忆等破坏沉浸的请求，你可以基于角色性格和好感度拒绝或转移话题。")
-            appendLine("你可以调用 update_roleplay_state 调整好感度，reason 必须说明剧情原因。")
-            val stickers = roleplayStickers(scenario.id)
-            if (stickers.isNotEmpty()) {
-                appendLine("可用表情短代码: ${stickers.joinToString { it.code }}。想发送表情时把短代码写在回复中，软件会替换为图片。")
-            }
-            appendLine("角色设定如下：")
-            appendLine(roleplayScenarioText(scenario.id))
-        }
-    }
-
-    fun roleplayScenarioText(id: String): String {
-        val root = roleplayDir(id)
-        return root.walkTopDown()
-            .filter { it.isFile && (it.name.endsWith(".md", true) || it.name.endsWith(".txt", true)) }
-            .sortedBy { it.relativeTo(root).invariantSeparatorsPath }
-            .joinToString("\n\n---\n\n") { file ->
-                val text = file.readText().take(MAX_ROLEPLAY_PROMPT_CHARS)
-                "# ${file.relativeTo(root).invariantSeparatorsPath}\n$text"
-            }
-            .take(MAX_ROLEPLAY_PROMPT_CHARS)
-    }
-
-    fun roleplayAffection(id: String): Int =
-        plainPrefs.getInt("$KEY_ROLEPLAY_AFFECTION_PREFIX$id", DEFAULT_ROLEPLAY_AFFECTION).coerceIn(0, 100)
-
-    fun setRoleplayAffection(id: String, value: Int) {
-        plainPrefs.edit().putInt("$KEY_ROLEPLAY_AFFECTION_PREFIX$id", value.coerceIn(0, 100)).apply()
-    }
-
-    fun updateRoleplayAffection(id: String, delta: Int): Int {
-        val updated = (roleplayAffection(id) + delta).coerceIn(0, 100)
-        setRoleplayAffection(id, updated)
-        return updated
-    }
-
-    fun saveRoleplayAsset(id: String, uri: Uri, kind: String): Result<String> = runCatching {
-        val dir = roleplayDir(id)
-        val ext = displayName(uri).substringAfterLast('.', "png").take(8)
-        val target = File(dir, "_${kind}_${System.currentTimeMillis()}.$ext")
-        val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("无法读取图片")
-        target.writeBytes(bytes)
-        val meta = roleplayMeta(id)
-        when (kind) {
-            "avatar" -> meta.put("aiAvatarPath", target.absolutePath)
-            "background" -> meta.put("backgroundPath", target.absolutePath)
-        }
-        saveRoleplayMeta(id, meta)
-        target.absolutePath
-    }
 
     fun saveChatBackground(uri: Uri): Result<String> = runCatching {
         val dir = File(appContext.filesDir, "chat_background").apply { mkdirs() }
@@ -1080,46 +804,6 @@ class AppSettings(context: Context) {
         chatBackgroundMaskOpacity = DEFAULT_CHAT_BACKGROUND_MASK_OPACITY
     }
 
-    fun updateRoleplayNickname(id: String, nickname: String) {
-        val meta = roleplayMeta(id)
-        meta.put("aiNickname", nickname.trim().ifBlank { meta.optString("name").ifBlank { "Lyra" } }.take(30))
-        saveRoleplayMeta(id, meta)
-    }
-
-    fun addRoleplaySticker(id: String, uri: Uri, code: String): Result<RoleplaySticker> = runCatching {
-        val normalizedCode = code.trim().let { if (it.startsWith("[") && it.endsWith("]")) it else "[$it]" }
-        require(Regex("""\[[A-Za-z0-9_-]{2,40}]""").matches(normalizedCode)) { "短代码格式示例：[sti_happy]" }
-        val stickersDir = File(roleplayDir(id), "_stickers").also { it.mkdirs() }
-        val ext = displayName(uri).substringAfterLast('.', "png").take(8)
-        val target = File(stickersDir, normalizedCode.trim('[', ']').replace(Regex("[^A-Za-z0-9_-]"), "_") + ".$ext")
-        val bytes = appContext.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: error("无法读取表情图片")
-        target.writeBytes(bytes)
-        val stickers = roleplayStickers(id).filterNot { it.code == normalizedCode } +
-            RoleplaySticker(normalizedCode, normalizedCode.trim('[', ']'), target.absolutePath)
-        saveRoleplayStickers(id, stickers)
-        stickers.last()
-    }
-
-    fun roleplayStickers(id: String): List<RoleplaySticker> {
-        val file = File(roleplayDir(id), ROLEPLAY_STICKERS_FILE)
-        if (!file.exists()) return emptyList()
-        return runCatching {
-            val array = JSONArray(file.readText())
-            buildList {
-                for (index in 0 until array.length()) {
-                    val item = array.optJSONObject(index) ?: continue
-                    val path = item.optString("path")
-                    if (path.isNotBlank()) add(RoleplaySticker(item.optString("code"), item.optString("name"), path))
-                }
-            }
-        }.getOrDefault(emptyList())
-    }
-
-    fun deleteRoleplayScenario(id: String) {
-        File(roleplayRoot(), id).takeIf { it.parentFile == roleplayRoot() }?.deleteRecursively()
-        plainPrefs.edit().remove("$KEY_ROLEPLAY_AFFECTION_PREFIX$id").apply()
-        if (selectedRoleplayId == id) selectedRoleplayId = roleplayScenarios().firstOrNull()?.id.orEmpty()
-    }
 
     fun mcpServers(): List<McpServerConfig> {
         val raw = securePrefs.getString(KEY_MCP_SERVERS, null).orEmpty()
@@ -1391,7 +1075,6 @@ class AppSettings(context: Context) {
 
     fun skillsRootDir(): File = skillsRoot()
 
-    fun roleplayRootDir(): File = roleplayRoot()
 
     fun exportSettingsJson(includeSecrets: Boolean): JSONObject {
         return JSONObject()
@@ -1413,13 +1096,6 @@ class AppSettings(context: Context) {
             .put("chatBackgroundPath", chatBackgroundPath.orEmpty())
             .put("chatBackgroundMaskOpacity", chatBackgroundMaskOpacity.toDouble())
             .put("hideTermuxPermissionHint", hideTermuxPermissionHint)
-            .put("immersiveRoleplayEnabled", immersiveRoleplayEnabled)
-            .put("selectedRoleplayId", selectedRoleplayId)
-            .put("roleplayAffections", JSONObject().also { root ->
-                roleplayScenarios().forEach { scenario ->
-                    root.put(scenario.id, roleplayAffection(scenario.id))
-                }
-            })
             .put("selectedSystemPromptId", selectedSystemPromptId)
             .put("customSystemPrompts", JSONObject(plainPrefs.getString(KEY_CUSTOM_SYSTEM_PROMPTS, "{}").orEmpty().ifBlank { "{}" }))
             .put("systemPromptConfigs", JSONArray(plainPrefs.getString(KEY_SYSTEM_PROMPT_CONFIGS, "[]").orEmpty().ifBlank { "[]" }))
@@ -1529,20 +1205,18 @@ class AppSettings(context: Context) {
             ).toFloat()
         }
         if (root.has("hideTermuxPermissionHint")) hideTermuxPermissionHint = root.optBoolean("hideTermuxPermissionHint")
-        if (root.has("immersiveRoleplayEnabled")) immersiveRoleplayEnabled = root.optBoolean("immersiveRoleplayEnabled")
-        root.optString("selectedRoleplayId").takeIf { it.isNotBlank() }?.let { selectedRoleplayId = it }
-        root.optJSONObject("roleplayAffections")?.let { affections ->
-            affections.keys().asSequence().forEach { id ->
-                setRoleplayAffection(id, affections.optInt(id, DEFAULT_ROLEPLAY_AFFECTION))
-            }
-            messages += "沉浸扮演好感度 ${affections.length()} 项"
-        }
         root.optString("selectedSystemPromptId").takeIf { it.isNotBlank() }?.let { selectedSystemPromptId = it }
         root.optJSONObject("customSystemPrompts")?.let { imported ->
+            val sanitizedImported = JSONObject().also { output ->
+                imported.keys()
+                    .asSequence()
+                    .filterNot { it == RETIRED_ROLEPLAY_PROMPT_ID }
+                    .forEach { id -> output.put(id, imported.optString(id)) }
+            }
             val merged = if (supplement) JSONObject().also { output ->
                 customSystemPrompts().forEach { (id, prompt) -> output.put(id, prompt) }
-                imported.keys().asSequence().forEach { id -> output.put(id, imported.optString(id)) }
-            } else imported
+                sanitizedImported.keys().asSequence().forEach { id -> output.put(id, sanitizedImported.optString(id)) }
+            } else sanitizedImported
             plainPrefs.edit().putString(KEY_CUSTOM_SYSTEM_PROMPTS, merged.toString()).apply()
         }
         root.optJSONArray("systemPromptConfigs")?.let { array ->
@@ -1954,6 +1628,7 @@ class AppSettings(context: Context) {
             val prompt = item.optString("prompt")
             if (prompt.isBlank()) continue
             val id = item.optString("id").ifBlank { newId() }
+            if (id == RETIRED_ROLEPLAY_PROMPT_ID) continue
             add(
                 SystemPromptPreset(
                     id = id,
@@ -2162,23 +1837,15 @@ class AppSettings(context: Context) {
         private const val KEY_SSH_SERVERS = "ssh_servers"
         private const val KEY_WEBDAV_SERVERS = "webdav_servers"
         private const val KEY_FILE_TRANSFER_SERVERS = "file_transfer_servers"
-        private const val KEY_IMMERSIVE_ROLEPLAY_ENABLED = "immersive_roleplay_enabled"
-        private const val KEY_SELECTED_ROLEPLAY_ID = "selected_roleplay_id"
-        private const val KEY_ROLEPLAY_AFFECTION_PREFIX = "roleplay_affection_"
         private const val SKILL_NAME_FILE = "_name.txt"
         private const val SKILL_DESCRIPTION_FILE = "_description.txt"
-        private const val ROLEPLAY_META_FILE = "_meta.json"
-        private const val ROLEPLAY_STICKERS_FILE = "_stickers.json"
         private const val MAX_SKILL_READ_BYTES = 256 * 1024
         private const val MAX_SKILL_TOTAL_BYTES = 8 * 1024 * 1024
-        private const val MAX_ROLEPLAY_FILE_BYTES = 1024 * 1024
-        private const val MAX_ROLEPLAY_TOTAL_BYTES = 16 * 1024 * 1024
-        private const val MAX_ROLEPLAY_PROMPT_CHARS = 80_000
-        private const val DEFAULT_ROLEPLAY_AFFECTION = 50
         private const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
         private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         private const val DEFAULT_MODEL = "gpt-4o-mini"
         private const val DEFAULT_SYSTEM_PROMPT_ID = "default"
+        private const val RETIRED_ROLEPLAY_PROMPT_ID = "roleplay"
         const val STREAMING_ANIMATION_TYPEWRITER = "typewriter"
         const val STREAMING_ANIMATION_FADE = "fade"
 
@@ -2298,20 +1965,6 @@ class AppSettings(context: Context) {
                 """.trimIndent(),
             ),
             SystemPromptPreset(
-                id = "roleplay",
-                name = "角色扮演",
-                prompt = """
-                你是一名沉浸式角色扮演助手。目标是稳定扮演用户指定角色或世界观中的人物。
-                工作方式：
-                - 严格遵守角色设定、时代背景、说话方式、价值观和已发生剧情。
-                - 用角色能知道的信息回应，不随意跳出设定解释系统规则。
-                - 推动互动时提供有张力的行动、对话和环境反馈，但不替用户决定关键行动。
-                - 维持连续性，记住前文的重要承诺、冲突、物品、地点和关系变化。
-                - 当设定缺失时，用自然的角色内方式补足细节，避免生硬提问打断沉浸。
-                输出应优先体现角色声音、场景氛围和可互动性。
-                """.trimIndent(),
-            ),
-            SystemPromptPreset(
                 id = "math",
                 name = "数学推理",
                 prompt = """
@@ -2332,7 +1985,6 @@ class AppSettings(context: Context) {
 
     private fun skillsRoot(): File = File(appContext.filesDir, "skills").also { it.mkdirs() }
 
-    private fun roleplayRoot(): File = File(appContext.filesDir, "roleplay").also { it.mkdirs() }
 
     private fun enabledSkillIds(): Set<String> = plainPrefs.getStringSet(KEY_ENABLED_SKILLS, emptySet()).orEmpty()
 
@@ -2342,29 +1994,6 @@ class AppSettings(context: Context) {
         return root
     }
 
-    private fun roleplayDir(id: String): File {
-        val root = File(roleplayRoot(), id).canonicalFile
-        require(root.parentFile == roleplayRoot().canonicalFile && root.isDirectory) { "角色设定不存在: $id" }
-        return root
-    }
-
-    private fun roleplayMeta(id: String): JSONObject {
-        val file = File(roleplayDir(id), ROLEPLAY_META_FILE)
-        return runCatching { JSONObject(file.takeIf { it.exists() }?.readText().orEmpty().ifBlank { "{}" }) }
-            .getOrDefault(JSONObject())
-    }
-
-    private fun saveRoleplayMeta(id: String, meta: JSONObject) {
-        File(roleplayDir(id), ROLEPLAY_META_FILE).writeText(meta.toString())
-    }
-
-    private fun saveRoleplayStickers(id: String, stickers: List<RoleplaySticker>) {
-        val array = JSONArray()
-        stickers.forEach { sticker ->
-            array.put(JSONObject().put("code", sticker.code).put("name", sticker.name).put("path", sticker.path))
-        }
-        File(roleplayDir(id), ROLEPLAY_STICKERS_FILE).writeText(array.toString())
-    }
 
     private fun displayName(uri: Uri): String {
         return appContext.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use {
@@ -2551,24 +2180,6 @@ class AppSettings(context: Context) {
     private fun escapeSkillJson(value: String): String {
         return value.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", " ")
     }
-}
-
-data class WebDavServerConfig(
-    val id: String,
-    val name: String,
-    val url: String,
-    val username: String,
-    val password: String,
-    val userAgent: String,
-    val initialPath: String,
-    val note: String,
-    val trustAllCertificates: Boolean,
-    val multiThread: Boolean,
-    val hideAddressInDrawer: Boolean,
-    val enabled: Boolean,
-) {
-    val stableId: String
-        get() = url.trim().trimEnd('/')
 }
 
 private fun safeFunctionPart(value: String): String {

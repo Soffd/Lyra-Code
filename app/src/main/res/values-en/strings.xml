@@ -98,7 +98,6 @@
     <string name="placeholder_input_message">Message</string>
     <string name="cd_stop">Stop</string>
     <string name="cd_send">Send</string>
-    <string name="label_affection">Affection %1$d</string>
     <string name="cd_add">Add</string>
     <string name="label_choose_provider">Choose provider</string>
     <string name="search_provider_placeholder">Search providers</string>
@@ -111,8 +110,6 @@
     <string name="action_album">Album</string>
     <string name="action_camera">Camera</string>
     <string name="action_file">File</string>
-    <string name="title_new_immersive_chat">New immersive chat</string>
-    <string name="subtitle_new_immersive_chat">Keep current character memory and affection</string>
     <string name="label_provider">Provider</string>
     <string name="label_not_configured">Not configured</string>
     <string name="label_model">Model</string>
@@ -197,7 +194,6 @@
     <string name="label_platform">Platform</string>
     <!-- ChatController.kt -->
     <string name="title_new_chat">New chat</string>
-    <string name="title_immersive_chat">Immersive chat</string>
     <string name="status_running">Running</string>
     <string name="status_interrupted">Interrupted</string>
     <string name="status_continue">Continue</string>
@@ -415,7 +411,6 @@
     <string name="backup_exported_to">Backup Exported To %1$s</string>
     <string name="error_cannot_read_backup">Error Cannot Read Backup</string>
     <string name="backup_import_skills">Backup Import Skills %1$d</string>
-    <string name="backup_import_roleplay">Backup Import Roleplay %1$d</string>
     <string name="backup_no_compatible_data">Backup No Compatible Data</string>
     <string name="error_cannot_create_export">Error Cannot Create Export</string>
     <string name="error_cannot_write_export">Error Cannot Write Export</string>
@@ -500,8 +495,6 @@
     <string name="menu_theme_current_full">Current: %1$s · %2$s · %3$s · %4$s</string>
     <string name="menu_system_prompt">System prompts</string>
     <string name="menu_system_prompt_desc">Configure default prompts for different uses</string>
-    <string name="menu_roleplay">Immersive roleplay</string>
-    <string name="menu_roleplay_current">Current: %1$s, manage characters and stickers</string>
     <string name="status_on">On</string>
     <string name="status_off">Off</string>
     <string name="menu_skills">Skills</string>
@@ -537,7 +530,6 @@
     <string name="detail_system_permissions">System permissions</string>
     <string name="detail_tools">AI Agent tools</string>
     <string name="detail_storage">Cache and storage</string>
-    <string name="detail_roleplay">Immersive roleplay</string>
     <string name="detail_termux">Termux</string>
     <string name="detail_mcp">MCP servers</string>
     <string name="detail_local_mcp">MCP server mode</string>
@@ -555,36 +547,6 @@
     <string name="detail_default">Settings</string>
     <string name="profile_hint">Profile Hint</string>
     <string name="default_user_name">Default User Name</string>
-    <string name="title_roleplay_mode">Immersive roleplay</string>
-    <string name="roleplay_desc">Roleplay Desc</string>
-    <string name="title_import_roleplay">Import Roleplay</string>
-    <string name="roleplay_import_desc">Roleplay Import Desc</string>
-    <string name="action_import_roleplay_zip">Import Roleplay Zip</string>
-    <string name="title_current_scenario">Current Scenario</string>
-    <string name="title_roleplay_performance">Roleplay Performance</string>
-    <string name="label_avatar">Avatar</string>
-    <string name="label_background">Background</string>
-    <string name="label_ai_nickname">AI Nickname</string>
-    <string name="action_upload_avatar">UploadAvatar</string>
-    <string name="action_upload_background">UploadBackground</string>
-    <string name="label_affection_format">Affection: %1$d/100</string>
-    <string name="action_clear_roleplay_data">Clear Roleplay Data</string>
-    <string name="notice_cleared_roleplay_data">Cleared Roleplay Data</string>
-    <string name="title_sticker">Stickers</string>
-    <string name="sticker_desc">Sticker Desc</string>
-    <string name="label_shortcode">Shortcode</string>
-    <string name="action_upload_sticker">UploadStickers</string>
-    <string name="title_delete_roleplay">Delete Roleplay</string>
-    <string name="confirm_delete_roleplay">Delete Roleplay</string>
-    <string name="notice_deleted_roleplay">Deleted Roleplay %1$s</string>
-    <string name="notice_avatar_saved">Avatar Saved</string>
-    <string name="notice_roleplay_background_saved">Roleplay Background Saved</string>
-    <string name="notice_sticker_added">Sticker Added %1$s</string>
-    <string name="notice_sticker_add_failed">Addfailed</string>
-    <string name="label_not_uploaded">Not Uploaded</string>
-    <string name="label_affection_score">Affection %1$d/100</string>
-    <string name="label_files_count_format">Files Count Format %1$d</string>
-    <string name="label_current_selected">Current Selected</string>
     <string name="search_models_placeholder">SearchModel service</string>
     <string name="action_add_model_service">AddModel service</string>
     <string name="notice_no_matching_models">No Matching Models</string>
@@ -778,8 +740,6 @@
     <string name="tool_list_skill_files_desc">List Skill Files Desc</string>
     <string name="tool_read_skill_file">Read Skill File</string>
     <string name="tool_read_skill_file_desc">Read Skill File Desc</string>
-    <string name="tool_update_roleplay">Update Roleplay</string>
-    <string name="tool_update_roleplay_desc">Update Roleplay Desc</string>
     <string name="tool_run_command">Run Command</string>
     <string name="tool_run_command_desc">Run Command Desc</string>
     <string name="tool_web_search">Web search</string>
@@ -975,7 +935,6 @@
     <string name="backup_desc">Backup Desc</string>
     <string name="backup_include_profile">Backup Include Profile</string>
     <string name="backup_include_conversations">Backup Include Conversations</string>
-    <string name="backup_include_roleplay">Backup Include Roleplay</string>
     <string name="backup_include_model_profiles">Backup Include Model Profiles</string>
     <string name="backup_include_mcp">Backup Include MCP</string>
     <string name="backup_include_ssh">Backup Include SSH</string>
@@ -1177,7 +1136,6 @@
     <string name="todo_marked_as">Marked As %1$s %2$s</string>
     <!-- AppShell.kt — TopAppBar / Remaining -->
     <string name="cd_menu">Menu</string>
-    <string name="roleplay_typing">Roleplay Typing</string>
     <string name="date_format_year_month">MMM yyyy</string>
     <string name="action_checking_update">Checking for updates...</string>
     <!-- Workspace @ picker, tool detail, and streaming output -->

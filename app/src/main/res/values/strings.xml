@@ -99,7 +99,6 @@
     <string name="placeholder_input_message">输入消息</string>
     <string name="cd_stop">停止</string>
     <string name="cd_send">发送</string>
-    <string name="label_affection">好感度 %1$d</string>
     <string name="cd_add">添加</string>
     <string name="label_choose_provider">选择服务商</string>
     <string name="search_provider_placeholder">搜索服务商</string>
@@ -112,8 +111,6 @@
     <string name="action_album">相册</string>
     <string name="action_camera">相机</string>
     <string name="action_file">文件</string>
-    <string name="title_new_immersive_chat">新建沉浸对话</string>
-    <string name="subtitle_new_immersive_chat">保留当前角色记忆和好感度</string>
     <string name="label_provider">服务商</string>
     <string name="label_not_configured">未配置</string>
     <string name="label_model">模型</string>
@@ -199,7 +196,6 @@
 
     <!-- ==================== ChatController.kt ==================== -->
     <string name="title_new_chat">新对话</string>
-    <string name="title_immersive_chat">沉浸对话</string>
     <string name="status_running">运行中</string>
     <string name="status_interrupted">已中断</string>
     <string name="status_continue">继续运行</string>
@@ -430,7 +426,6 @@
     <string name="backup_exported_to">已导出到 Download/LyraCode/%1$s</string>
     <string name="error_cannot_read_backup">无法读取备份文件</string>
     <string name="backup_import_skills">Skills 文件 %1$d 个</string>
-    <string name="backup_import_roleplay">沉浸扮演设定文件 %1$d 个</string>
     <string name="backup_no_compatible_data">没有导入兼容数据</string>
     <string name="error_cannot_create_export">无法创建导出文件</string>
     <string name="error_cannot_write_export">无法写入导出文件</string>
@@ -519,8 +514,6 @@
     <string name="menu_theme_current_full">当前：%1$s · %2$s · %3$s · %4$s</string>
     <string name="menu_system_prompt">系统提示词</string>
     <string name="menu_system_prompt_desc">配置不同用途的默认提示词</string>
-    <string name="menu_roleplay">沉浸扮演模式</string>
-    <string name="menu_roleplay_current">当前：%1$s，管理角色设定与表情包</string>
     <string name="status_on">已开启</string>
     <string name="status_off">已关闭</string>
     <string name="menu_skills">Skills</string>
@@ -558,7 +551,6 @@
     <string name="detail_system_permissions">系统权限</string>
     <string name="detail_tools">AI Agent 工具</string>
     <string name="detail_storage">缓存与存储</string>
-    <string name="detail_roleplay">沉浸扮演模式</string>
     <string name="detail_termux">Termux</string>
     <string name="detail_mcp">MCP 服务器</string>
     <string name="detail_local_mcp">MCP 服务端</string>
@@ -579,37 +571,6 @@
     <string name="profile_hint">头像和昵称可在侧边栏顶部点击编辑。</string>
     <string name="default_user_name">Lyra 用户</string>
 
-    <!-- Roleplay -->
-    <string name="title_roleplay_mode">沉浸扮演模式</string>
-    <string name="roleplay_desc">开启后，对话页切换为聊天气泡样式，并使用当前角色设定作为系统提示词。</string>
-    <string name="title_import_roleplay">导入角色设定</string>
-    <string name="roleplay_import_desc">请上传 zip 压缩包，包内放入 AI 需要扮演的角色详情 md/txt 文件，例如姓名、外貌、爱好、说话方式、关系设定、所处世界观等。可导入多个设定并切换。</string>
-    <string name="action_import_roleplay_zip">导入设定 zip</string>
-    <string name="title_current_scenario">当前设定</string>
-    <string name="title_roleplay_performance">角色表现</string>
-    <string name="label_avatar">头像</string>
-    <string name="label_background">背景</string>
-    <string name="label_ai_nickname">AI 昵称</string>
-    <string name="action_upload_avatar">上传头像</string>
-    <string name="action_upload_background">上传背景</string>
-    <string name="label_affection_format">好感度：%1$d/100</string>
-    <string name="action_clear_roleplay_data">清除所有对话数据并重置好感度</string>
-    <string name="notice_cleared_roleplay_data">已清空当前设定对话和好感度</string>
-    <string name="title_sticker">表情包</string>
-    <string name="sticker_desc">设置短代码，例如 [sti_happy]。AI 回复中包含短代码时，软件会替换为对应表情图片。</string>
-    <string name="label_shortcode">短代码</string>
-    <string name="action_upload_sticker">上传表情包</string>
-    <string name="title_delete_roleplay">删除角色设定</string>
-    <string name="confirm_delete_roleplay">会删除此设定下的资源、好感度和所有沉浸对话数据。</string>
-    <string name="notice_deleted_roleplay">已删除 %1$s</string>
-    <string name="notice_avatar_saved">头像已保存</string>
-    <string name="notice_roleplay_background_saved">背景已保存</string>
-    <string name="notice_sticker_added">已添加表情 %1$s</string>
-    <string name="notice_sticker_add_failed">添加失败</string>
-    <string name="label_not_uploaded">未上传</string>
-    <string name="label_affection_score">好感度 %1$d/100</string>
-    <string name="label_files_count_format">%1$d 个文件</string>
-    <string name="label_current_selected">当前</string>
 
     <!-- Model Service -->
     <string name="search_models_placeholder">搜索模型服务</string>
@@ -825,8 +786,6 @@
     <string name="tool_list_skill_files_desc">浏览已启用 Skill 包内文件。</string>
     <string name="tool_read_skill_file">读取 Skill 文件</string>
     <string name="tool_read_skill_file_desc">读取相关 Skill 包内说明或脚本。</string>
-    <string name="tool_update_roleplay">角色扮演状态</string>
-    <string name="tool_update_roleplay_desc">沉浸扮演模式下调整好感度并触发表情短代码。</string>
     <string name="tool_run_command">执行命令</string>
     <string name="tool_run_command_desc">通过 Termux 执行命令并返回 stdout/stderr。</string>
     <string name="tool_web_search">联网搜索</string>
@@ -1034,7 +993,6 @@
     <string name="backup_desc">可单独选择导出范围；跨版本导入时会跳过不兼容结构并导入可兼容部分。</string>
     <string name="backup_include_profile">个人资料</string>
     <string name="backup_include_conversations">对话历史</string>
-    <string name="backup_include_roleplay">沉浸扮演设定</string>
     <string name="backup_include_model_profiles">模型服务配置</string>
     <string name="backup_include_mcp">MCP 服务器配置</string>
     <string name="backup_include_ssh">SSH 连接配置</string>
@@ -1262,7 +1220,6 @@
 
     <!-- ==================== AppShell.kt — TopAppBar / Remaining ==================== -->
     <string name="cd_menu">菜单</string>
-    <string name="roleplay_typing">对方正在输入…</string>
     <string name="date_format_year_month">yyyy年M月</string>
     <!-- Workspace @ picker, tool detail, and streaming output -->
     <string name="workspace_file_picker_title">选择工作区文件（可多选）</string>

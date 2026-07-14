@@ -18,7 +18,6 @@ import java.util.zip.ZipOutputStream
 data class BackupOptions(
     val includeProfile: Boolean = true,
     val includeConversations: Boolean = true,
-    val includeRoleplay: Boolean = true,
     val includeModelProfiles: Boolean = true,
     val includeMcp: Boolean = true,
     val includeSsh: Boolean = true,
@@ -54,11 +53,6 @@ class BackupManager(
             }
             if (!options.includeWebDav) remove("webDavServers")
             if (!options.includeFileTransfer) remove("fileTransferServers")
-            if (!options.includeRoleplay) {
-                remove("immersiveRoleplayEnabled")
-                remove("selectedRoleplayId")
-                remove("roleplayAffections")
-            }
         }
         val root = JSONObject()
             .put("schema", "lyra_backup_manifest_v1")
@@ -81,17 +75,6 @@ class BackupManager(
                     skillsRoot.walkTopDown().filter { it.isFile }.forEach { file ->
                         val relative = file.relativeTo(skillsRoot).invariantSeparatorsPath
                         zip.putNextEntry(ZipEntry("skills/$relative"))
-                        zip.write(file.readBytes())
-                        zip.closeEntry()
-                    }
-                }
-            }
-            if (options.includeRoleplay) {
-                val roleplayRoot = settings.roleplayRootDir()
-                if (roleplayRoot.exists()) {
-                    roleplayRoot.walkTopDown().filter { it.isFile }.forEach { file ->
-                        val relative = file.relativeTo(roleplayRoot).invariantSeparatorsPath
-                        zip.putNextEntry(ZipEntry("roleplay/$relative"))
                         zip.write(file.readBytes())
                         zip.closeEntry()
                     }
@@ -135,11 +118,6 @@ class BackupManager(
             restoreSkillEntries(skillEntries, mode)
             messages += context.getString(R.string.backup_import_skills, skillEntries.size)
         }
-        val roleplayEntries = entries.filterKeys { it.startsWith("roleplay/") }
-        if (roleplayEntries.isNotEmpty()) {
-            restoreRoleplayEntries(roleplayEntries, mode)
-            messages += context.getString(R.string.backup_import_roleplay, roleplayEntries.size)
-        }
         return messages.ifEmpty { listOf(context.getString(R.string.backup_no_compatible_data)) }.joinToString("；")
     }
 
@@ -156,18 +134,6 @@ class BackupManager(
         }
     }
 
-    private fun restoreRoleplayEntries(entries: Map<String, ByteArray>, mode: String) {
-        val root = settings.roleplayRootDir()
-        if (mode == "replace") root.deleteRecursively()
-        root.mkdirs()
-        entries.forEach { (path, bytes) ->
-            val relative = path.removePrefix("roleplay/").replace('\\', '/')
-            if (relative.isBlank() || relative.contains("..")) return@forEach
-            val target = File(root, relative)
-            target.parentFile?.mkdirs()
-            target.writeBytes(bytes)
-        }
-    }
 
     private fun saveBytesToDownloads(bytes: ByteArray, name: String, mimeType: String) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {

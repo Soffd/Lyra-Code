@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-2.10.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-2.11.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
@@ -95,7 +95,7 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 
 ### 数据与备份
 
-- 支持导出/导入个人资料、对话历史、模型配置、MCP、SSH、WebDAV、FTP/FTPS/SFTP、系统提示词、Skills、沉浸扮演设定等。
+- 支持导出/导入个人资料、对话历史、模型配置、MCP、SSH、WebDAV、FTP/FTPS/SFTP、系统提示词、Skills 等。
 - 支持本地 zip 备份和 WebDAV 云备份，补充模式会尽量去重并降低密钥被覆盖的风险。
 - 支持不包含 API Key 的安全导出，也支持包含密钥的完整迁移备份。
 
@@ -105,12 +105,6 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 - 使用离线 Token 估算工具，不依赖网络服务。
 - 支持日、周、月、年、总计以及历史日期和时间段查询。
 
-### 沉浸扮演模式
-
-- 可导入角色设定包，配置 AI 昵称、头像、聊天背景和表情包短代码。
-- 普通对话和沉浸扮演对话历史相互隔离。
-- 支持好感度状态、表情包替换和角色记忆。
-- 沉浸扮演模式下使用更接近聊天软件的气泡界面。
 
 ## 项目结构
 

@@ -18,7 +18,6 @@ data class Conversation(
     val updatedAt: Long,
     val pinnedAt: Long,
     val mode: String = ConversationStore.MODE_NORMAL,
-    val roleplayId: String = "",
     val workspaceUri: String = "",
 )
 
@@ -55,7 +54,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    6,
+    7,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -70,7 +69,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 updated_at INTEGER NOT NULL,
                 pinned_at INTEGER NOT NULL DEFAULT 0,
                 mode TEXT NOT NULL DEFAULT 'normal',
-                roleplay_id TEXT NOT NULL DEFAULT '',
                 workspace_uri TEXT NOT NULL DEFAULT ''
             )
             """.trimIndent(),
@@ -144,6 +142,37 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 """.trimIndent(),
             )
         }
+        if (oldVersion < 7) {
+            db.execSQL("DELETE FROM usage_message_events WHERE conversation_id IN (SELECT id FROM conversations WHERE mode = 'roleplay')")
+            db.execSQL("DELETE FROM usage_model_requests WHERE conversation_id IN (SELECT id FROM conversations WHERE mode = 'roleplay')")
+            db.execSQL("DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE mode = 'roleplay')")
+            db.execSQL("DELETE FROM conversations WHERE mode = 'roleplay'")
+            db.execSQL(
+                """
+                CREATE TABLE conversations_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    profile_id TEXT NOT NULL,
+                    model TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    updated_at INTEGER NOT NULL,
+                    pinned_at INTEGER NOT NULL DEFAULT 0,
+                    mode TEXT NOT NULL DEFAULT 'normal',
+                    workspace_uri TEXT NOT NULL DEFAULT ''
+                )
+                """.trimIndent(),
+            )
+            db.execSQL(
+                """
+                INSERT INTO conversations_new (id, title, status, profile_id, model, created_at, updated_at, pinned_at, mode, workspace_uri)
+                SELECT id, title, status, profile_id, model, created_at, updated_at, pinned_at, mode, workspace_uri
+                FROM conversations
+                """.trimIndent(),
+            )
+            db.execSQL("DROP TABLE conversations")
+            db.execSQL("ALTER TABLE conversations_new RENAME TO conversations")
+        }
     }
 
     fun createConversation(
@@ -151,7 +180,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         model: String,
         title: String = appContext.getString(R.string.default_conversation_title),
         mode: String = MODE_NORMAL,
-        roleplayId: String = "",
         workspaceUri: String = "",
     ): Long {
         val now = System.currentTimeMillis()
@@ -166,7 +194,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("created_at", now)
                 put("updated_at", now)
                 put("mode", mode)
-                put("roleplay_id", roleplayId)
                 put("workspace_uri", workspaceUri)
             },
         )
@@ -181,7 +208,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         updatedAt: Long,
         pinnedAt: Long,
         mode: String,
-        roleplayId: String,
         workspaceUri: String,
     ): Long {
         return writableDatabase.insert(
@@ -196,13 +222,12 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("updated_at", updatedAt)
                 put("pinned_at", pinnedAt)
                 put("mode", mode)
-                put("roleplay_id", roleplayId)
                 put("workspace_uri", workspaceUri)
             },
         )
     }
 
-    fun conversations(mode: String? = null, roleplayId: String? = null, includeSubAgents: Boolean = false): List<Conversation> {
+    fun conversations(mode: String? = null, includeSubAgents: Boolean = false): List<Conversation> {
         val clauses = mutableListOf<String>()
         val args = mutableListOf<String>()
         mode?.let {
@@ -213,13 +238,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             clauses += "mode<>?"
             args += MODE_SUBAGENT
         }
-        roleplayId?.let {
-            clauses += "roleplay_id=?"
-            args += it
-        }
         val cursor = readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id", "workspace_uri"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "workspace_uri"),
             clauses.joinToString(" AND ").ifBlank { null },
             args.toTypedArray().ifEmpty { null },
             null,
@@ -240,8 +261,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             updatedAt = it.getLong(6),
                             pinnedAt = it.getLong(7),
                             mode = it.getString(8),
-                            roleplayId = it.getString(9),
-                            workspaceUri = it.getString(10),
+                            workspaceUri = it.getString(9),
                         ),
                     )
                 }
@@ -252,7 +272,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun conversation(id: Long): Conversation? {
         return readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "roleplay_id", "workspace_uri"),
+            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "mode", "workspace_uri"),
             "id=?",
             arrayOf(id.toString()),
             null,
@@ -260,7 +280,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             null,
         ).use {
             if (!it.moveToFirst()) return null
-            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getString(8), it.getString(9), it.getString(10))
+            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getString(8), it.getString(9))
         }
     }
 
@@ -278,9 +298,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         writableDatabase.delete("conversations", "id=?", arrayOf(id.toString()))
     }
 
-    fun deleteConversationsForRoleplay(roleplayId: String) {
-        conversations(MODE_ROLEPLAY, roleplayId).forEach { deleteConversation(it.id) }
-    }
 
     fun setConversationMeta(id: Long, title: String? = null, status: String? = null, profileId: String? = null, model: String? = null, workspaceUri: String? = null) {
         val values = ContentValues().apply {
@@ -541,7 +558,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             .put("updatedAt", conversation.updatedAt)
                             .put("pinnedAt", conversation.pinnedAt)
                             .put("mode", conversation.mode)
-                            .put("roleplayId", conversation.roleplayId)
                             .put("workspaceUri", conversation.workspaceUri)
                             .put("messages", JSONArray().also { messages ->
                                 messages(conversation.id).forEach { message ->
@@ -575,6 +591,11 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         var skippedConversations = 0
         for (index in 0 until array.length()) {
             val item = array.optJSONObject(index) ?: continue
+            val importedMode = item.optString("mode").ifBlank { MODE_NORMAL }
+            if (importedMode == "roleplay") {
+                skippedConversations++
+                continue
+            }
             val title = item.optString("title").ifBlank { appContext.getString(R.string.default_import_title) }
             val exportedCreatedAt = item.optLong("createdAt", System.currentTimeMillis())
             val exportedUpdatedAt = item.optLong("updatedAt", exportedCreatedAt)
@@ -585,8 +606,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     model = item.optString("model"),
                     createdAt = exportedCreatedAt,
                     updatedAt = exportedUpdatedAt,
-                    mode = item.optString("mode").ifBlank { MODE_NORMAL },
-                    roleplayId = item.optString("roleplayId"),
+                    mode = importedMode,
                     messages = messages,
                 )
             ) {
@@ -601,8 +621,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 createdAt = exportedCreatedAt,
                 updatedAt = exportedUpdatedAt,
                 pinnedAt = item.optLong("pinnedAt", 0L),
-                mode = item.optString("mode").ifBlank { MODE_NORMAL },
-                roleplayId = item.optString("roleplayId"),
+                mode = importedMode,
                 workspaceUri = item.optString("workspaceUri"),
             )
             for (messageIndex in 0 until messages.length()) {
@@ -636,15 +655,14 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         createdAt: Long,
         updatedAt: Long,
         mode: String,
-        roleplayId: String,
         messages: JSONArray,
     ): Boolean {
         val exportedSignature = importedMessagesSignature(messages)
         return readableDatabase.query(
             "conversations",
             arrayOf("id"),
-            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=? AND roleplay_id=?",
-            arrayOf(title.take(120), profileId, model, createdAt.toString(), updatedAt.toString(), mode, roleplayId),
+            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=?",
+            arrayOf(title.take(120), profileId, model, createdAt.toString(), updatedAt.toString(), mode),
             null,
             null,
             null,
@@ -791,7 +809,6 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         const val STATUS_RUNNING = "running"
         const val STATUS_INTERRUPTED = "interrupted"
         const val MODE_NORMAL = "normal"
-        const val MODE_ROLEPLAY = "roleplay"
         const val MODE_SUBAGENT = "subagent"
         const val MODE_TASK = "task"
     }

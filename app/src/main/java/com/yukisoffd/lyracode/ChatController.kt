@@ -81,14 +81,7 @@ class ChatController(
         reloadProfiles()
         markAbandonedRunsInterrupted()
         reloadConversations()
-        val first = conversations.firstOrNull()
-        if (!settings.immersiveRoleplayEnabled) {
-            showTransientNewConversation()
-        } else if (first == null) {
-            newConversation()
-        } else {
-            selectConversation(first.id)
-        }
+        showTransientNewConversation()
     }
 
     fun close() {
@@ -96,13 +89,7 @@ class ChatController(
     }
 
     fun usageStore(): ConversationStore = conversationStore
-    fun inputDraftKey(): String {
-        return if (isRoleplayMode()) {
-            "roleplay:${currentRoleplayId()}:${activeConversationId.value}"
-        } else {
-            "normal:${activeConversationId.value}"
-        }
-    }
+    fun inputDraftKey(): String = "normal:${activeConversationId.value}"
 
     fun loadInputDraft(): String = settings.chatInputDraft(inputDraftKey())
 
@@ -172,22 +159,15 @@ class ChatController(
     }
 
     fun newConversation() {
-        if (!isRoleplayMode()) {
-            showTransientNewConversation()
-            return
-        }
-        createPersistedConversation()
+        showTransientNewConversation()
     }
 
     private fun createPersistedConversation(): Long {
         val profile = currentProfile()
-        val roleplayId = currentRoleplayId()
         val id = conversationStore.createConversation(
             profileId = profile.id,
             model = activeModel.value.ifBlank { profile.selectedModel },
-            title = if (isRoleplayMode()) settings.roleplayScenarios().firstOrNull { it.id == roleplayId }?.name ?: appContext.getString(R.string.title_immersive_chat) else appContext.getString(R.string.title_new_chat),
-            mode = if (isRoleplayMode()) ConversationStore.MODE_ROLEPLAY else ConversationStore.MODE_NORMAL,
-            roleplayId = roleplayId,
+            title = appContext.getString(R.string.title_new_chat),
             workspaceUri = transientWorkspaceUri,
         )
         todoByConversation[id] = mutableListOf()
@@ -211,7 +191,7 @@ class ChatController(
     }
 
     fun requestNewConversation(): Boolean {
-        if (!isRoleplayMode() && (activeConversationId.value <= 0L || isCurrentConversationBlank())) {
+        if (activeConversationId.value <= 0L || isCurrentConversationBlank()) {
             return false
         }
         newConversation()
@@ -238,7 +218,7 @@ class ChatController(
         reloadConversations()
         val next = conversations.firstOrNull()?.id
         if (next == null) {
-            if (isRoleplayMode()) newConversation() else showTransientNewConversation()
+            showTransientNewConversation()
         } else {
             selectConversation(next)
         }
@@ -299,7 +279,7 @@ class ChatController(
         if (activeConversationId.value in ids) {
             val next = conversations.firstOrNull()?.id
             if (next == null) {
-                if (isRoleplayMode()) newConversation() else showTransientNewConversation()
+                showTransientNewConversation()
             } else {
                 selectConversation(next)
             }
@@ -616,11 +596,7 @@ class ChatController(
 
     fun reloadConversations() {
         conversations.clear()
-        if (isRoleplayMode()) {
-            conversations.addAll(conversationStore.conversations(ConversationStore.MODE_ROLEPLAY, currentRoleplayId()))
-        } else {
-            conversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL))
-        }
+        conversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL))
         val active = activeConversationId.value
         if (active > 0 && conversations.none { it.id == active }) {
             val next = conversations.firstOrNull()?.id
@@ -713,35 +689,6 @@ class ChatController(
 
     private fun currentProfile(): ApiProfile {
         return profiles.firstOrNull { it.id == activeProfileId.value } ?: profiles.first()
-    }
-
-    fun isRoleplayMode(): Boolean = settings.immersiveRoleplayEnabled && settings.selectedRoleplayId.isNotBlank()
-
-    fun currentRoleplayId(): String = if (settings.immersiveRoleplayEnabled) settings.selectedRoleplayId else ""
-
-    fun switchConversationScope() {
-        reloadConversations()
-        val first = conversations.firstOrNull()
-        if (!isRoleplayMode()) {
-            showTransientNewConversation()
-        } else if (first == null) {
-            newConversation()
-        } else {
-            selectConversation(first.id)
-        }
-    }
-
-    fun clearCurrentRoleplayData() {
-        val roleplayId = currentRoleplayId().ifBlank { return }
-        clearRoleplayData(roleplayId)
-    }
-
-    fun clearRoleplayData(roleplayId: String) {
-        jobs.keys.toList().forEach { id -> jobs.remove(id)?.cancel() }
-        conversationStore.deleteConversationsForRoleplay(roleplayId)
-        settings.setRoleplayAffection(roleplayId, 50)
-        reloadConversations()
-        if (currentRoleplayId() == roleplayId) newConversation()
     }
 
     private fun reloadMessagesThrottled() {

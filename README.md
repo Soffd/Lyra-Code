@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-2.10.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-2.11.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
@@ -95,7 +95,7 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, file too
 
 ### Data and Backup
 
-- Export/import profile data, conversations, model providers, MCP, SSH, WebDAV, FTP/FTPS/SFTP, system prompts, Skills, and immersive roleplay scenarios.
+- Export/import profile data, conversations, model providers, MCP, SSH, WebDAV, FTP/FTPS/SFTP, system prompts, and Skills.
 - Local zip backup and WebDAV cloud backup, with supplement import mode and deduplication.
 - Safe export without API keys, or full migration export with secrets included.
 
@@ -105,12 +105,6 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, file too
 - Offline token estimation without a network dependency.
 - Daily, weekly, monthly, yearly, total, and historical date-range views.
 
-### Immersive Roleplay
-
-- Import character scenario packages and configure AI nickname, avatar, chat background, and sticker shortcodes.
-- Separate history between normal chat and immersive roleplay.
-- Affection state, sticker replacement, and character memory.
-- Chat-bubble UI optimized for roleplay sessions.
 
 ## Project Structure
 
