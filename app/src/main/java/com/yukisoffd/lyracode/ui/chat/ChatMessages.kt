@@ -251,13 +251,34 @@ internal fun ToolApprovalDialog(
             }
         },
         confirmButton = {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { onApprove(true) }) { Text(uiText("本会话无需确认")) }
-                Button(onClick = { onApprove(false) }) { Text(uiText("同意")) }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                TextButton(
+                    onClick = { onApprove(true) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(uiText("本会话无需确认"))
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedButton(
+                        onClick = { onReject(feedback) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(uiText("不同意"))
+                    }
+                    Button(
+                        onClick = { onApprove(false) },
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(uiText("同意"))
+                    }
+                }
             }
-        },
-        dismissButton = {
-            TextButton(onClick = { onReject(feedback) }) { Text(uiText("不同意")) }
         },
     )
 }

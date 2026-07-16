@@ -22,6 +22,7 @@ data class BackupOptions(
     val includeMcp: Boolean = true,
     val includeSsh: Boolean = true,
     val includePrompts: Boolean = true,
+    val includeMemories: Boolean = true,
     val includeSkills: Boolean = true,
     val includeWebDav: Boolean = true,
     val includeFileTransfer: Boolean = true,
@@ -51,6 +52,7 @@ class BackupManager(
                 remove("systemPromptConfigs")
                 remove("reasoningDepth")
             }
+            if (!options.includeMemories) remove("memories")
             if (!options.includeWebDav) remove("webDavServers")
             if (!options.includeFileTransfer) remove("fileTransferServers")
         }

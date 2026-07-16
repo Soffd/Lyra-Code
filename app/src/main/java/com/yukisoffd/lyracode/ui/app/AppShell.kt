@@ -58,6 +58,7 @@ import com.yukisoffd.lyracode.data.AppUpdateInfo
 import com.yukisoffd.lyracode.data.UpdateDownloadProgress
 import com.yukisoffd.lyracode.data.UpdateManager
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
+import com.yukisoffd.lyracode.filemanager.FileManagerScreen
 import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
 import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
@@ -76,11 +77,12 @@ import java.net.URL
 
 
 private const val PAGE_CHAT = 0
-private const val PAGE_LOG = 1
-private const val PAGE_STATS = 2
-private const val PAGE_TASKS = 3
-private const val PAGE_ARCHIVE = 4
-private const val PAGE_SETTINGS = 5
+private const val PAGE_FILES = 1
+private const val PAGE_LOG = 2
+private const val PAGE_STATS = 3
+private const val PAGE_TASKS = 4
+private const val PAGE_ARCHIVE = 5
+private const val PAGE_SETTINGS = 6
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -116,6 +118,7 @@ internal fun LyraCodeApp(
     val context = LocalContext.current
     val pages = listOf(
         context.getString(R.string.nav_tab_ai_chat),
+        context.getString(R.string.nav_tab_files),
         context.getString(R.string.nav_tab_log),
         context.getString(R.string.nav_tab_statistics),
         context.getString(R.string.nav_tab_tasks),
@@ -193,7 +196,7 @@ internal fun LyraCodeApp(
     BackHandler(enabled = safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null && !drawerState.isOpen) {
         settingsBackRequest++
     }
-    BackHandler(enabled = safeSelectedPage != PAGE_CHAT && !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) && !drawerState.isOpen) {
+    BackHandler(enabled = safeSelectedPage != PAGE_CHAT && safeSelectedPage != PAGE_FILES && !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) && !drawerState.isOpen) {
         selectedPage = PAGE_CHAT
     }
     BackHandler(enabled = drawerState.isOpen) {
@@ -281,6 +284,7 @@ internal fun LyraCodeApp(
 
     ModalNavigationDrawer(
         drawerState = drawerState,
+        gesturesEnabled = safeSelectedPage != PAGE_FILES,
         drawerContent = {
             ModalDrawerSheet(
                 modifier = Modifier.fillMaxWidth(0.86f),
@@ -318,7 +322,7 @@ internal fun LyraCodeApp(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                TopAppBar(
+                if (safeSelectedPage != PAGE_FILES) TopAppBar(
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                         titleContentColor = MaterialTheme.colorScheme.onBackground,
@@ -413,6 +417,12 @@ internal fun LyraCodeApp(
                 ) { page ->
                     when (page) {
                         PAGE_CHAT -> ChatScreen(controller, settings, termuxExecutor)
+                        PAGE_FILES -> FileManagerScreen(
+                            controller = controller,
+                            settings = settings,
+                            termuxExecutor = termuxExecutor,
+                            onExit = { selectedPage = PAGE_CHAT },
+                        )
                         PAGE_LOG -> LogScreen(auditLogStore)
                         PAGE_STATS -> UsageStatsScreen(controller)
                         PAGE_TASKS -> TaskScreen(settings, downloadTaskManager, scheduledTaskManager)

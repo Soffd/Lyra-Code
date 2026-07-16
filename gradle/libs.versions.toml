@@ -19,6 +19,8 @@ jlatexmath = "e758f14"
 jetbrainsMarkdown = "66a56dffca"
 shizuku = "13.1.5"
 work = "2.10.1"
+soraEditor = "0.24.4"
+desugar = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -45,6 +47,10 @@ jetbrains-markdown = { module = "com.github.rikkahub:markdown", version.ref = "j
 shizuku-api = { module = "dev.rikka.shizuku:api", version.ref = "shizuku" }
 shizuku-provider = { module = "dev.rikka.shizuku:provider", version.ref = "shizuku" }
 androidx-work-runtime-ktx = { module = "androidx.work:work-runtime-ktx", version.ref = "work" }
+sora-editor-bom = { module = "io.github.rosemoe:editor-bom", version.ref = "soraEditor" }
+sora-editor = { module = "io.github.rosemoe:editor" }
+sora-language-textmate = { module = "io.github.rosemoe:language-textmate" }
+desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

@@ -41,10 +41,18 @@ class NativeFileManager(
     }
 
     fun readFile(path: String): Result<String> = runCatching {
+        readText(path, MAX_READ_BYTES)
+    }
+
+    fun readFileForEdit(path: String): Result<String> = runCatching {
+        readText(path, MAX_EDIT_BYTES)
+    }
+
+    private fun readText(path: String, maxBytes: Long): String {
         val file = resolve(path) ?: throw FileNotFoundException("文件不存在: $path")
         require(file.isFile) { "不是文件: $path" }
-        require(file.length() <= MAX_READ_BYTES) { "文件超过 1MB，请改用 Termux 命令分块读取" }
-        context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
+        require(file.length() <= maxBytes) { "文件超过 ${maxBytes / 1024 / 1024}MB，无法安全编辑: $path" }
+        return context.contentResolver.openInputStream(file.uri)?.bufferedReader()?.use { it.readText() }
             ?: throw FileNotFoundException("无法读取: $path")
     }
 
@@ -57,6 +65,7 @@ class NativeFileManager(
     }
 
     fun writeFile(path: String, content: String): Result<String> = runCatching {
+        backupExistingTextFile(path)
         val file = findOrCreateFile(path)
         context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(content) }
             ?: throw FileNotFoundException("无法写入: $path")
@@ -78,6 +87,7 @@ class NativeFileManager(
     }
 
     fun appendFile(path: String, content: String): Result<String> = runCatching {
+        backupExistingTextFile(path)
         val file = findOrCreateFile(path)
         context.contentResolver.openOutputStream(file.uri, "wa")?.bufferedWriter()?.use { it.write(content) }
             ?: throw FileNotFoundException("无法追加: $path")
@@ -175,6 +185,17 @@ class NativeFileManager(
             return resolved
         }
         return created
+    }
+
+    private fun backupExistingTextFile(path: String) {
+        if (path.endsWith(".bak", ignoreCase = true)) return
+        val source = resolve(path)?.takeIf { it.isFile } ?: return
+        val backup = findOrCreateFile("${normalize(path)}.bak")
+        context.contentResolver.openInputStream(source.uri)?.buffered()?.use { input ->
+            context.contentResolver.openOutputStream(backup.uri, "wt")?.buffered()?.use { output ->
+                input.copyTo(output)
+            } ?: throw FileNotFoundException("无法写入备份: $path.bak")
+        } ?: throw FileNotFoundException("无法读取原文件以生成备份: $path")
     }
 
     private fun findOrCreateDirectory(path: String): DocumentFile {
@@ -389,6 +410,7 @@ class NativeFileManager(
     companion object {
         private const val TAG = "LyraSearch"
         private const val MAX_READ_BYTES = 1_048_576L
+        private const val MAX_EDIT_BYTES = 16L * 1024L * 1024L
         private const val MAX_BINARY_BYTES = 200L * 1024L * 1024L
         private const val SEARCH_LIMIT = 200
         private const val SEARCH_VISIT_LIMIT = 10_000

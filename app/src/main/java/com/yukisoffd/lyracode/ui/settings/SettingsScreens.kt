@@ -137,7 +137,7 @@ internal fun SettingsScreen(
     ) { target ->
         if (target != null) {
             SettingsDetailPage(
-                scroll = target !in setOf("prompts", "licenses", "about", "device", "font_library"),
+                scroll = target !in setOf("prompts", "memories", "licenses", "about", "device", "font_library"),
             ) {
                 when (target) {
                     "profile" -> ProfileSettingsSummary(settings)
@@ -222,6 +222,7 @@ internal fun SettingsScreen(
                     )
                     "storage" -> StorageCacheSettings()
                     "prompts" -> PromptSettingsScreen(settings)
+                    "memories" -> MemorySettingsScreen(settings)
                     "skills" -> SkillsScreen(
                         skills = skills,
                         status = skillStatus,
@@ -287,6 +288,8 @@ internal fun SettingsScreen(
                 ) { detail = "theme" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.EditNote, context.getString(R.string.menu_system_prompt), context.getString(R.string.menu_system_prompt_desc)) { detail = "prompts" }
+                KimiDivider()
+                KimiMenuRow(Icons.Default.Psychology, context.getString(R.string.menu_memory), context.getString(R.string.menu_memory_desc, settings.memories().count { it.enabled })) { detail = "memories" }
                 KimiDivider()
                 KimiMenuRow(Icons.Default.School, context.getString(R.string.menu_skills), context.getString(R.string.menu_skills_desc, skills.size)) { detail = "skills" }
             }
@@ -367,6 +370,7 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "mini_server_logs" -> context.getString(R.string.detail_mini_server_logs)
     "backup" -> context.getString(R.string.detail_backup)
     "prompts" -> context.getString(R.string.detail_prompts)
+    "memories" -> context.getString(R.string.detail_memories)
     "skills" -> context.getString(R.string.detail_skills)
     "licenses" -> context.getString(R.string.detail_licenses)
     "about" -> context.getString(R.string.detail_about)

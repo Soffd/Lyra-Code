@@ -23,18 +23,49 @@ internal class AgentToolSchemaFactory(
         .put(function("read_file", "读取工作目录内 1MB 以下文本文件。path 必须是相对路径，不要传 Termux 私有目录。", "path" to "string"))
         .put(
             functionWithOptional(
+                "read_file_lines",
+                "按行读取工作目录内最大 16MB 文本文件的局部内容，并返回真实行号。适合大文件定位后配合 edit_file 使用。",
+                required = listOf("path" to "string"),
+                optional = listOf("start_line" to "integer", "line_count" to "integer"),
+            ),
+        )
+        .put(
+            functionWithOptional(
                 "write_file",
-                "写入或覆盖工作目录内文本文件。path 必须是相对路径，例如 test.py。代码或缩进敏感内容优先用 content_lines，每个数组元素是一行，应用会用 \\n 原样拼接，避免多空格、缩进或空行被压缩。",
+                "创建或整体覆盖工作目录内文本文件。修改现有文件应优先使用 edit_file。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组，禁止把多个带引号的行拼成一个字符串。",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
+                propertyDescriptions = FILE_WRITE_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
+            ),
+        )
+        .put(
+            functionWithOptional(
+                "edit_file",
+                "精确修改工作目录内最大 16MB 的现有文本文件。调用前先读取相关上下文。两种模式二选一：提供唯一 old_content/old_content_lines 与 new_content/new_content_lines；或提供从 1 开始的 start_line/end_line 替换闭区间行。原文模式默认必须恰好匹配 1 处，匹配数量不符会拒绝写入，避免误改。",
+                required = listOf("path" to "string"),
+                optional = listOf(
+                    "old_content" to "string",
+                    "old_content_lines" to "array:string",
+                    "new_content" to "string",
+                    "new_content_lines" to "array:string",
+                    "start_line" to "integer",
+                    "end_line" to "integer",
+                    "expected_replacements" to "integer",
+                    "ensure_trailing_newline" to "boolean",
+                ),
+                propertyDescriptions = FILE_EDIT_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
             ),
         )
         .put(
             functionWithOptional(
                 "append_file",
-                "追加文本到工作目录内文件末尾。缩进敏感内容优先用 content_lines，每个数组元素是一行，应用会用 \\n 原样拼接。",
+                "追加文本到工作目录内文件末尾。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组，每个元素是一行。",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
+                propertyDescriptions = FILE_WRITE_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
             ),
         )
         .put(function("create_folder", "在工作目录内创建目录。path 必须是相对路径。", "path" to "string"))
@@ -44,18 +75,49 @@ internal class AgentToolSchemaFactory(
         .put(function("global_read_file", "读取 Android 共享存储内 1MB 以下文本文件。用于读取 Download 目录备份说明或非工作区文本文件。", "path" to "string"))
         .put(
             functionWithOptional(
+                "global_read_file_lines",
+                "按行读取 Android 共享存储内最大 16MB 文本文件的局部内容，并返回真实行号。适合大文件定位后配合 global_edit_file 使用。",
+                required = listOf("path" to "string"),
+                optional = listOf("start_line" to "integer", "line_count" to "integer"),
+            ),
+        )
+        .put(
+            functionWithOptional(
                 "global_write_file",
-                "写入或覆盖 Android 共享存储内文本文件。执行前会请求用户确认。缩进敏感内容优先用 content_lines。",
+                "创建或整体覆盖 Android 共享存储内文本文件，执行前会请求确认。修改现有文件应优先使用 global_edit_file。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组。",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
+                propertyDescriptions = GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
+            ),
+        )
+        .put(
+            functionWithOptional(
+                "global_edit_file",
+                "精确修改 Android 共享存储内最大 16MB 的现有文本文件，执行前会请求用户确认。支持唯一 old_content/new_content 替换，或使用从 1 开始的 start_line/end_line 替换闭区间行；匹配数量不符合 expected_replacements 时拒绝写入。",
+                required = listOf("path" to "string"),
+                optional = listOf(
+                    "old_content" to "string",
+                    "old_content_lines" to "array:string",
+                    "new_content" to "string",
+                    "new_content_lines" to "array:string",
+                    "start_line" to "integer",
+                    "end_line" to "integer",
+                    "expected_replacements" to "integer",
+                    "ensure_trailing_newline" to "boolean",
+                ),
+                propertyDescriptions = GLOBAL_FILE_EDIT_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
             ),
         )
         .put(
             functionWithOptional(
                 "global_append_file",
-                "追加文本到 Android 共享存储内文件末尾。执行前会请求用户确认。缩进敏感内容优先用 content_lines。",
+                "追加文本到 Android 共享存储内文件末尾，执行前会请求确认。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组。",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
+                propertyDescriptions = GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS,
+                disallowAdditionalProperties = true,
             ),
         )
         .put(function("global_create_folder", "在 Android 共享存储内创建目录。执行前会请求用户确认。", "path" to "string"))
@@ -144,6 +206,31 @@ internal class AgentToolSchemaFactory(
                 optional = listOf("conversation_id" to "string", "conversation_ids" to "array:string", "max_messages" to "integer"),
             ),
         )
+        .put(
+            functionWithOptional(
+                "read_memories",
+                "读取用户的跨对话个性化记忆及其 id。记忆已作为额外提示词自动提供；仅在需要查找 id、核对、修改或按关键词筛选时调用。默认只返回启用的记忆。",
+                required = emptyList(),
+                optional = listOf("query" to "string", "include_disabled" to "boolean"),
+            ),
+        )
+        .put(
+            functionWithOptional(
+                "save_memory",
+                "保存一条长期有用的用户个性化记忆。只保存用户明确表达或高度确定、未来跨对话仍有帮助的偏好、工作风格、沟通习惯等；不要保存密钥、密码、健康/政治等敏感推断、临时任务或一次性上下文。category 可用 preference、work_style、communication、personal、other。",
+                required = listOf("content" to "string"),
+                optional = listOf("category" to "string"),
+            ),
+        )
+        .put(
+            functionWithOptional(
+                "update_memory",
+                "修改已有记忆。先用 read_memories 获取 id；content、category、enabled 至少提供一个。可用于纠正过时偏好或临时停用记忆。",
+                required = listOf("id" to "string"),
+                optional = listOf("content" to "string", "category" to "string", "enabled" to "boolean"),
+            ),
+        )
+        .put(function("delete_memory", "删除一条不再适用或用户要求忘记的记忆。先用 read_memories 获取 id。", "id" to "string"))
         .put(function("search_files", "在工作目录内按文件名、扩展名或路径片段搜索文件。查找文件路径时必须优先使用此工具；query 填文件名或关键词，path 填 . 或相对子目录。", "query" to "string", "path" to "string"))
         .put(function("global_search_files", "在 Android 共享存储 /storage/emulated/0 下按文件名或路径片段全局搜索文件。仅当 search_files 返回 SEARCH_EMPTY 且用户需要查找工作区外文件时调用一次；不要用它替代工作区内搜索。返回绝对路径。", "query" to "string"))
         .put(function("get_file_info", "获取文件元数据", "path" to "string"))
@@ -296,6 +383,7 @@ internal class AgentToolSchemaFactory(
                     "include_mcp" to "boolean",
                     "include_ssh" to "boolean",
                     "include_prompts" to "boolean",
+                    "include_memories" to "boolean",
                     "include_skills" to "boolean",
                     "include_webdav" to "boolean",
                     "include_file_transfer" to "boolean",
@@ -526,6 +614,8 @@ internal class AgentToolSchemaFactory(
         description: String,
         required: List<Pair<String, String>>,
         optional: List<Pair<String, String>>,
+        propertyDescriptions: Map<String, String> = emptyMap(),
+        disallowAdditionalProperties: Boolean = false,
     ): JSONObject {
         val props = JSONObject()
         val requiredArray = JSONArray()
@@ -539,9 +629,15 @@ internal class AgentToolSchemaFactory(
                     .put("items", JSONObject().put("type", "object"))
                 else -> JSONObject().put("type", type)
             }
+            propertyDescriptions[key]?.let { schema.put("description", it) }
             props.put(key, schema)
         }
         required.forEach { (key, _) -> requiredArray.put(key) }
+        val parameters = JSONObject()
+            .put("type", "object")
+            .put("properties", props)
+            .put("required", requiredArray)
+        if (disallowAdditionalProperties) parameters.put("additionalProperties", false)
         return JSONObject()
             .put("type", "function")
             .put(
@@ -549,7 +645,7 @@ internal class AgentToolSchemaFactory(
                 JSONObject()
                     .put("name", name)
                     .put("description", description)
-                    .put("parameters", JSONObject().put("type", "object").put("properties", props).put("required", requiredArray)),
+                    .put("parameters", parameters),
             )
     }
 
@@ -564,5 +660,38 @@ internal class AgentToolSchemaFactory(
     private companion object {
         const val AGENT_TAG = "LyraAgent"
         val JSON_SCHEMA_TYPES = setOf("string", "number", "integer", "boolean", "object", "array")
+        const val CONTENT_TEXT_DESCRIPTION =
+            "完整文本字符串。与 content_lines 二选一；短内容优先使用此字段。允许空字符串表示创建空文件。"
+        const val CONTENT_LINES_DESCRIPTION =
+            "必须是实际 JSON 字符串数组，每个元素代表一行且不包含行尾换行。正确：[\"line 1\",\"line 2\",\"\"]；错误：\"\\\"line 1\\\", \\\"line 2\\\"\"。不要给整个数组再加一层引号。"
+        const val TRAILING_NEWLINE_DESCRIPTION =
+            "为 true 时在最终写入文本末尾补一个换行；默认 false。"
+        const val OLD_CONTENT_DESCRIPTION =
+            "要替换的原文字符串，必须与文件内容精确匹配。与 old_content_lines 二选一。"
+        const val OLD_CONTENT_LINES_DESCRIPTION =
+            "要替换的原文行数组。必须是实际 JSON 字符串数组，不得序列化成一个字符串。与 old_content 二选一。"
+        const val NEW_CONTENT_DESCRIPTION =
+            "替换后的文本字符串；空字符串表示删除匹配内容。与 new_content_lines 二选一。"
+        const val NEW_CONTENT_LINES_DESCRIPTION =
+            "替换后的行数组。必须是实际 JSON 字符串数组；空数组表示删除匹配内容。与 new_content 二选一。"
+        val FILE_WRITE_PROPERTY_DESCRIPTIONS = mapOf(
+            "path" to "工作目录内相对路径，例如 src/main.kt；禁止使用 Android 绝对路径。",
+            "content" to CONTENT_TEXT_DESCRIPTION,
+            "content_lines" to CONTENT_LINES_DESCRIPTION,
+            "ensure_trailing_newline" to TRAILING_NEWLINE_DESCRIPTION,
+        )
+        val GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS = FILE_WRITE_PROPERTY_DESCRIPTIONS +
+            ("path" to "Android 共享存储路径，例如 Download/file.txt 或 /storage/emulated/0/Download/file.txt。")
+        val FILE_EDIT_PROPERTY_DESCRIPTIONS = FILE_WRITE_PROPERTY_DESCRIPTIONS + mapOf(
+            "old_content" to OLD_CONTENT_DESCRIPTION,
+            "old_content_lines" to OLD_CONTENT_LINES_DESCRIPTION,
+            "new_content" to NEW_CONTENT_DESCRIPTION,
+            "new_content_lines" to NEW_CONTENT_LINES_DESCRIPTION,
+            "start_line" to "从 1 开始的起始行号；行范围模式必须提供。",
+            "end_line" to "从 1 开始且包含在替换范围内的结束行号；省略时等于 start_line。",
+            "expected_replacements" to "原文模式预期匹配次数，默认 1；实际数量不符时拒绝写入。",
+        )
+        val GLOBAL_FILE_EDIT_PROPERTY_DESCRIPTIONS = FILE_EDIT_PROPERTY_DESCRIPTIONS +
+            ("path" to "Android 共享存储路径，例如 Download/file.txt 或 /storage/emulated/0/Download/file.txt。")
     }}
 

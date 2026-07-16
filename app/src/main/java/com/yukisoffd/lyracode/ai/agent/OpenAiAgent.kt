@@ -19,6 +19,7 @@ import com.yukisoffd.lyracode.data.DeepSeekV3Tokenizer
 import com.yukisoffd.lyracode.data.FileTransferServerConfig
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
+import com.yukisoffd.lyracode.data.MemoryEntry
 import com.yukisoffd.lyracode.data.MiniServerConfig
 import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.data.SubAgentConfig
@@ -44,6 +45,7 @@ import com.yukisoffd.lyracode.workspace.WorkspaceFile
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -162,6 +164,9 @@ class OpenAiAgent(
     var todoSetHandler: suspend (Long, List<TodoItem>) -> String = { _, _ -> "TODO 列表已记录" }
     var todoUpdateHandler: suspend (Long, String, String, String) -> String = { _, _, _, _ -> "TODO 状态已更新" }
     var configChangedHandler: suspend () -> Unit = {}
+    var fileEditHandler: suspend (AgentFileMutation) -> AgentFileEditResult = { AgentFileEditResult.NotHandled }
+    var fileMutationHandler: suspend (AgentFileMutation) -> Unit = {}
+    var fileActivityHandler: suspend (AgentFileActivity?) -> Unit = {}
 
     fun localMcpToolDefinitions(): JSONArray = toolDefinitions()
 
@@ -700,6 +705,7 @@ class OpenAiAgent(
         val messages = JSONArray()
             .put(staticSystemMessage())
             .put(activeSystemPromptMessage())
+            .put(memorySystemMessage())
             .put(activeSkillsMessage(conversationId))
             .put(sessionContextMessage())
         val history = openAiHistoryGroups(conversationId, excludeMessageId)
@@ -713,6 +719,7 @@ class OpenAiAgent(
         return listOf(
             staticSystemMessage(),
             activeSystemPromptMessage(),
+            memorySystemMessage(),
             activeSkillsMessage(conversationId),
             sessionContextMessage(),
         ).joinToString("\n\n") { it.optString("content") }
@@ -1089,6 +1096,7 @@ class OpenAiAgent(
             "lyra_code_cache_v2",
             model.trim().lowercase(Locale.US),
             settings.activeSystemPromptText().trim(),
+            settings.memoryPrompt(),
             settings.activeSkillsPrompt(forcedSkillIdsFor(conversationId)).trim(),
             workspaceManager.termuxRootPath().orEmpty(),
             workspaceManager.displayName(),
@@ -1184,17 +1192,21 @@ class OpenAiAgent(
             when (call.name) {
                 "list_directory" -> nativeFileManager.listDirectory(args.optString("path"))
                     .fold({ ToolExecution(it.toAgentText()) }, { throw it })
-                "read_file" -> ToolExecution(nativeFileManager.readFile(args.getString("path")).getOrThrow())
+                "read_file" -> readFileWithActivity(args.getString("path"), globalStorage = false)
+                "read_file_lines" -> ToolExecution(readFileLines(args, globalStorage = false))
                 "write_file" -> writeFileWithDiff(args.getString("path"), args.toolTextArgument("content"))
+                "edit_file" -> editFileWithDiff(args, globalStorage = false)
                 "append_file" -> appendFileWithDiff(args.getString("path"), args.toolTextArgument("content"))
                 "create_folder" -> ToolExecution(nativeFileManager.createFolder(args.getString("path")).getOrThrow())
                 "delete_file_or_folder" -> deleteWithDiff(args.getString("path"))
                 "rename_move" -> renameMoveWithDiff(args.getString("from"), args.getString("to"))
                 "global_list_directory" -> globalFileManager.listDirectory(args.optString("path"))
                     .fold({ ToolExecution(it.toAgentText()) }, { throw it })
-                "global_read_file" -> ToolExecution(globalFileManager.readFile(args.getString("path")).getOrThrow())
-                "global_write_file" -> ToolExecution(globalFileManager.writeFile(args.getString("path"), args.toolTextArgument("content")).getOrThrow())
-                "global_append_file" -> ToolExecution(globalFileManager.appendFile(args.getString("path"), args.toolTextArgument("content")).getOrThrow())
+                "global_read_file" -> readFileWithActivity(args.getString("path"), globalStorage = true)
+                "global_read_file_lines" -> ToolExecution(readFileLines(args, globalStorage = true))
+                "global_write_file" -> globalWriteFileWithDiff(args.getString("path"), args.toolTextArgument("content"))
+                "global_edit_file" -> editFileWithDiff(args, globalStorage = true)
+                "global_append_file" -> globalAppendFileWithDiff(args.getString("path"), args.toolTextArgument("content"))
                 "global_create_folder" -> ToolExecution(globalFileManager.createFolder(args.getString("path")).getOrThrow())
                 "global_delete_file_or_folder" -> ToolExecution(globalFileManager.delete(args.getString("path")).getOrThrow())
                 "global_rename_move" -> ToolExecution(globalFileManager.renameMove(args.getString("from"), args.getString("to")).getOrThrow())
@@ -1202,6 +1214,10 @@ class OpenAiAgent(
                 "manage_scheduled_tasks" -> ToolExecution(manageScheduledTasks(args))
                 "search_conversation_history" -> ToolExecution(searchConversationHistory(args))
                 "read_conversation_history" -> ToolExecution(readConversationHistory(args))
+                "read_memories" -> ToolExecution(readMemories(args))
+                "save_memory" -> ToolExecution(saveMemory(args))
+                "update_memory" -> ToolExecution(updateMemory(args))
+                "delete_memory" -> ToolExecution(deleteMemory(args))
                 "search_files" -> {
                     val query = args.getString("query")
                     val path = args.optString("path")
@@ -1407,7 +1423,21 @@ class OpenAiAgent(
                 output
             },
             onFailure = {
-                val output = ToolExecution("ERROR: ${it.message}\narguments: ${call.rawArguments}").toToolOutputJson(call.name, ok = false)
+                val correctionHint = if (call.name in FILE_TEXT_ARGUMENT_TOOLS) {
+                    """
+
+                    请修正参数后重试。content_lines、old_content_lines、new_content_lines 必须是实际 JSON 字符串数组。
+                    正确：{"content_lines":["first line","second line",""]}
+                    错误：{"content_lines":"\"first line\", \"second line\", \"\""}
+                    content 与 content_lines 二选一；不要把数组整体序列化成字符串。修改现有文件优先使用 edit_file/global_edit_file。
+                    """.trimIndent()
+                } else {
+                    ""
+                }
+                val output = ToolExecution(
+                    "ERROR: ${it.message}\narguments: ${call.rawArguments}" +
+                        correctionHint.takeIf { hint -> hint.isNotBlank() }?.let { hint -> "\n$hint" }.orEmpty(),
+                ).toToolOutputJson(call.name, ok = false)
                 Log.w(
                     AGENT_TAG,
                     "tool_end conversation=$conversationId name=${call.name} ok=false durationMs=${System.currentTimeMillis() - startedAt} error=${it.message}",
@@ -2402,6 +2432,7 @@ class OpenAiAgent(
         includeMcp = args.optBoolean("include_mcp", true),
         includeSsh = args.optBoolean("include_ssh", true),
         includePrompts = args.optBoolean("include_prompts", true),
+        includeMemories = args.optBoolean("include_memories", true),
         includeSkills = args.optBoolean("include_skills", true),
         includeWebDav = args.optBoolean("include_webdav", true),
         includeFileTransfer = args.optBoolean("include_file_transfer", true),
@@ -2637,6 +2668,69 @@ class OpenAiAgent(
         }
     }
 
+    private fun readMemories(args: JSONObject): String {
+        val query = args.optString("query").trim()
+        val includeDisabled = args.optBoolean("include_disabled", false)
+        val entries = settings.memories().filter { memory ->
+            (includeDisabled || memory.enabled) &&
+                (query.isBlank() ||
+                    memory.content.contains(query, ignoreCase = true) ||
+                    memory.category.contains(query, ignoreCase = true))
+        }
+        return JSONObject()
+            .put("schema", "lyra_user_memories_v1")
+            .put("count", entries.size)
+            .put("memories", JSONArray().also { array -> entries.forEach { array.put(memoryJson(it)) } })
+            .toString()
+    }
+
+    private fun saveMemory(args: JSONObject): String {
+        val memory = settings.createMemory(
+            content = args.getString("content"),
+            category = args.optString("category", MemoryEntry.CATEGORY_OTHER),
+        )
+        return JSONObject()
+            .put("schema", "lyra_user_memory_change_v1")
+            .put("action", "saved")
+            .put("memory", memoryJson(memory))
+            .toString()
+    }
+
+    private fun updateMemory(args: JSONObject): String {
+        require(args.has("content") || args.has("category") || args.has("enabled")) {
+            "update_memory 至少需要 content、category 或 enabled 之一"
+        }
+        val memory = settings.updateMemory(
+            id = args.getString("id"),
+            content = args.optString("content").takeIf { args.has("content") },
+            category = args.optString("category").takeIf { args.has("category") },
+            enabled = args.optBoolean("enabled").takeIf { args.has("enabled") },
+        )
+        return JSONObject()
+            .put("schema", "lyra_user_memory_change_v1")
+            .put("action", "updated")
+            .put("memory", memoryJson(memory))
+            .toString()
+    }
+
+    private fun deleteMemory(args: JSONObject): String {
+        val id = args.getString("id")
+        require(settings.deleteMemory(id)) { "记忆不存在: $id" }
+        return JSONObject()
+            .put("schema", "lyra_user_memory_change_v1")
+            .put("action", "deleted")
+            .put("id", id)
+            .toString()
+    }
+
+    private fun memoryJson(memory: MemoryEntry): JSONObject = JSONObject()
+        .put("id", memory.id)
+        .put("content", memory.content)
+        .put("category", memory.category)
+        .put("enabled", memory.enabled)
+        .put("created_at", memory.createdAt)
+        .put("updated_at", memory.updatedAt)
+
     private fun searchConversationHistory(args: JSONObject): String {
         val query = args.optString("query").trim()
         val start = args.optString("start_time").takeIf { it.isNotBlank() }?.let(::parseAgentTime) ?: Long.MIN_VALUE
@@ -2771,11 +2865,11 @@ class OpenAiAgent(
     private fun approvalFor(conversationId: Long, call: ToolCall): ToolApprovalRequest? {
         val args = call.arguments
         return when (call.name) {
-            "write_file" -> ToolApprovalRequest(
+            "write_file", "edit_file" -> ToolApprovalRequest(
                 conversationId,
                 call.name,
                 call.rawArguments,
-                "写入或覆盖文件: ${args.optString("path")}",
+                if (call.name == "edit_file") "精确修改文件: ${args.optString("path")}" else "写入或覆盖文件: ${args.optString("path")}",
                 "会修改工作区文件内容。",
             )
             "append_file" -> ToolApprovalRequest(
@@ -2806,11 +2900,11 @@ class OpenAiAgent(
                 "重命名或移动: ${args.optString("from")} -> ${args.optString("to")}",
                 "会改变工作区文件路径。",
             )
-            "global_write_file" -> ToolApprovalRequest(
+            "global_write_file", "global_edit_file" -> ToolApprovalRequest(
                 conversationId,
                 call.name,
                 call.rawArguments,
-                "写入共享存储文件: ${args.optString("path")}",
+                if (call.name == "global_edit_file") "精确修改共享存储文件: ${args.optString("path")}" else "写入共享存储文件: ${args.optString("path")}",
                 "会修改工作区外的 Android 共享存储文件。",
             )
             "global_append_file" -> ToolApprovalRequest(
@@ -2986,18 +3080,177 @@ class OpenAiAgent(
         }
     }
 
-    private fun writeFileWithDiff(path: String, content: String): ToolExecution {
-        val before = nativeFileManager.readFile(path).getOrNull().orEmpty()
-        val message = nativeFileManager.writeFile(path, content).getOrThrow()
-        val after = nativeFileManager.readFile(path).getOrNull().orEmpty()
-        return appendDiff(message, path, before, after)
+    private suspend fun writeFileWithDiff(path: String, content: String): ToolExecution {
+        val before = nativeFileManager.readFileForEdit(path).getOrNull().orEmpty()
+        return withFileActivity(path, globalStorage = false, operation = "write", content = before) {
+            val editorApplied = applyFileChangeInEditor(path, before, content, globalStorage = false)
+            val message = nativeFileManager.writeFile(path, content).getOrThrow()
+            val after = nativeFileManager.readFileForEdit(path).getOrNull().orEmpty()
+            fileMutationHandler(
+                AgentFileMutation(path, after, globalStorage = false, beforeContent = before, editorApplied = editorApplied),
+            )
+            appendDiff(message, path, before, after)
+        }
     }
 
-    private fun appendFileWithDiff(path: String, content: String): ToolExecution {
-        val before = nativeFileManager.readFile(path).getOrNull().orEmpty()
-        val message = nativeFileManager.appendFile(path, content).getOrThrow()
-        val after = nativeFileManager.readFile(path).getOrNull().orEmpty()
-        return appendDiff(message, path, before, after)
+    private suspend fun appendFileWithDiff(path: String, content: String): ToolExecution {
+        val before = nativeFileManager.readFileForEdit(path).getOrNull().orEmpty()
+        return withFileActivity(path, globalStorage = false, operation = "append", content = before) {
+            val expectedAfter = before + content
+            val editorApplied = applyFileChangeInEditor(path, before, expectedAfter, globalStorage = false)
+            val message = nativeFileManager.appendFile(path, content).getOrThrow()
+            val after = nativeFileManager.readFileForEdit(path).getOrNull().orEmpty()
+            fileMutationHandler(
+                AgentFileMutation(path, after, globalStorage = false, beforeContent = before, editorApplied = editorApplied),
+            )
+            appendDiff(message, path, before, after)
+        }
+    }
+
+    private suspend fun globalWriteFileWithDiff(path: String, content: String): ToolExecution {
+        val before = globalFileManager.readFileForEdit(path).getOrNull().orEmpty()
+        return withFileActivity(path, globalStorage = true, operation = "write", content = before) {
+            val editorApplied = applyFileChangeInEditor(path, before, content, globalStorage = true)
+            val message = globalFileManager.writeFile(path, content).getOrThrow()
+            val after = globalFileManager.readFileForEdit(path).getOrNull().orEmpty()
+            fileMutationHandler(
+                AgentFileMutation(path, after, globalStorage = true, beforeContent = before, editorApplied = editorApplied),
+            )
+            appendDiff(message, path, before, after)
+        }
+    }
+
+    private suspend fun globalAppendFileWithDiff(path: String, content: String): ToolExecution {
+        val before = globalFileManager.readFileForEdit(path).getOrNull().orEmpty()
+        return withFileActivity(path, globalStorage = true, operation = "append", content = before) {
+            val expectedAfter = before + content
+            val editorApplied = applyFileChangeInEditor(path, before, expectedAfter, globalStorage = true)
+            val message = globalFileManager.appendFile(path, content).getOrThrow()
+            val after = globalFileManager.readFileForEdit(path).getOrNull().orEmpty()
+            fileMutationHandler(
+                AgentFileMutation(path, after, globalStorage = true, beforeContent = before, editorApplied = editorApplied),
+            )
+            appendDiff(message, path, before, after)
+        }
+    }
+
+    private suspend fun editFileWithDiff(args: JSONObject, globalStorage: Boolean): ToolExecution {
+        val path = args.getString("path")
+        val before = if (globalStorage) {
+            globalFileManager.readFileForEdit(path).getOrThrow()
+        } else {
+            nativeFileManager.readFileForEdit(path).getOrThrow()
+        }
+        return withFileActivity(path, globalStorage, operation = "edit", content = before) {
+            val usesLineRange = args.has("start_line") || args.has("end_line")
+            val usesExactMatch = args.has("old_content") || args.has("old_content_lines")
+            require(usesLineRange.xor(usesExactMatch)) {
+                "必须且只能选择一种编辑模式：start_line/end_line，或 old_content/old_content_lines。"
+            }
+            val newContent = args.toolTextArgument("new_content")
+            val after = if (usesLineRange) {
+                val startLine = args.getInt("start_line")
+                applyLineRangeReplacement(
+                    source = before,
+                    startLine = startLine,
+                    endLine = args.optInt("end_line", startLine),
+                    newContent = newContent,
+                )
+            } else {
+                applyExactTextReplacement(
+                    source = before,
+                    oldContent = args.toolTextArgument("old_content"),
+                    newContent = newContent,
+                    expectedReplacements = args.optInt("expected_replacements", 1),
+                )
+            }
+            require(after != before) { "编辑结果与原文件相同，未执行写入。" }
+            val editorApplied = applyFileChangeInEditor(path, before, after, globalStorage)
+            val message = if (globalStorage) {
+                globalFileManager.writeFile(path, after).getOrThrow()
+            } else {
+                nativeFileManager.writeFile(path, after).getOrThrow()
+            }
+            fileMutationHandler(
+                AgentFileMutation(path, after, globalStorage, beforeContent = before, editorApplied = editorApplied),
+            )
+            appendDiff(message, path, before, after)
+        }
+    }
+
+    private suspend fun applyFileChangeInEditor(
+        path: String,
+        before: String,
+        after: String,
+        globalStorage: Boolean,
+    ): Boolean {
+        val result = fileEditHandler(
+            AgentFileMutation(
+                path = path,
+                content = after,
+                globalStorage = globalStorage,
+                beforeContent = before,
+            ),
+        )
+        if (result.handled && !result.applied) {
+            error(result.message.ifBlank { "文件编辑器未能应用 AI 修改，已取消磁盘写入。" })
+        }
+        return result.applied
+    }
+
+    private suspend fun readFileWithActivity(path: String, globalStorage: Boolean): ToolExecution {
+        val content = if (globalStorage) {
+            globalFileManager.readFile(path).getOrThrow()
+        } else {
+            nativeFileManager.readFile(path).getOrThrow()
+        }
+        return withFileActivity(path, globalStorage, operation = "read", content = content) {
+            ToolExecution(content)
+        }
+    }
+
+    private suspend fun readFileLines(args: JSONObject, globalStorage: Boolean): String {
+        val path = args.getString("path")
+        val startLine = args.optInt("start_line", 1).coerceAtLeast(1)
+        val lineCount = args.optInt("line_count", 200).coerceIn(1, 1_000)
+        val content = if (globalStorage) {
+            globalFileManager.readFileForEdit(path).getOrThrow()
+        } else {
+            nativeFileManager.readFileForEdit(path).getOrThrow()
+        }
+        val lines = content.replace("\r\n", "\n").replace('\r', '\n').split('\n')
+        return withFileActivity(path, globalStorage, operation = "read", content = content) {
+            if (startLine > lines.size) {
+                return@withFileActivity "FILE_LINES path=$path total_lines=${lines.size}\n请求起始行 $startLine 超出文件范围。"
+            }
+            val endExclusive = (startLine - 1 + lineCount).coerceAtMost(lines.size)
+            val body = buildString {
+                for (index in startLine - 1 until endExclusive) {
+                    append(index + 1).append("| ").append(lines[index]).append('\n')
+                    if (length >= 240_000) {
+                        append("...输出达到 240000 字符限制，请缩小 line_count。\n")
+                        break
+                    }
+                }
+            }
+            "FILE_LINES path=$path range=$startLine-$endExclusive total_lines=${lines.size}\n$body"
+        }
+    }
+
+    private suspend fun <T> withFileActivity(
+        path: String,
+        globalStorage: Boolean,
+        operation: String,
+        content: String?,
+        block: suspend () -> T,
+    ): T {
+        fileActivityHandler(AgentFileActivity(path, globalStorage, operation, content))
+        return try {
+            delay(90L)
+            block()
+        } finally {
+            fileActivityHandler(null)
+        }
     }
 
     private fun deleteWithDiff(path: String): ToolExecution {
@@ -3067,26 +3320,6 @@ class OpenAiAgent(
 
     private fun shellSingleQuote(value: String): String {
         return "'${value.replace("'", "'\"'\"'")}'"
-    }
-
-    private fun JSONObject.toolTextArgument(name: String): String {
-        val exact = stringFieldOrNull(name)
-        if (exact != null) return exact
-        val lines = optJSONArray("${name}_lines")
-        if (lines != null) {
-            val content = buildString {
-                for (index in 0 until lines.length()) {
-                    if (index > 0) append('\n')
-                    append(lines.optString(index))
-                }
-            }
-            return if (optBoolean("ensure_trailing_newline", false) && !content.endsWith('\n')) {
-                "$content\n"
-            } else {
-                content
-            }
-        }
-        return ""
     }
 
     private fun JSONObject.toolCommandArgument(): String {
@@ -3336,6 +3569,7 @@ class OpenAiAgent(
             .put("workspace_display_name", workspaceManager.displayName())
             .put("path_rule", "原生文件工具必须使用工作目录内相对路径；根目录用 . 或空字符串。")
             .put("global_file_rule", "需要访问非工作区共享存储文件时使用 global_* 文件工具；Download/Downloads 表示 /storage/emulated/0/Download。写入、删除、移动会请求用户确认。")
+            .put("file_edit_rule", "修改现有文件时先读取相关上下文；大文件用 read_file_lines/global_read_file_lines 分段读取，再优先用 edit_file/global_edit_file 精确替换。write_file/global_write_file 仅用于新建文件或确实需要整体覆盖。")
             .put("termux_rule", "run_command 默认在工作目录运行；不要传 Termux 私有目录；不要运行不会退出的长期驻留命令。")
             .put("tool_output_rule", "工具输出为 lyra_tool_output_v2 JSON；动态结果位于对话末尾。")
             .put("sub_agent_orchestration_enabled", settings.subAgentOrchestrationEnabled)
@@ -3353,6 +3587,13 @@ class OpenAiAgent(
         .put(
             "content",
             "LYRA_USER_SELECTED_SYSTEM_PROMPT_V1\n${settings.activeSystemPromptText()}",
+        )
+
+    private fun memorySystemMessage(): JSONObject = JSONObject()
+        .put("role", "system")
+        .put(
+            "content",
+            "LYRA_USER_MEMORY_V1\n${settings.memoryPrompt()}",
         )
 
     private fun forcedSkillIdsFor(conversationId: Long): List<String> = forcedSkillsByConversation[conversationId].orEmpty()
@@ -3438,7 +3679,8 @@ class OpenAiAgent(
             global_search_files 返回的是共享存储绝对路径，不能直接交给原生 read_file；需要读取时让用户切换工作区到对应目录，或使用 run_command 执行只读 cat/head/tail。
             原生文件工具的 path 参数必须使用工作目录内的相对路径；根目录用 "." 或空字符串。
             不要把 /data/data/com.termux/files/home、/data/data/com.termux、/data/data/... 传给文件工具。
-            写入代码、配置、Markdown、YAML、Python 或任何缩进敏感内容时，write_file/append_file 优先使用 content_lines 数组逐行传递；不要依赖普通自然语言格式保留多空格。
+            修改现有文件时，必须先读取相关上下文。文件较大或只需查看局部内容时优先调用 read_file_lines/global_read_file_lines；工具列表提供 edit_file/global_edit_file 时，优先用唯一 old_content 或精确 start_line/end_line 做局部修改。只有新建文件或确实需要整体重写时才使用 write_file/global_write_file。
+            写入代码、配置、Markdown、YAML、Python 或任何缩进敏感内容时，write_file/edit_file/append_file 及其 global_* 版本可以使用对应的 *_lines 数组逐行传递。所有 *_lines 字段必须是实际 JSON 字符串数组，例如 {"content_lines":["line 1","line 2",""]}；严禁写成 {"content_lines":"\"line 1\", \"line 2\", \"\""}，也不要给整个数组再加一层引号。content 与 content_lines 二选一；old_content 与 old_content_lines 二选一；new_content 与 new_content_lines 二选一。局部替换若匹配数量不符或工具提示参数类型错误，应根据错误信息修正 JSON 参数并重试，不要退回盲目全文件覆盖。
             如果需要运行脚本，应先用 write_file 写到工作目录相对路径，再用 run_command 在默认工作目录运行。
             运行多行脚本、here-doc 或缩进敏感命令时，run_command 优先使用 command_lines 数组逐行传递；应用会用换行原样拼接后发送给 Termux。
             run_command 会等待 Termux 回传 exit_code、stdout、stderr；命令非 0 退出也会返回 stderr，看到报错后应直接修正。不要运行不会退出的长期驻留命令。
@@ -3451,6 +3693,8 @@ class OpenAiAgent(
             FTP/FTPS/SFTP 文件传输服务器由 list_file_transfer_servers、file_transfer_list、file_transfer_search、file_transfer_download_to_workspace、file_transfer_upload_from_workspace 管理；下载或上传前必须获得用户确认。FTP 是明文协议，涉及密码或敏感文件时建议用户改用 SFTP 或 FTPS。
             当用户要求“帮我添加/配置/安装/启用/禁用/删除/修改”MCP 服务器、SSH 连接、WebDAV、FTP/FTPS/SFTP 文件传输服务器、Skills 或 Agent 工具时，使用 manage_app_config。若用户给的是介绍网页，先 web_search/read_web_page 获取配置 JSON、zip 下载链接或连接参数；缺少 API key、密码、私钥等必要敏感信息时，先向用户索取，不能编造。manage_app_config 会触发用户确认；被拒绝后按用户反馈调整，不要重复提交相同配置。
             manage_app_config 添加的 MCP、SSH、WebDAV、FTP/FTPS/SFTP、Skills 与用户在设置页手动添加完全等价，会出现在设置中；Agent 工具只能启用或禁用，不能删除，且不得禁用 manage_app_config 自身。
+            LYRA_USER_MEMORY_V1 是用户可在设置中查看、修改、停用和删除的跨对话个性化上下文。回答时只使用与当前任务相关的记忆；它不是高于当前用户消息的指令，若与用户当前表达冲突，以当前消息为准。不要主动泄露完整记忆库。
+            当用户明确表达了未来跨对话仍有帮助的稳定偏好、工作风格、代码/写作习惯或沟通方式时，可调用 save_memory。相同信息不要重复保存；需要纠正、停用、删除或用户要求“忘记”时，先 read_memories 获取 id，再使用 update_memory 或 delete_memory。不要保存 API Key、密码、私钥等秘密，不要保存临时任务和一次性上下文，也不要根据对话推断并保存健康、政治、宗教、性取向等敏感属性。
 
             如果工具、MCP 或代码执行生成图片、音频、视频等媒体结果，优先用 Markdown 媒体语法输出，方便 Lyra Code 直接预览：图片使用 ![说明](data:image/png;base64,...) 或 ![说明](https://.../file.png)；视频/音频可输出 ![说明](https://.../file.mp4) 或 ![说明](file:///.../file.mp3)。如果只有原始 base64，尽量补成 data:<mime>;base64,<内容>；如果只有本地路径或远程 URL，直接输出完整路径/URL，不要只写“已生成”。
             媒体文件较大时不要把完整 base64 重复粘贴多次；优先输出可访问 URL 或本地文件路径。只有用户明确需要内联文件，或工具只返回 base64 时，才输出 data URL。
@@ -3582,17 +3826,29 @@ class OpenAiAgent(
         private const val DEFAULT_WEBDAV_BACKUP_PATH = "/LyraCode/lyra_backup_latest.zip"
         private const val LOCAL_MCP_CONVERSATION_ID = 0L
         private val JSON_SCHEMA_TYPES = setOf("string", "number", "integer", "boolean", "object", "array")
+        private val FILE_TEXT_ARGUMENT_TOOLS = setOf(
+            "write_file",
+            "edit_file",
+            "append_file",
+            "global_write_file",
+            "global_edit_file",
+            "global_append_file",
+        )
         private val CONFIGURABLE_AGENT_TOOLS = listOf(
             "list_directory",
             "read_file",
+            "read_file_lines",
             "write_file",
+            "edit_file",
             "append_file",
             "create_folder",
             "delete_file_or_folder",
             "rename_move",
             "global_list_directory",
             "global_read_file",
+            "global_read_file_lines",
             "global_write_file",
+            "global_edit_file",
             "global_append_file",
             "global_create_folder",
             "global_delete_file_or_folder",
@@ -3604,6 +3860,10 @@ class OpenAiAgent(
             "manage_mini_server",
             "search_conversation_history",
             "read_conversation_history",
+            "read_memories",
+            "save_memory",
+            "update_memory",
+            "delete_memory",
             "search_files",
             "global_search_files",
             "get_file_info",

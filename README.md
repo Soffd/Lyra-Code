@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-2.11.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
@@ -23,7 +23,7 @@
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
 
-Lyra Code is an Android-first local AI Agent app. It brings model chat, file tools, native downloads, command execution, web search, MCP client/server support, SSH, WebDAV, FTP/FTPS/SFTP, a built-in mini server, backups, Skills, device diagnostics, and usage statistics into a mobile workflow.
+Lyra Code is an Android-first local AI Agent app. It brings model chat, an independent dual-pane file manager and code editor, native downloads, command execution, web search, MCP client/server support, SSH, WebDAV, FTP/FTPS/SFTP, a built-in mini server, backups, Skills, device diagnostics, and usage statistics into a mobile workflow.
 
 ## Screenshots
 
@@ -48,6 +48,15 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, file too
 - TODO planning, process records, file-change review, and diff visualization.
 - Web search, web page reading, source annotation, and a configurable domain blacklist to avoid unwanted, spammy, or low-quality sources.
 - Time/location awareness, configuration management, background tasks, and scheduled tasks.
+
+### File Manager and Code Editor
+
+- Independent dual-pane file manager rooted at `/storage/emulated/0`, with separately navigable panes designed for copying and moving files between directories.
+- Active-pane highlighting, per-directory scroll restoration, animated navigation, swipe multi-selection, and confirmed batch copy, move, and delete operations.
+- Create, rename, inspect, copy, move, delete, and extract files or folders; long-press `.html` and `.htm` files to preview them directly in an installed browser.
+- Sora Editor with line numbers, TextMate syntax highlighting, in-file search, line navigation, word wrapping, and horizontal scrolling in no-wrap mode.
+- UTF-8 decoding warnings, unsaved-change prompts, and automatic same-directory `.bak` backups before modified files are overwritten.
+- Swipe open an editor-specific AI panel that receives the current file path silently, supports project workspaces, keeps approvals/tool output visible, and visually replays AI edits in the open document.
 
 ### Device and System
 
@@ -111,6 +120,7 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, file too
 ```text
 app/                         Android application module
 app/src/main/java/...        Kotlin / Jetpack Compose source code
+app/src/main/assets/textmate/ TextMate grammars, language configurations, and themes
 third_party/jlatexmath/      JLaTeXMath Android fork for LaTeX rendering
 example-img/                 README screenshots
 gradle/                      Gradle Wrapper configuration
@@ -119,7 +129,7 @@ gradle/                      Gradle Wrapper configuration
 ## Build Requirements
 
 - Android Studio or command-line Android SDK
-- JDK 11+
+- JDK 17
 - Android SDK 36
 - Gradle Wrapper
 
@@ -154,6 +164,7 @@ Lyra Code may handle API keys, SSH passwords/private keys, MCP tokens, WebDAV/FT
 - HTTP API, MCP, WebDAV, FTP, and mini server endpoints are insecure unless protected by HTTPS/TLS or a trusted network.
 - Exposing the mini server to LAN, tunneling, or public networks may leak local files if the served directory, authentication, or HTTPS configuration is wrong. Review the workspace and password before enabling external access.
 - Review tool calls before allowing AI to execute commands, edit files, upload/download files, or operate remote servers.
+- The file manager requires Android's all-files access. Review selected paths carefully before confirming batch operations, and only preview trusted local HTML because browser scripts can execute with the browser's permissions.
 - `run_command` no longer uses a fixed command allowlist, but it still blocks obvious high-risk operations such as `rm -rf /`, writes to `/dev/block`, and filesystem formatting commands. Review commands before approving them.
 - The web search blacklist is stored locally. Plain domains are exact matches: `x.com` blocks only `x.com`, while `www.x.com` must be added separately. Use wildcard rules such as `*.x.com` to block subdomains; add both `x.com` and `*.x.com` when you want to block the root domain and all subdomains.
 - Backup files containing secrets must be stored carefully and must not be shared publicly.

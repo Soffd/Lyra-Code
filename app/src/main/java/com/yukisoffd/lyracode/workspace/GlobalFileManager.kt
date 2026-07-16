@@ -23,10 +23,18 @@ class GlobalFileManager {
     }
 
     fun readFile(path: String): Result<String> = runCatching {
+        readText(path, MAX_READ_BYTES)
+    }
+
+    fun readFileForEdit(path: String): Result<String> = runCatching {
+        readText(path, MAX_EDIT_BYTES)
+    }
+
+    private fun readText(path: String, maxBytes: Long): String {
         val file = resolve(path)
         require(file.isFile) { "不是文件: $path" }
-        require(file.length() <= MAX_READ_BYTES) { "文件超过 1MB，请先复制小片段或使用其他方式分块读取: $path" }
-        file.readText()
+        require(file.length() <= maxBytes) { "文件超过 ${maxBytes / 1024 / 1024}MB，无法安全编辑: $path" }
+        return file.readText()
     }
 
     fun readBytes(path: String, maxBytes: Long = MAX_BINARY_BYTES): Result<ByteArray> = runCatching {
@@ -39,8 +47,11 @@ class GlobalFileManager {
     fun writeFile(path: String, content: String): Result<String> = runCatching {
         val file = resolveForWrite(path)
         file.parentFile?.mkdirs()
+        if (file.exists() && !file.name.endsWith(".bak", ignoreCase = true)) {
+            file.copyTo(File(file.parentFile, "${file.name}.bak"), overwrite = true)
+        }
         file.writeText(content)
-        "已写入 ${content.length} 字符: ${file.toPublicPath()}"
+        "已写入 ${content.length} 字符并在同目录保留 .bak 备份: ${file.toPublicPath()}"
     }
 
     fun writeStream(path: String, input: InputStream): Result<Long> = runCatching {
@@ -127,6 +138,7 @@ class GlobalFileManager {
 
     companion object {
         private const val MAX_READ_BYTES = 1_048_576L
+        private const val MAX_EDIT_BYTES = 16L * 1024L * 1024L
         private const val MAX_BINARY_BYTES = 200L * 1024L * 1024L
     }
 }

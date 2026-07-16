@@ -7,12 +7,14 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import com.yukisoffd.lyracode.R
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.util.Locale
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.zip.ZipInputStream
@@ -292,6 +294,168 @@ class AppSettings(context: Context) {
     var userAvatarPath: String?
         get() = plainPrefs.getString(KEY_USER_AVATAR_PATH, null)
         set(value) = plainPrefs.edit().putString(KEY_USER_AVATAR_PATH, value).apply()
+
+    fun memories(): List<MemoryEntry> {
+        val raw = plainPrefs.getString(KEY_MEMORIES, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching { parseMemories(JSONArray(raw)) }.getOrDefault(emptyList())
+    }
+
+    fun createMemory(
+        content: String,
+        category: String = MemoryEntry.CATEGORY_OTHER,
+        enabled: Boolean = true,
+    ): MemoryEntry {
+        val cleanContent = normalizeMemoryContent(content)
+        require(cleanContent.isNotBlank()) { "记忆内容不能为空" }
+        val now = System.currentTimeMillis()
+        val existing = memories()
+        val duplicate = existing.firstOrNull {
+            memoryFingerprint(it.content) == memoryFingerprint(cleanContent)
+        }
+        val memory = if (duplicate != null) {
+            duplicate.copy(
+                content = cleanContent,
+                category = MemoryEntry.normalizeCategory(category),
+                enabled = enabled,
+                updatedAt = now,
+            )
+        } else {
+            MemoryEntry(
+                id = UUID.randomUUID().toString(),
+                content = cleanContent,
+                category = MemoryEntry.normalizeCategory(category),
+                enabled = enabled,
+                createdAt = now,
+                updatedAt = now,
+            )
+        }
+        saveMemories(existing.filterNot { it.id == memory.id } + memory)
+        return memory
+    }
+
+    fun updateMemory(
+        id: String,
+        content: String? = null,
+        category: String? = null,
+        enabled: Boolean? = null,
+    ): MemoryEntry {
+        val existing = memories()
+        val current = existing.firstOrNull { it.id == id } ?: error("记忆不存在: $id")
+        val nextContent = content?.let(::normalizeMemoryContent) ?: current.content
+        require(nextContent.isNotBlank()) { "记忆内容不能为空" }
+        val updated = current.copy(
+            content = nextContent,
+            category = category?.let { MemoryEntry.normalizeCategory(it) } ?: current.category,
+            enabled = enabled ?: current.enabled,
+            updatedAt = System.currentTimeMillis(),
+        )
+        saveMemories(existing.map { if (it.id == id) updated else it })
+        return updated
+    }
+
+    fun deleteMemory(id: String): Boolean {
+        val existing = memories()
+        val updated = existing.filterNot { it.id == id }
+        if (updated.size == existing.size) return false
+        saveMemories(updated)
+        return true
+    }
+
+    fun memoryPrompt(): String {
+        val array = JSONArray()
+        var usedChars = 0
+        memories()
+            .asSequence()
+            .filter { it.enabled }
+            .sortedBy { it.createdAt }
+            .forEach { memory ->
+                val item = memoryJson(memory)
+                val itemChars = item.toString().length
+                if (usedChars + itemChars <= MAX_MEMORY_PROMPT_CHARS) {
+                    array.put(item)
+                    usedChars += itemChars
+                }
+            }
+        return array.toString()
+    }
+
+    private fun saveMemories(items: List<MemoryEntry>) {
+        val sanitized = items
+            .asSequence()
+            .mapNotNull { memory ->
+                val content = normalizeMemoryContent(memory.content)
+                content.takeIf { it.isNotBlank() }?.let {
+                    memory.copy(
+                        id = memory.id.trim().ifBlank { UUID.randomUUID().toString() },
+                        content = it,
+                        category = MemoryEntry.normalizeCategory(memory.category),
+                    )
+                }
+            }
+            .distinctBy { it.id }
+            .sortedByDescending { it.updatedAt }
+            .take(MAX_MEMORY_COUNT)
+            .toList()
+        plainPrefs.edit().putString(
+            KEY_MEMORIES,
+            JSONArray().also { array -> sanitized.forEach { array.put(memoryJson(it)) } }.toString(),
+        ).apply()
+    }
+
+    private fun parseMemories(array: JSONArray): List<MemoryEntry> = buildList {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val content = normalizeMemoryContent(item.optString("content"))
+            if (content.isBlank()) continue
+            val createdAt = item.optLong("createdAt", System.currentTimeMillis())
+            add(
+                MemoryEntry(
+                    id = item.optString("id").ifBlank { UUID.randomUUID().toString() },
+                    content = content,
+                    category = MemoryEntry.normalizeCategory(item.optString("category")),
+                    enabled = item.optBoolean("enabled", true),
+                    createdAt = createdAt,
+                    updatedAt = item.optLong("updatedAt", createdAt),
+                ),
+            )
+        }
+    }.distinctBy { it.id }
+
+    private fun memoryJson(memory: MemoryEntry): JSONObject = JSONObject()
+        .put("id", memory.id)
+        .put("content", memory.content)
+        .put("category", memory.category)
+        .put("enabled", memory.enabled)
+        .put("createdAt", memory.createdAt)
+        .put("updatedAt", memory.updatedAt)
+
+    private fun mergeMemories(existing: List<MemoryEntry>, imported: List<MemoryEntry>): List<MemoryEntry> {
+        val merged = existing.toMutableList()
+        imported.forEach { memory ->
+            val sameId = merged.indexOfFirst { it.id == memory.id }
+            val sameContent = merged.indexOfFirst {
+                memoryFingerprint(it.content) == memoryFingerprint(memory.content)
+            }
+            val index = when {
+                sameId >= 0 -> sameId
+                sameContent >= 0 -> sameContent
+                else -> -1
+            }
+            if (index < 0) {
+                merged += memory
+            } else if (memory.updatedAt >= merged[index].updatedAt) {
+                merged[index] = memory
+            }
+        }
+        return merged
+    }
+
+    private fun normalizeMemoryContent(value: String): String =
+        value.replace("\r\n", "\n").replace('\r', '\n').trim().take(MAX_MEMORY_CONTENT_CHARS)
+
+    private fun memoryFingerprint(value: String): String =
+        value.trim().replace(Regex("""\s+"""), " ").lowercase(Locale.ROOT)
 
     var streamingAnimationMode: String
         get() = normalizeStreamingAnimationMode(
@@ -1092,6 +1256,7 @@ class AppSettings(context: Context) {
             .put("customSuCommand", customSuCommand)
             .put("userNickname", userNickname)
             .put("userAvatarPath", userAvatarPath.orEmpty())
+            .put("memories", JSONArray().also { array -> memories().forEach { array.put(memoryJson(it)) } })
             .put("streamingAnimationMode", streamingAnimationMode)
             .put("chatBackgroundPath", chatBackgroundPath.orEmpty())
             .put("chatBackgroundMaskOpacity", chatBackgroundMaskOpacity.toDouble())
@@ -1196,6 +1361,11 @@ class AppSettings(context: Context) {
         root.optString("customSuCommand").takeIf { it.isNotBlank() }?.let { customSuCommand = it }
         root.optString("userNickname").takeIf { it.isNotBlank() }?.let { userNickname = it }
         root.optString("userAvatarPath").takeIf { it.isNotBlank() }?.let { userAvatarPath = it }
+        root.optJSONArray("memories")?.let { array ->
+            val imported = parseMemories(array)
+            saveMemories(if (supplement) mergeMemories(memories(), imported) else imported)
+            messages += appContext.getString(R.string.backup_import_memories, imported.size)
+        }
         root.optString("streamingAnimationMode").takeIf { it.isNotBlank() }?.let { streamingAnimationMode = it }
         root.optString("chatBackgroundPath").takeIf { it.isNotBlank() }?.let { chatBackgroundPath = it }
         if (root.has("chatBackgroundMaskOpacity")) {
@@ -1815,6 +1985,10 @@ class AppSettings(context: Context) {
         private const val KEY_CUSTOM_SU_COMMAND = "custom_su_command"
         private const val KEY_USER_NICKNAME = "user_nickname"
         private const val KEY_USER_AVATAR_PATH = "user_avatar_path"
+        private const val KEY_MEMORIES = "memories"
+        private const val MAX_MEMORY_COUNT = 200
+        private const val MAX_MEMORY_CONTENT_CHARS = 2_000
+        private const val MAX_MEMORY_PROMPT_CHARS = 24_000
         private const val KEY_CHAT_BACKGROUND_PATH = "chat_background_path"
         private const val KEY_STREAMING_ANIMATION_MODE = "streaming_animation_mode"
         private const val KEY_CHAT_BACKGROUND_MASK_OPACITY = "chat_background_mask_opacity"

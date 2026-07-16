@@ -211,4 +211,30 @@ Permission is granted to copy, distribute and/or modify these font files under t
 
 SIL Open Font License 1.1 excerpt:
 Permission is hereby granted, free of charge, to any person obtaining a copy of the Font Software, to use, study, copy, merge, embed, modify, redistribute, and sell modified and unmodified copies of the Font Software, subject to the conditions of the SIL Open Font License."""
+
+    const val LGPL_2_1 = """GNU LESSER GENERAL PUBLIC LICENSE
+Version 2.1, February 1999
+
+Copyright (C) 1991, 1999 Free Software Foundation, Inc.
+51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+
+Everyone is permitted to copy and distribute verbatim copies of this license document, but changing it is not allowed.
+
+Sora Editor is free software; you can redistribute it and/or modify it under the terms of the GNU Lesser General Public License as published by the Free Software Foundation, version 2.1, or (at your option) any later version.
+
+The library is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+The LGPL permits an application to link with the Library under terms of the application's choice, provided that the application permits modification for the customer's own use and reverse engineering for debugging those modifications. Distributors must give prominent notice that the Library is used, provide a copy of the LGPL, and satisfy the source-code or relinking requirements in section 6 of the license.
+
+The complete, verbatim LGPL 2.1 text is distributed in the Sora Editor upstream repository and source package. Source: https://github.com/Rosemoe/sora-editor"""
+
+    const val TEXTMATE_ASSET_NOTICES = """Sora Editor demo TextMate assets
+
+Lyra Code includes TextMate grammar, language-configuration, and color-theme files copied from the official Sora Editor demo application for Java, Kotlin, Python, JavaScript, HTML, XML, Markdown, and Lua editing.
+
+These data files originate from several upstream language-extension and theme projects. Copyright remains with their respective authors. They are distributed under their individual upstream licenses, primarily permissive MIT-style terms; the Sora Editor LGPL does not replace those asset licenses.
+
+Included themes: Ayu Dark, Darcula, Quiet Light, and Solarized Dark.
+
+When redistributing the source assets, retain upstream copyright and license notices and review the corresponding upstream extension/theme license for each updated or replaced asset. Source bundle: https://github.com/Rosemoe/sora-editor/tree/main/app/src/main/assets/textmate"""
 }

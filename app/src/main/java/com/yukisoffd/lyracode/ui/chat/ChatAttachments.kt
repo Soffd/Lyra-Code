@@ -223,6 +223,11 @@ internal fun stripWorkspaceReferenceBlocks(content: String): String = content.re
     Regex("\\n*<lyra_workspace_refs_v1>[\\s\\S]*?</lyra_workspace_refs_v1>\\n*"),
     "\n",
 ).trim()
+
+internal fun stripEditorContextBlocks(content: String): String = content.replace(
+    Regex("\\n*<lyra_editor_context_v1>[\\s\\S]*?</lyra_editor_context_v1>\\n*"),
+    "\n",
+).trim()
 internal fun uploadedAttachmentPayloads(content: String): List<JSONObject> {
     val regex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
     return regex.findAll(content).mapNotNull { match ->
@@ -232,7 +237,7 @@ internal fun uploadedAttachmentPayloads(content: String): List<JSONObject> {
 
 internal fun displayMessageContent(message: ChatRecord): String {
     if (message.role != "user") return message.content
-    return stripWorkspaceReferenceBlocks(stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(message.content)))).trim()
+    return stripEditorContextBlocks(stripWorkspaceReferenceBlocks(stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(message.content))))).trim()
 }
 
 internal fun stripUploadedAttachmentBlocks(content: String): String {

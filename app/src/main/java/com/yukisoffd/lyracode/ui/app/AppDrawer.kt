@@ -181,13 +181,14 @@ internal fun KimiDrawerContent(
                     KimiMenuRow(
                         icon = when (index) {
                             0 -> Icons.Default.Chat
-                            1 -> Icons.Default.ReceiptLong
-                            2 -> Icons.Default.Analytics
-                            3 -> Icons.Default.TaskAlt
-                            4 -> Icons.Default.Archive
-                            5 -> Icons.Default.Settings
-                            6 -> Icons.Default.School
-                            7 -> Icons.Default.Description
+                            1 -> Icons.Default.Folder
+                            2 -> Icons.Default.ReceiptLong
+                            3 -> Icons.Default.Analytics
+                            4 -> Icons.Default.TaskAlt
+                            5 -> Icons.Default.Archive
+                            6 -> Icons.Default.Settings
+                            7 -> Icons.Default.School
+                            8 -> Icons.Default.Description
                             else -> Icons.Default.Info
                         },
                         title = page,

@@ -2,12 +2,16 @@ package com.yukisoffd.lyracode
 
 import android.net.Uri
 import android.graphics.Bitmap
+import android.os.Environment
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.ChatUpdate
+import com.yukisoffd.lyracode.ai.AgentFileMutation
+import com.yukisoffd.lyracode.ai.AgentFileActivity
+import com.yukisoffd.lyracode.ai.AgentFileEditResult
 import com.yukisoffd.lyracode.ai.OpenAiAgent
 import com.yukisoffd.lyracode.ai.ModelReachabilityResult
 import com.yukisoffd.lyracode.ai.ProviderReachabilityReport
@@ -34,11 +38,28 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
+import java.io.File
 
 data class PendingToolApproval(
     val id: Long,
     val request: ToolApprovalRequest,
+)
+
+data class EditorFileMutation(
+    val id: Long,
+    val path: String,
+    val content: String,
+    val beforeContent: String?,
+    val committed: Boolean,
+)
+
+data class EditorFileActivity(
+    val id: Long,
+    val path: String,
+    val operation: String,
+    val content: String?,
 )
 
 class ChatController(
@@ -51,6 +72,9 @@ class ChatController(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val jobs = mutableMapOf<Long, Job>()
+    private var editorContextPath = ""
+    private var editorMutationId = 0L
+    private var editorActivityId = 0L
 
     val conversations = mutableStateListOf<Conversation>()
     val archivedConversations = mutableStateListOf<Conversation>()
@@ -64,11 +88,16 @@ class ChatController(
     val uploadingStatus = mutableStateOf("")
     val pendingUploads = mutableStateListOf<UploadedFile>()
     val pendingToolApproval = mutableStateOf<PendingToolApproval?>(null)
+    val editorFileMutations = mutableStateListOf<EditorFileMutation>()
+    val editorFileActivity = mutableStateOf<EditorFileActivity?>(null)
+    val editorFileFollowRequests = mutableStateListOf<EditorFileActivity>()
+    val editorFileChangeRevision = mutableIntStateOf(0)
     val todoItems = mutableStateListOf<TodoItem>()
     val settingsRevision = mutableIntStateOf(0)
     private var lastMessageReloadAt = 0L
     private var approvalId = 0L
     private val approvalWaiters = mutableMapOf<Long, CompletableDeferred<ToolApprovalDecision>>()
+    private val editorMutationWaiters = mutableMapOf<Long, CompletableDeferred<AgentFileEditResult>>()
     private val autoApprovedConversations = mutableSetOf<Long>()
     private var transientWorkspaceUri = ""
     private var transientAutoApprovalEnabled = false
@@ -79,6 +108,9 @@ class ChatController(
         agent.todoSetHandler = ::setTodos
         agent.todoUpdateHandler = ::updateTodo
         agent.configChangedHandler = ::handleConfigChanged
+        agent.fileEditHandler = ::handleAgentFileEdit
+        agent.fileMutationHandler = ::handleAgentFileMutation
+        agent.fileActivityHandler = ::handleAgentFileActivity
         reloadProfiles()
         markAbandonedRunsInterrupted()
         reloadConversations()
@@ -244,6 +276,123 @@ class ChatController(
     }
 
     fun workspaceDisplayName(): String = workspaceManager.displayName()
+
+    fun workspaceDisplayPath(): String? = workspaceManager.displayPath()
+
+    fun setEditorContextPath(path: String?) {
+        val next = path.orEmpty()
+        if (next.isBlank()) {
+            editorMutationWaiters.values.forEach { waiter ->
+                waiter.complete(AgentFileEditResult.NotHandled)
+            }
+            editorMutationWaiters.clear()
+            editorFileMutations.clear()
+            editorFileActivity.value = null
+            editorFileFollowRequests.clear()
+        }
+        editorContextPath = next
+    }
+
+    fun consumeEditorFileMutation(
+        id: Long,
+        result: AgentFileEditResult? = null,
+    ) {
+        editorFileMutations.removeAll { it.id == id }
+        editorMutationWaiters.remove(id)?.let { waiter ->
+            waiter.complete(result ?: AgentFileEditResult.NotHandled)
+        }
+    }
+
+    fun consumeEditorFileFollowRequest(id: Long) {
+        editorFileFollowRequests.removeAll { it.id == id }
+    }
+
+    private suspend fun handleAgentFileEdit(mutation: AgentFileMutation): AgentFileEditResult {
+        val pending = withContext(Dispatchers.Main) {
+            if (editorContextPath.isBlank()) return@withContext null
+            val mutationPath = resolveMutationPath(mutation) ?: return@withContext null
+            val id = ++editorMutationId
+            val waiter = CompletableDeferred<AgentFileEditResult>()
+            editorMutationWaiters[id] = waiter
+            editorFileMutations += EditorFileMutation(
+                id = id,
+                path = mutationPath.absolutePath,
+                content = mutation.content,
+                beforeContent = mutation.beforeContent,
+                committed = false,
+            )
+            id to waiter
+        } ?: return AgentFileEditResult.NotHandled
+
+        val result = withTimeoutOrNull(30_000L) { pending.second.await() }
+        if (result != null) return result
+        return withContext(Dispatchers.Main) {
+            editorFileMutations.removeAll { it.id == pending.first }
+            editorMutationWaiters.remove(pending.first)
+            AgentFileEditResult.failed("等待文件编辑器应用 AI 修改超时，已取消磁盘写入。")
+        }
+    }
+
+    private suspend fun handleAgentFileMutation(mutation: AgentFileMutation) = withContext(Dispatchers.Main) {
+        editorFileChangeRevision.intValue++
+        if (editorContextPath.isBlank()) return@withContext
+        val mutationPath = resolveMutationPath(mutation) ?: return@withContext
+        editorFileMutations += EditorFileMutation(
+            id = ++editorMutationId,
+            path = mutationPath.absolutePath,
+            content = mutation.content,
+            beforeContent = mutation.beforeContent,
+            committed = mutation.editorApplied,
+        )
+    }
+
+    private suspend fun handleAgentFileActivity(activity: AgentFileActivity?) = withContext(Dispatchers.Main) {
+        if (activity == null) {
+            editorFileActivity.value = null
+            return@withContext
+        }
+        if (editorContextPath.isBlank()) return@withContext
+        val path = resolveMutationPath(
+            AgentFileMutation(activity.path, content = "", globalStorage = activity.globalStorage),
+        ) ?: return@withContext
+        val editorActivity = EditorFileActivity(
+            id = ++editorActivityId,
+            path = path.absolutePath,
+            operation = activity.operation,
+            content = activity.content,
+        )
+        editorFileActivity.value = editorActivity
+        editorFileFollowRequests += editorActivity
+    }
+
+    private fun resolveMutationPath(mutation: AgentFileMutation): File? {
+        val clean = mutation.path.trim().replace('\\', '/')
+        if (mutation.globalStorage) {
+            val relative = clean
+                .removePrefix("/sdcard/")
+                .removePrefix("sdcard/")
+                .removePrefix("/storage/emulated/0/")
+                .removePrefix("storage/emulated/0/")
+                .trimStart('/')
+            if (
+                relative == "Android/data" ||
+                relative.startsWith("Android/data/") ||
+                relative == "Android/obb" ||
+                relative.startsWith("Android/obb/")
+            ) {
+                return null
+            }
+            val root = runCatching { Environment.getExternalStorageDirectory().canonicalFile }.getOrNull() ?: return null
+            val candidate = runCatching { File(root, relative).canonicalFile }.getOrNull() ?: return null
+            return candidate.takeIf { it == root || it.path.startsWith(root.path + File.separator) }
+        }
+        val workspaceRoot = workspaceManager.termuxRootPath() ?: return null
+        val root = runCatching { File(workspaceRoot).canonicalFile }.getOrNull() ?: return null
+        val candidate = runCatching {
+            File(root, clean.removePrefix("./").trimStart('/')).canonicalFile
+        }.getOrNull() ?: return null
+        return candidate.takeIf { it == root || it.path.startsWith(root.path + File.separator) }
+    }
 
     fun hasWorkspace(): Boolean = workspaceManager.rootUri() != null
 
@@ -483,6 +632,10 @@ class ChatController(
                 if (isNotBlank()) append("\n\n")
                 append(workspaceReferenceMarker(files))
             }
+            editorContextPath.takeIf { it.isNotBlank() }?.let { path ->
+                if (isNotBlank()) append("\n\n")
+                append(editorContextMarker(path))
+            }
             uploads.forEach { file ->
                 if (isNotBlank()) append("\n\n")
                 append(uploadedAttachmentMarker(file))
@@ -500,6 +653,16 @@ class ChatController(
                 }
             })
         return "$WORKSPACE_REFERENCE_MARKER_START$payload$WORKSPACE_REFERENCE_MARKER_END"
+    }
+
+    private fun editorContextMarker(path: String): String {
+        val payload = JSONObject()
+            .put("path", path)
+            .put(
+                "instruction",
+                "这是用户当前正在文件编辑器中查看的 Android 共享存储文件。按需使用 global_read_file 读取；修改时使用 global_write_file，并保持用户可见确认流程。若已添加工作目录，可同时使用工作区工具处理跨文件关系。",
+            )
+        return "$EDITOR_CONTEXT_MARKER_START$payload$EDITOR_CONTEXT_MARKER_END"
     }
 
     private fun uploadedAttachmentMarker(file: UploadedFile): String {
@@ -522,10 +685,13 @@ class ChatController(
         const val ATTACHMENT_MARKER_END = "</lyra_attachment_v1>"
         const val WORKSPACE_REFERENCE_MARKER_START = "<lyra_workspace_refs_v1>"
         const val WORKSPACE_REFERENCE_MARKER_END = "</lyra_workspace_refs_v1>"
+        const val EDITOR_CONTEXT_MARKER_START = "<lyra_editor_context_v1>"
+        const val EDITOR_CONTEXT_MARKER_END = "</lyra_editor_context_v1>"
     }
     private fun fallbackConversationTitle(userInput: String): String {
         val markerRegex = Regex("<lyra_attachment_v1>([\\s\\S]*?)</lyra_attachment_v1>")
         val workspaceRegex = Regex("<lyra_workspace_refs_v1>([\\s\\S]*?)</lyra_workspace_refs_v1>")
+        val editorRegex = Regex("<lyra_editor_context_v1>([\\s\\S]*?)</lyra_editor_context_v1>")
         val workspaceTitle = workspaceRegex.find(userInput)?.let { match ->
             runCatching { JSONObject(match.groupValues[1]).optJSONArray("files")?.optJSONObject(0)?.optString("name") }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
@@ -536,7 +702,7 @@ class ChatController(
                 ?.takeIf { it.isNotBlank() }
                 ?.let { "上传附件：$it" }
         }
-        return workspaceRegex.replace(markerRegex.replace(userInput, ""), "")
+        return editorRegex.replace(workspaceRegex.replace(markerRegex.replace(userInput, ""), ""), "")
             .lineSequence()
             .firstOrNull()
             .orEmpty()

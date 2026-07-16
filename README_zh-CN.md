@@ -15,7 +15,7 @@
 </p>
 
 <p align="center">
-  <img alt="Version" src="https://img.shields.io/badge/version-2.11.0-blue" />
+  <img alt="Version" src="https://img.shields.io/badge/version-3.0.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
   <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
@@ -23,7 +23,7 @@
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
 
-Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对话、文件工具、原生文件下载、命令执行、联网搜索、MCP 客户端/服务端、SSH、WebDAV、FTP/FTPS/SFTP、内置微型服务器、数据备份、Skills、设备诊断和用量统计整合到移动端。
+Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对话、独立双栏文件管理器与代码编辑器、原生文件下载、命令执行、联网搜索、MCP 客户端/服务端、SSH、WebDAV、FTP/FTPS/SFTP、内置微型服务器、数据备份、Skills、设备诊断和用量统计整合到移动端。
 
 ## 界面预览
 
@@ -48,6 +48,15 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 - TODO 规划、过程记录、文件变更审查和差异可视化。
 - 联网搜索、网页读取、来源标注和网站黑名单，可避免 AI 打开指定域名的垃圾内容或不希望引用的网站。
 - 时间/地理感知、配置管理、后台任务和定时任务。
+
+### 文件管理器与代码编辑器
+
+- 独立双栏文件管理器默认进入 `/storage/emulated/0`，两栏可分别浏览目录，适合在不同目录之间复制和移动文件。
+- 支持活动栏高亮、目录滚动位置恢复、进出目录动画、滑动多选，以及带二次确认的批量复制、移动和删除。
+- 支持新建、重命名、查看属性、复制、移动、删除和解压文件或文件夹；长按 `.html`、`.htm` 文件可直接调用已安装浏览器预览。
+- 集成 Sora Editor，支持行号、TextMate 语法高亮、文件内搜索、跳转到行、自动换行，以及不换行模式下横向浏览。
+- 默认按 UTF-8 打开文件，遇到解码错误会警告；退出时检查未保存修改，覆盖修改前自动在同目录生成 `.bak` 备份。
+- 编辑器内可右滑打开专用 AI 对话侧栏，静默传入当前文件路径、支持添加项目工作目录，并在编辑页保留审批和工具输出、可视化重放 AI 修改。
 
 ### 设备与系统
 
@@ -111,6 +120,7 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 ```text
 app/                         Android 应用模块
 app/src/main/java/...        Kotlin / Jetpack Compose 源码
+app/src/main/assets/textmate/ TextMate 语法、语言配置和配色主题
 third_party/jlatexmath/      JLaTeXMath Android fork，用于 LaTeX 公式渲染
 example-img/                 README 示例截图
 gradle/                      Gradle Wrapper 配置
@@ -119,7 +129,7 @@ gradle/                      Gradle Wrapper 配置
 ## 构建要求
 
 - Android Studio 或命令行 Android SDK
-- JDK 11+
+- JDK 17
 - Android SDK 36
 - Gradle Wrapper
 
@@ -154,6 +164,7 @@ Lyra Code 会处理 API Key、SSH 密码/私钥、MCP Token、WebDAV/FTP 凭据�
 - 使用 HTTP 明文 API、MCP、WebDAV、FTP 或微型服务器服务时，数据可能被中间人读取。
 - 将微型服务器暴露到局域网、内网穿透或公网时，如果目录、密码或 HTTPS 配置不当，可能泄露本地文件。启用外部访问前应检查工作区和认证配置。
 - 让 AI 执行命令、修改文件、上传/下载文件或操作远程服务器前，应审查工具调用内容。
+- 文件管理器需要 Android“管理所有文件”权限；确认批量操作前应仔细核对所选路径，并且只预览可信的本地 HTML，因为其中的脚本会在浏览器环境中执行。
 - `run_command` 不再使用固定命令白名单，但仍会拦截 `rm -rf /`、写入 `/dev/block`、`mkfs` 等明显高危操作；执行前仍应人工审查。
 - 联网搜索黑名单保存在本机设置中。普通域名为精确匹配：`x.com` 只拦截 `x.com`，`www.x.com` 需要单独添加。可使用 `*.x.com` 这类通配符拦截子域名；如果要同时拦截根域名和全部子域名，请同时填写 `x.com` 和 `*.x.com`。
 - 包含密钥的备份文件应妥善保存，不要公开分享。

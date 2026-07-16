@@ -709,7 +709,9 @@ internal object UiTextBridge {
         "工作区搜索" to "Workspace search",
         "读取网页" to "Read webpage",
         "读取文件" to "Read file",
+        "分段读取文件" to "Read file lines",
         "写入文件" to "Write file",
+        "精确编辑文件" to "Precise file edit",
         "追加文件" to "Append file",
         "创建目录" to "Create directory",
         "删除文件/目录" to "Delete file/directory",
@@ -719,7 +721,9 @@ internal object UiTextBridge {
         "浏览工作目录内文件和子目录。" to "Browse files and subdirectories in the workspace.",
         "按文件名或路径片段搜索工作区。" to "Search the workspace by file name or path fragment.",
         "读取工作目录内文本文件。" to "Read text files in the workspace.",
-        "创建或覆盖工作目录内文本文件。" to "Create or overwrite text files in the workspace.",
+        "按真实行号读取大文件的指定行范围。" to "Read a selected line range from a large file with real line numbers.",
+        "创建或整体覆盖工作目录内文本文件。" to "Create or fully overwrite text files in the workspace.",
+        "按唯一原文或指定行范围局部修改工作区文本文件。" to "Modify a workspace text file by unique source text or an exact line range.",
         "在现有文件末尾追加文本。" to "Append text to an existing file.",
         "在工作目录内创建文件夹。" to "Create a folder in the workspace.",
         "删除工作目录内文件或空目录。" to "Delete a file or empty folder in the workspace.",
@@ -727,7 +731,9 @@ internal object UiTextBridge {
         "全局文件搜索" to "Global file search",
         "全局列目录" to "Global list directory",
         "全局读取文件" to "Global read file",
+        "全局分段读取文件" to "Global read file lines",
         "全局写入文件" to "Global write file",
+        "全局精确编辑文件" to "Global precise file edit",
         "全局追加文件" to "Global append file",
         "全局创建目录" to "Global create directory",
         "全局删除文件/目录" to "Global delete file/directory",
@@ -735,6 +741,9 @@ internal object UiTextBridge {
         "搜索 Android 共享存储中的文件路径。" to "Search file paths in Android shared storage.",
         "列出 Android 共享存储目录，支持 Download。" to "List Android shared storage directories, including Download.",
         "读取工作区外共享存储内的文本文件。" to "Read text files in shared storage outside the workspace.",
+        "按真实行号读取共享存储大文件的指定行范围。" to "Read a selected line range from a large shared-storage file with real line numbers.",
+        "创建或整体覆盖工作区外共享存储文件，执行前需要用户确认。" to "Create or fully overwrite a shared-storage file outside the workspace after user approval.",
+        "按唯一原文或指定行范围局部修改共享存储文件，执行前需要用户确认。" to "Modify a shared-storage file by unique source text or an exact line range after user approval.",
         "写入工作区外共享存储文件，执行前需要用户确认。" to "Write files in shared storage outside the workspace after confirmation.",
         "追加工作区外共享存储文件，执行前需要用户确认。" to "Append files in shared storage outside the workspace after confirmation.",
         "在工作区外共享存储创建目录，执行前需要用户确认。" to "Create directories in shared storage outside the workspace after confirmation.",
@@ -973,6 +982,15 @@ internal object UiTextBridge {
         "读取设备最近系统定位。" to "Read the latest system location from this device.",
         "读取应用列表" to "Read app list",
         "对话历史" to "Chat history",
+        "个性化记忆" to "Personalized memory",
+        "读取记忆" to "Read memories",
+        "读取跨对话个性化记忆及其标识，用于核对或修改。" to "Read cross-chat memories and their IDs for review or editing.",
+        "保存记忆" to "Save memory",
+        "保存长期有用的用户偏好、工作风格或沟通习惯。" to "Save lasting user preferences, work styles, or communication habits.",
+        "修改记忆" to "Update memory",
+        "修改、纠正或停用已有个性化记忆。" to "Edit, correct, or disable an existing personalized memory.",
+        "删除记忆" to "Delete memory",
+        "删除不再适用或用户要求忘记的个性化记忆。" to "Delete a memory that no longer applies or that the user asked the AI to forget.",
         "复制下面的配置命令到 Termux 执行，开启外部应用调用权限。" to "Copy the command below into Termux to enable external app calls.",
         "监听配置" to "Listen settings",
         "禁用后 AI 无法看到或调用该服务器。" to "When disabled, the AI cannot see or call this server.",
@@ -1138,11 +1156,3 @@ internal object UiTextBridge {
 }
 
 internal fun uiText(text: String): String = UiTextBridge.translate(text)
-
-
-
-
-
-
-
-

@@ -17,6 +17,8 @@ This document summarizes the main third-party components used by Lyra Code. It i
 | OkHttp | Apache License 2.0 | HTTP client. |
 | mwiede JSch | BSD/ISC-style licenses; includes bundled license files | SSH client. Check upstream `LICENSE.txt`, `LICENSE.JZlib.txt`, and `LICENSE.jBCrypt.txt`. |
 | JetBrains Markdown / RikkaHub fork | Apache License 2.0 | Markdown parser/rendering support. |
+| Sora Editor (`io.github.rosemoe:editor`, `language-textmate`) | GNU LGPL 2.1 or later | Android code editor, line numbers, search, wrapping, and TextMate integration. Preserve the LGPL notice and allow replacement/relinking of the library as required by the license. |
+| Sora Editor demo TextMate themes and language bundles | Upstream component licenses, primarily MIT-style; distributed by the Sora Editor project | Syntax/theme assets for Java, Kotlin, Python, JavaScript, HTML, XML, Markdown, and Lua were copied from the official Sora Editor demo assets. Retain upstream notices when redistributing source assets. |
 | JLaTeXMath Android / local fork | GPL v2 or later with a special linking exception; bundled fonts have separate licenses | LaTeX rendering. Keep `third_party/jlatexmath/LICENSE`, `COPYING`, and font licenses with source distributions. |
 
 ## Test-Only Dependencies
@@ -32,4 +34,3 @@ This document summarizes the main third-party components used by Lyra Code. It i
 - Apache License 2.0 dependencies can generally be combined into GPLv3/AGPLv3 works, but keep required notices and license texts.
 - The local JLaTeXMath module is the main copyleft-sensitive component. Its local `LICENSE` says it is GPL v2 or later and includes a special linking exception for independent modules. If you modify that library, preserve its license terms and review whether the exception still applies.
 - Commercial licensing of Lyra Code original code does not relicense third-party components. Commercial distributors must still comply with third-party licenses or replace those components with separately licensed alternatives.
-

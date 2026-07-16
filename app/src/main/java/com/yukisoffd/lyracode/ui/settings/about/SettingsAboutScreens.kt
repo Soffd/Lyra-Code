@@ -99,8 +99,9 @@ internal data class LicenseNotice(
 
 @Composable
 internal fun OpenSourceLicensesScreen() {
+    val context = LocalContext.current
     var selectedNotice by remember { mutableStateOf<LicenseNotice?>(null) }
-    val notices = remember {
+    val notices = remember(context) {
         listOf(
             LicenseNotice("AndroidX Core KTX", "Apache License 2.0", uiText("Android Kotlin 扩展与兼容层。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("AndroidX Activity Compose", "Apache License 2.0", uiText("Compose Activity 集成。"), LicenseTexts.APACHE_2_0),
@@ -112,6 +113,18 @@ internal fun OpenSourceLicensesScreen() {
             LicenseNotice("Kotlinx Coroutines", "Apache License 2.0", uiText("异步任务与流式请求。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("OkHttp", "Apache License 2.0", uiText("HTTP、SSE 兼容读取与 MCP Streamable HTTP 通信。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("JetBrains Markdown / RikkaHub Markdown fork", "Apache License 2.0", uiText("Markdown GFM AST 解析，支持表格、列表和数学节点。"), LicenseTexts.APACHE_2_0),
+            LicenseNotice(
+                "Sora Editor / language-textmate",
+                "GNU LGPL 2.1 or later",
+                context.getString(R.string.license_sora_editor_note),
+                LicenseTexts.LGPL_2_1,
+            ),
+            LicenseNotice(
+                "Sora Editor demo TextMate grammars and themes",
+                "Individual upstream licenses",
+                context.getString(R.string.license_textmate_assets_note),
+                LicenseTexts.TEXTMATE_ASSET_NOTICES,
+            ),
             LicenseNotice("Android Gradle Plugin", "Apache License 2.0", uiText("Android 构建工具链。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("Kotlin", "Apache License 2.0", uiText("主要开发语言与编译器。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("JSch / mwiede fork", "BSD 3-Clause License", uiText("SSH 连接与远程命令执行。"), LicenseTexts.BSD_3_CLAUSE),

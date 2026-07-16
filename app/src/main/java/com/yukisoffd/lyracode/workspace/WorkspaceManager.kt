@@ -44,6 +44,20 @@ class WorkspaceManager(
 
     fun displayName(): String = root()?.name ?: "未选择工作目录"
 
+    fun displayPath(): String? {
+        val uri = rootUri() ?: return null
+        val docId = runCatching { DocumentsContract.getTreeDocumentId(uri) }.getOrNull() ?: return root()?.name
+        val split = docId.split(":", limit = 2)
+        if (split.size != 2) return root()?.name
+        val relative = split[1].trimStart('/')
+        val storageRoot = if (split[0] == "primary") {
+            "/storage/emulated/0"
+        } else {
+            "/storage/${split[0]}"
+        }
+        return if (relative.isBlank()) "$storageRoot/" else "$storageRoot/$relative"
+    }
+
     fun searchFiles(query: String, limit: Int = 80): List<WorkspaceFileReference> =
         fileIndexer.search(query, limit)
 

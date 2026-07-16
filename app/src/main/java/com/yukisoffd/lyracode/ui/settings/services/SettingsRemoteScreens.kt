@@ -538,6 +538,7 @@ internal fun BackupSettings(
     var includeMcp by rememberSaveable { mutableStateOf(true) }
     var includeSsh by rememberSaveable { mutableStateOf(true) }
     var includePrompts by rememberSaveable { mutableStateOf(true) }
+    var includeMemories by rememberSaveable { mutableStateOf(true) }
     var includeSkills by rememberSaveable { mutableStateOf(true) }
     var includeWebDav by rememberSaveable { mutableStateOf(true) }
     var includeFileTransfer by rememberSaveable { mutableStateOf(true) }
@@ -555,6 +556,7 @@ internal fun BackupSettings(
         includeMcp = includeMcp,
         includeSsh = includeSsh,
         includePrompts = includePrompts,
+        includeMemories = includeMemories,
         includeSkills = includeSkills,
         includeWebDav = includeWebDav,
         includeFileTransfer = includeFileTransfer,
@@ -571,6 +573,7 @@ internal fun BackupSettings(
         BackupIncludeRow(uiText("MCP 服务器配置"), includeMcp) { includeMcp = it }
         BackupIncludeRow(uiText("SSH 连接配置"), includeSsh) { includeSsh = it }
         BackupIncludeRow(uiText("系统提示词"), includePrompts) { includePrompts = it }
+        BackupIncludeRow(uiText("个性化记忆"), includeMemories) { includeMemories = it }
         BackupIncludeRow("Skills", includeSkills) { includeSkills = it }
         BackupIncludeRow(uiText("WebDAV 配置"), includeWebDav) { includeWebDav = it }
         BackupIncludeRow(uiText("文件传输配置"), includeFileTransfer) { includeFileTransfer = it }
