@@ -33,6 +33,36 @@ internal object LocalFileOperations {
             .map(::LocalFileEntry)
     }
 
+    fun search(
+        directory: File,
+        query: String,
+        includeFiles: Boolean = true,
+        includeDirectories: Boolean = true,
+        maxResults: Int = 500,
+    ): Result<List<LocalFileEntry>> = runCatching {
+        require(directory.isDirectory) { "Not a directory: ${directory.path}" }
+        val keyword = query.trim()
+        require(keyword.isNotEmpty()) { "Search query is empty" }
+        require(includeFiles || includeDirectories) { "At least one result type must be enabled" }
+        val pending = ArrayDeque<File>()
+        val visited = mutableSetOf<String>()
+        val results = mutableListOf<LocalFileEntry>()
+        pending.add(directory)
+        while (pending.isNotEmpty() && results.size < maxResults) {
+            val current = pending.removeFirst()
+            val canonicalPath = runCatching { current.canonicalPath }.getOrElse { current.absolutePath }
+            if (!visited.add(canonicalPath)) continue
+            current.listFiles().orEmpty().forEach { child ->
+                if (child.isDirectory) pending.addLast(child)
+                val includedType = if (child.isDirectory) includeDirectories else includeFiles
+                if (includedType && child.name.contains(keyword, ignoreCase = true) && results.size < maxResults) {
+                    results += LocalFileEntry(child)
+                }
+            }
+        }
+        results
+    }
+
     fun readUtf8(file: File): Result<TextFileContent> = runCatching {
         require(file.isFile) { "Not a file: ${file.path}" }
         require(file.length() <= MAX_EDIT_BYTES) { "File is larger than 16 MiB" }

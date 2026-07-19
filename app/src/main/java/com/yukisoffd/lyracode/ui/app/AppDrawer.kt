@@ -13,6 +13,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -50,9 +51,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.shape.CircleShape
@@ -176,26 +179,31 @@ internal fun KimiDrawerContent(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(context.getString(R.string.label_functions), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                 }
-                KimiDivider()
-                pages.forEachIndexed { index, page ->
-                    KimiMenuRow(
-                        icon = when (index) {
-                            0 -> Icons.Default.Chat
-                            1 -> Icons.Default.Folder
-                            2 -> Icons.Default.ReceiptLong
-                            3 -> Icons.Default.Analytics
-                            4 -> Icons.Default.TaskAlt
-                            5 -> Icons.Default.Archive
-                            6 -> Icons.Default.Settings
-                            7 -> Icons.Default.School
-                            8 -> Icons.Default.Description
-                            else -> Icons.Default.Info
-                        },
-                        title = page,
-                        value = if (selectedPage == index) context.getString(R.string.label_current) else "",
-                        onClick = { onSelectPage(index) },
-                    )
-                    if (index != pages.lastIndex) KimiDivider()
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val columnCount = when {
+                        maxWidth >= 292.dp -> 5
+                        maxWidth >= 232.dp -> 4
+                        maxWidth >= 172.dp -> 3
+                        else -> 2
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        pages.indices.chunked(columnCount).forEach { rowIndices ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                rowIndices.forEach { index ->
+                                    KimiFunctionTile(
+                                        icon = functionPageIcon(index),
+                                        title = pages[index],
+                                        selected = selectedPage == index,
+                                        onClick = { onSelectPage(index) },
+                                        modifier = Modifier.size(52.dp),
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -266,6 +274,75 @@ internal fun KimiDrawerContent(
             }
         }
     }
+    }
+}
+
+private fun functionPageIcon(index: Int): ImageVector = when (index) {
+    0 -> Icons.Default.Chat
+    1 -> Icons.Default.Folder
+    2 -> Icons.Default.ReceiptLong
+    3 -> Icons.Default.Analytics
+    4 -> Icons.Default.TaskAlt
+    5 -> Icons.Default.Archive
+    6 -> Icons.Default.Settings
+    7 -> Icons.Default.School
+    8 -> Icons.Default.Description
+    else -> Icons.Default.Info
+}
+
+@Composable
+private fun KimiFunctionTile(
+    icon: ImageVector,
+    title: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val shape = RoundedCornerShape(13.dp)
+    Card(
+        onClick = onClick,
+        modifier = modifier
+            .border(
+                width = if (selected) 2.dp else 1.dp,
+                color = if (selected) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
+                },
+                shape = shape,
+            ),
+        shape = shape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
+            },
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(18.dp),
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(Modifier.size(2.dp))
+            Text(
+                text = title,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 

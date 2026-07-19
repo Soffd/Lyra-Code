@@ -99,6 +99,12 @@ internal fun SettingsScreen(
     fun navigateBackFromDetail() {
         detail = when (detail) {
             "device" -> "about"
+            CompliancePageIds.INDEX -> "about"
+            CompliancePageIds.USER_AGREEMENT,
+            CompliancePageIds.PRIVACY_POLICY,
+            CompliancePageIds.PERSONAL_INFO,
+            CompliancePageIds.THIRD_PARTY,
+            CompliancePageIds.APP_PERMISSIONS -> CompliancePageIds.INDEX
             "custom_theme_color" -> "theme_mode"
             "font_library" -> "font"
             "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
@@ -119,6 +125,10 @@ internal fun SettingsScreen(
             val forward = when {
                 initialState == "device" && targetState == "about" -> false
                 initialState == "about" && targetState == "device" -> true
+                initialState == CompliancePageIds.INDEX && targetState == "about" -> false
+                initialState == "about" && targetState == CompliancePageIds.INDEX -> true
+                isComplianceDocument(initialState) && targetState == CompliancePageIds.INDEX -> false
+                initialState == CompliancePageIds.INDEX && isComplianceDocument(targetState) -> true
                 initialState == "custom_theme_color" && targetState == "theme_mode" -> false
                 initialState == "font_library" && targetState == "font" -> false
                 initialState == "theme_mode" && targetState == "custom_theme_color" -> true
@@ -237,8 +247,15 @@ internal fun SettingsScreen(
                         updateAvailable = updateAvailable,
                         onUpdateAvailabilityChange = onUpdateAvailabilityChange,
                         onOpenDeviceInfo = { detail = "device" },
+                        onOpenServiceAgreements = { detail = CompliancePageIds.INDEX },
                     )
                     "device" -> DeviceInfoScreen()
+                    CompliancePageIds.INDEX -> ServiceAgreementScreen(onOpenDocument = { detail = it })
+                    CompliancePageIds.USER_AGREEMENT,
+                    CompliancePageIds.PRIVACY_POLICY,
+                    CompliancePageIds.PERSONAL_INFO,
+                    CompliancePageIds.THIRD_PARTY,
+                    CompliancePageIds.APP_PERMISSIONS -> ComplianceDocumentScreen(target)
                     else -> Text(context.getString(R.string.settings_not_available), color = KimiMuted)
                 }
             }
@@ -375,8 +392,16 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "licenses" -> context.getString(R.string.detail_licenses)
     "about" -> context.getString(R.string.detail_about)
     "device" -> context.getString(R.string.detail_device)
+    CompliancePageIds.INDEX -> context.getString(R.string.compliance_service_agreements)
+    CompliancePageIds.USER_AGREEMENT -> context.getString(R.string.compliance_user_agreement)
+    CompliancePageIds.PRIVACY_POLICY -> context.getString(R.string.compliance_privacy_policy)
+    CompliancePageIds.PERSONAL_INFO -> context.getString(R.string.compliance_personal_info_list)
+    CompliancePageIds.THIRD_PARTY -> context.getString(R.string.compliance_third_party_list)
+    CompliancePageIds.APP_PERMISSIONS -> context.getString(R.string.compliance_app_permissions)
     else -> context.getString(R.string.detail_default)
 }
+
+private fun isComplianceDocument(detail: String?): Boolean = detail != null && detail in CompliancePageIds.documents
 
 @Composable
 internal fun WorkspaceSettings(

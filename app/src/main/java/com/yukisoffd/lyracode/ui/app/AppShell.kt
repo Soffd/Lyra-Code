@@ -200,8 +200,13 @@ internal fun LyraCodeApp(
         selectedPage = PAGE_CHAT
     }
     BackHandler(enabled = drawerState.isOpen) {
-        selectedPage = PAGE_CHAT
+        if (safeSelectedPage != PAGE_FILES) selectedPage = PAGE_CHAT
         scope.launch { drawerState.close() }
+    }
+    LaunchedEffect(safeSelectedPage, drawerState.currentValue) {
+        if (safeSelectedPage == PAGE_FILES && drawerState.isOpen) {
+            drawerState.snapTo(DrawerValue.Closed)
+        }
     }
     val treeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
         if (uri != null) {
@@ -303,8 +308,15 @@ internal fun LyraCodeApp(
                         avatarPath = newAvatarPath
                     },
                     onSelectPage = { index ->
-                        selectedPage = index
-                        scope.launch { drawerState.close() }
+                        if (index == PAGE_FILES) {
+                            scope.launch {
+                                drawerState.close()
+                                selectedPage = index
+                            }
+                        } else {
+                            selectedPage = index
+                            scope.launch { drawerState.close() }
+                        }
                     },
                     onNewConversation = {
                         requestNewConversation()

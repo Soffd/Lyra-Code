@@ -213,6 +213,7 @@ internal fun AboutSoftwareScreen(
     updateAvailable: Boolean,
     onUpdateAvailabilityChange: (Boolean) -> Unit,
     onOpenDeviceInfo: () -> Unit,
+    onOpenServiceAgreements: () -> Unit,
 ) {
     val context = LocalContext.current
     val uriHandler = LocalUriHandler.current
@@ -434,6 +435,13 @@ internal fun AboutSoftwareScreen(
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
+                KimiDivider()
+                KimiMenuRow(
+                    Icons.Default.Policy,
+                    context.getString(R.string.compliance_service_agreements),
+                    context.getString(R.string.compliance_service_agreements_desc),
+                    onClick = onOpenServiceAgreements,
+                )
             }
             KimiSectionLabel(uiText("构建信息"))
             KimiCardBox {

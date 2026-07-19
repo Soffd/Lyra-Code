@@ -8,6 +8,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
 import android.os.Environment
@@ -31,6 +33,7 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -59,7 +62,6 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
@@ -69,7 +71,10 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Image as ImageIcon
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Movie
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
@@ -104,6 +109,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -113,9 +119,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -175,6 +183,7 @@ internal fun FileManagerScreen(
     }
 
     var openFile by remember { mutableStateOf<Pair<File, TextFileContent>?>(null) }
+    var previewFile by remember { mutableStateOf<Pair<File, MediaPreviewKind>?>(null) }
     val scope = rememberCoroutineScope()
     LaunchedEffect(openFile?.first?.absolutePath) {
         controller.setEditorContextPath(openFile?.first?.absolutePath)
@@ -206,6 +215,12 @@ internal fun FileManagerScreen(
             onExit = onExit,
             externalRefreshRevision = aiFileChangeRevision,
             onOpenFile = { file ->
+                val mediaKind = mediaPreviewKind(file)
+                if (mediaKind != null) {
+                    openFile = null
+                    previewFile = file to mediaKind
+                    return@DualPaneFileManager
+                }
                 scope.launch {
                     val result = withContext(Dispatchers.IO) { LocalFileOperations.readUtf8(file) }
                     result.onSuccess { openFile = file to it }
@@ -213,6 +228,22 @@ internal fun FileManagerScreen(
                 }
             },
         )
+        AnimatedContent(
+            targetState = previewFile,
+            transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(140)) },
+            contentKey = { it?.first?.absolutePath },
+            label = "media-preview-transition",
+            modifier = Modifier.fillMaxSize(),
+        ) { previewState ->
+            previewState?.let { (file, kind) ->
+                MediaPreviewScreen(
+                    file = file,
+                    kind = kind,
+                    onClose = { previewFile = null },
+                    onOpenExternal = { openExternalFile(context, file) },
+                )
+            }
+        }
         AnimatedContent(
             targetState = openFile,
             transitionSpec = {
@@ -296,6 +327,48 @@ private fun DualPaneFileManager(
     var leftSelection by remember { mutableStateOf<Set<String>>(emptySet()) }
     var rightSelection by remember { mutableStateOf<Set<String>>(emptySet()) }
     var pendingBatchOperation by remember { mutableStateOf<PendingBatchOperation?>(null) }
+    var leftSummary by remember { mutableStateOf(PaneSummary()) }
+    var rightSummary by remember { mutableStateOf(PaneSummary()) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var searchOpen by rememberSaveable { mutableStateOf(false) }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
+    var searchScopeName by rememberSaveable { mutableStateOf(FileSearchScope.ALL.name) }
+    var searchResults by remember { mutableStateOf<List<LocalFileEntry>>(emptyList()) }
+    var searchLoading by remember { mutableStateOf(false) }
+    var searchError by remember { mutableStateOf("") }
+    var leftSortName by rememberSaveable { mutableStateOf(FileSortMode.NAME.name) }
+    var rightSortName by rememberSaveable { mutableStateOf(FileSortMode.NAME.name) }
+    var leftSortDescending by rememberSaveable { mutableStateOf(false) }
+    var rightSortDescending by rememberSaveable { mutableStateOf(false) }
+
+    val activePath = if (activePane == 0) leftPath else rightPath
+    val activeRefresh = if (activePane == 0) leftRefresh else rightRefresh
+    val activeSummary = if (activePane == 0) leftSummary else rightSummary
+    val activeSortMode = FileSortMode.valueOf(if (activePane == 0) leftSortName else rightSortName)
+    val activeSortDescending = if (activePane == 0) leftSortDescending else rightSortDescending
+    val searchScope = FileSearchScope.valueOf(searchScopeName)
+
+    LaunchedEffect(activePath, activeRefresh, searchOpen, searchQuery, searchScope) {
+        if (!searchOpen || searchQuery.isBlank()) {
+            searchResults = emptyList()
+            searchLoading = false
+            searchError = ""
+            return@LaunchedEffect
+        }
+        searchLoading = true
+        searchError = ""
+        delay(280)
+        val result = withContext(Dispatchers.IO) {
+            LocalFileOperations.search(
+                directory = File(activePath),
+                query = searchQuery,
+                includeFiles = searchScope != FileSearchScope.FOLDERS,
+                includeDirectories = searchScope != FileSearchScope.FILES,
+            )
+        }
+        result.onSuccess { searchResults = it }.onFailure { searchError = it.message.orEmpty() }
+        searchLoading = false
+    }
 
     fun refreshBoth() {
         leftRefresh++
@@ -490,7 +563,38 @@ private fun DualPaneFileManager(
     }
 
     Box(Modifier.fillMaxSize()) {
-        Row(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize()) {
+            FileManagerHeader(
+                activePane = activePane,
+                activePath = activePath,
+                summary = activeSummary,
+                menuOpen = menuOpen,
+                searchOpen = searchOpen,
+                searchQuery = searchQuery,
+                searchScope = searchScope,
+                searchResultCount = if (searchQuery.isNotBlank()) searchResults.size else null,
+                sortMode = activeSortMode,
+                sortDescending = activeSortDescending,
+                onMenuOpen = { menuOpen = it },
+                onSearchToggle = {
+                    searchOpen = !searchOpen
+                    if (!searchOpen) searchQuery = ""
+                    menuOpen = false
+                },
+                onSearchQuery = { searchQuery = it },
+                onSearchScope = { searchScopeName = it.name },
+                onSortMode = { mode ->
+                    if (activePane == 0) leftSortName = mode.name else rightSortName = mode.name
+                    menuOpen = false
+                },
+                onToggleSortDirection = {
+                    if (activePane == 0) leftSortDescending = !leftSortDescending
+                    else rightSortDescending = !rightSortDescending
+                    menuOpen = false
+                },
+            )
+            HorizontalDivider()
+            Row(Modifier.weight(1f).fillMaxWidth()) {
             Box(Modifier.weight(1f).fillMaxHeight()) {
                 AnimatedContent(
                     targetState = leftPath,
@@ -513,6 +617,13 @@ private fun DualPaneFileManager(
                         onCreateFolder = { activePane = 0; createFolderPane = 0 },
                         onCreateFile = { activePane = 0; createFilePane = 0 },
                         onRefresh = { activePane = 0; leftRefresh++ },
+                        sortMode = FileSortMode.valueOf(leftSortName),
+                        sortDescending = leftSortDescending,
+                        searchResults = if (activePane == 0 && searchOpen && searchQuery.isNotBlank()) searchResults else null,
+                        searchLoading = activePane == 0 && searchLoading,
+                        searchError = if (activePane == 0) searchError else "",
+                        searchRoot = File(leftPath),
+                        onSummary = { leftSummary = it },
                     )
                 }
             }
@@ -539,9 +650,17 @@ private fun DualPaneFileManager(
                         onCreateFolder = { activePane = 1; createFolderPane = 1 },
                         onCreateFile = { activePane = 1; createFilePane = 1 },
                         onRefresh = { activePane = 1; rightRefresh++ },
+                        sortMode = FileSortMode.valueOf(rightSortName),
+                        sortDescending = rightSortDescending,
+                        searchResults = if (activePane == 1 && searchOpen && searchQuery.isNotBlank()) searchResults else null,
+                        searchLoading = activePane == 1 && searchLoading,
+                        searchError = if (activePane == 1) searchError else "",
+                        searchRoot = File(rightPath),
+                        onSummary = { rightSummary = it },
                     )
                 }
             }
+        }
         }
         val selectedCount = leftSelection.size + rightSelection.size
         AnimatedVisibility(
@@ -584,6 +703,169 @@ private fun DualPaneFileManager(
     }
 }
 
+private enum class FileSearchScope { ALL, FILES, FOLDERS }
+
+private enum class FileSortMode { NAME, MODIFIED, SIZE, TYPE }
+
+private data class PaneSummary(
+    val folderCount: Int = 0,
+    val fileCount: Int = 0,
+    val loading: Boolean = true,
+)
+
+@Composable
+private fun FileManagerHeader(
+    activePane: Int,
+    activePath: String,
+    summary: PaneSummary,
+    menuOpen: Boolean,
+    searchOpen: Boolean,
+    searchQuery: String,
+    searchScope: FileSearchScope,
+    searchResultCount: Int?,
+    sortMode: FileSortMode,
+    sortDescending: Boolean,
+    onMenuOpen: (Boolean) -> Unit,
+    onSearchToggle: () -> Unit,
+    onSearchQuery: (String) -> Unit,
+    onSearchScope: (FileSearchScope) -> Unit,
+    onSortMode: (FileSortMode) -> Unit,
+    onToggleSortDirection: () -> Unit,
+) {
+    val context = LocalContext.current
+    Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 2.dp, top = 6.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    context.getString(if (activePane == 0) R.string.file_manager_left_pane else R.string.file_manager_right_pane),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    activePath,
+                    fontFamily = FontFamily.Monospace,
+                    style = MaterialTheme.typography.labelMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    when {
+                        searchResultCount != null -> context.getString(R.string.file_manager_search_results, searchResultCount)
+                        summary.loading -> context.getString(R.string.file_loading)
+                        else -> context.getString(
+                            R.string.file_manager_item_summary,
+                            summary.folderCount,
+                            summary.fileCount,
+                        )
+                    },
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+            Box {
+                IconButton(onClick = { onMenuOpen(true) }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = context.getString(R.string.file_manager_menu))
+                }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpen(false) }) {
+                    DropdownMenuItem(
+                        text = { Text(context.getString(R.string.file_manager_search)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        onClick = onSearchToggle,
+                    )
+                    HorizontalDivider()
+                    Text(
+                        context.getString(R.string.file_manager_sort_by),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    )
+                    FileSortMode.entries.forEach { mode ->
+                        DropdownMenuItem(
+                            text = { Text(context.getString(mode.labelResource())) },
+                            leadingIcon = {
+                                if (mode == sortMode) Icon(Icons.Default.CheckCircle, contentDescription = null)
+                            },
+                            onClick = { onSortMode(mode) },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = {
+                            Text(context.getString(if (sortDescending) R.string.file_manager_sort_descending else R.string.file_manager_sort_ascending))
+                        },
+                        leadingIcon = { Icon(Icons.Default.UnfoldMore, contentDescription = null) },
+                        onClick = onToggleSortDirection,
+                    )
+                }
+            }
+        }
+        AnimatedVisibility(visible = searchOpen) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)) {
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQuery,
+                    placeholder = { Text(context.getString(R.string.file_manager_search_hint)) },
+                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                    trailingIcon = {
+                        IconButton(onClick = { if (searchQuery.isEmpty()) onSearchToggle() else onSearchQuery("") }) {
+                            Icon(Icons.Default.Close, contentDescription = context.getString(R.string.file_clear_selection))
+                        }
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                    FileSearchScope.entries.forEach { scope ->
+                        TextButton(onClick = { onSearchScope(scope) }) {
+                            Text(
+                                context.getString(scope.labelResource()),
+                                color = if (scope == searchScope) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = if (scope == searchScope) FontWeight.Bold else FontWeight.Normal,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun FileSearchScope.labelResource(): Int = when (this) {
+    FileSearchScope.ALL -> R.string.file_manager_search_all
+    FileSearchScope.FILES -> R.string.file_manager_search_files
+    FileSearchScope.FOLDERS -> R.string.file_manager_search_folders
+}
+
+private fun FileSortMode.labelResource(): Int = when (this) {
+    FileSortMode.NAME -> R.string.file_manager_sort_name
+    FileSortMode.MODIFIED -> R.string.file_manager_sort_modified
+    FileSortMode.SIZE -> R.string.file_manager_sort_size
+    FileSortMode.TYPE -> R.string.file_manager_sort_type
+}
+
+private fun sortFileEntries(
+    entries: List<LocalFileEntry>,
+    mode: FileSortMode,
+    descending: Boolean,
+): List<LocalFileEntry> {
+    return entries.sortedWith { first, second ->
+        if (first.directory != second.directory) {
+            if (first.directory) -1 else 1
+        } else {
+            val comparison = when (mode) {
+                FileSortMode.NAME -> first.name.compareTo(second.name, ignoreCase = true)
+                FileSortMode.MODIFIED -> first.modifiedAt.compareTo(second.modifiedAt)
+                FileSortMode.SIZE -> first.size.compareTo(second.size)
+                FileSortMode.TYPE -> first.file.extension.compareTo(second.file.extension, ignoreCase = true)
+            }.let { if (it == 0) first.name.compareTo(second.name, ignoreCase = true) else it }
+            if (descending) -comparison else comparison
+        }
+    }
+}
+
 @Composable
 private fun FilePane(
     directory: File,
@@ -600,6 +882,13 @@ private fun FilePane(
     onCreateFolder: () -> Unit,
     onCreateFile: () -> Unit,
     onRefresh: () -> Unit,
+    sortMode: FileSortMode,
+    sortDescending: Boolean,
+    searchResults: List<LocalFileEntry>?,
+    searchLoading: Boolean,
+    searchError: String,
+    searchRoot: File,
+    onSummary: (PaneSummary) -> Unit,
 ) {
     val context = LocalContext.current
     val directoryPath = directory.absolutePath
@@ -622,6 +911,15 @@ private fun FilePane(
         result.onSuccess { entries = it; error = "" }.onFailure { error = it.message.orEmpty() }
         loading = false
     }
+    LaunchedEffect(entries, loading) {
+        onSummary(
+            PaneSummary(
+                folderCount = entries.count { it.directory },
+                fileCount = entries.count { !it.directory },
+                loading = loading,
+            ),
+        )
+    }
     LaunchedEffect(directoryPath, listState) {
         snapshotFlow { PaneScrollPosition(listState.firstVisibleItemIndex, listState.firstVisibleItemScrollOffset) }
             .collect { scrollPositions[directoryPath] = it }
@@ -631,6 +929,11 @@ private fun FilePane(
             if (scrolling) onActivate()
         }
     }
+    val displayedEntries = remember(entries, searchResults, sortMode, sortDescending) {
+        sortFileEntries(searchResults ?: entries, sortMode, sortDescending)
+    }
+    val displayedLoading = if (searchResults != null) searchLoading else loading
+    val displayedError = if (searchResults != null) searchError else error
     Column(
         modifier
             .fillMaxHeight()
@@ -640,37 +943,22 @@ private fun FilePane(
                 color = if (active) MaterialTheme.colorScheme.primary else Color.Transparent,
             ),
     ) {
-        Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 7.dp)) {
-            Text(
-                directory.absolutePath,
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.labelMedium,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(context.getString(R.string.file_folder_count, entries.count { it.directory }), style = MaterialTheme.typography.labelSmall)
-                Text(context.getString(R.string.file_file_count, entries.count { !it.directory }), style = MaterialTheme.typography.labelSmall)
-                if (selectedPaths.isNotEmpty()) {
-                    Text(
-                        context.getString(R.string.file_selected_count, selectedPaths.size),
-                        color = MaterialTheme.colorScheme.primary,
-                        style = MaterialTheme.typography.labelSmall,
-                    )
-                }
-            }
-        }
-        HorizontalDivider()
         Box(Modifier.weight(1f).fillMaxWidth()) {
             when {
-                loading -> Text(context.getString(R.string.file_loading), modifier = Modifier.align(Alignment.Center))
-                error.isNotBlank() -> Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
-                entries.isEmpty() -> Text(context.getString(R.string.file_empty_folder), modifier = Modifier.align(Alignment.Center))
+                displayedLoading -> Text(context.getString(R.string.file_loading), modifier = Modifier.align(Alignment.Center))
+                displayedError.isNotBlank() -> Text(displayedError, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(12.dp))
+                displayedEntries.isEmpty() -> Text(
+                    context.getString(if (searchResults != null) R.string.file_manager_search_empty else R.string.file_empty_folder),
+                    modifier = Modifier.align(Alignment.Center),
+                )
                 else -> LazyColumn(Modifier.fillMaxSize(), state = listState) {
-                    items(entries, key = { it.file.absolutePath }) { entry ->
+                    items(displayedEntries, key = { it.file.absolutePath }) { entry ->
                         FileRow(
                             entry = entry,
                             selected = entry.file.absolutePath in selectedPaths,
+                            parentPath = if (searchResults != null) {
+                                entry.file.parentFile?.relativeToOrNull(searchRoot)?.path?.ifBlank { File.separator }
+                            } else null,
                             onClick = {
                                 onActivate()
                                 if (selectedPaths.isNotEmpty()) {
@@ -733,6 +1021,7 @@ private fun FilePane(
 private fun FileRow(
     entry: LocalFileEntry,
     selected: Boolean,
+    parentPath: String? = null,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     onSwipe: () -> Unit,
@@ -796,17 +1085,15 @@ private fun FileRow(
             Surface(
                 shape = RoundedCornerShape(10.dp),
                 color = MaterialTheme.colorScheme.surfaceVariant,
-                modifier = Modifier.size(38.dp),
+                modifier = Modifier.size(42.dp),
             ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(if (entry.directory) Icons.Default.Folder else fileIcon(entry.file), contentDescription = null, modifier = Modifier.size(22.dp))
-                }
+                FileVisual(entry)
             }
             Spacer(Modifier.width(8.dp))
             Column(Modifier.weight(1f)) {
                 Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    if (entry.directory) DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(entry.modifiedAt)
+                    parentPath ?: if (entry.directory) DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(entry.modifiedAt)
                     else formatBytes(entry.size),
                     maxLines = 1,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -816,6 +1103,125 @@ private fun FileRow(
         }
     }
 }
+
+@Composable
+private fun FileVisual(entry: LocalFileEntry) {
+    if (entry.directory) {
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Folder, contentDescription = null, modifier = Modifier.size(25.dp))
+        }
+        return
+    }
+    val extension = entry.file.extension.lowercase()
+    when {
+        mediaPreviewKind(entry.file) == MediaPreviewKind.IMAGE -> ImageThumbnail(entry.file)
+        mediaPreviewKind(entry.file) == MediaPreviewKind.VIDEO -> FileCategoryIcon(Icons.Default.Movie, MaterialTheme.colorScheme.primary)
+        mediaPreviewKind(entry.file) == MediaPreviewKind.AUDIO -> FileCategoryIcon(Icons.Default.MusicNote, Color(0xFF7E57C2))
+        extension in archiveExtensions -> FileCategoryIcon(Icons.Default.UnfoldMore, Color(0xFFFF8F00))
+        extension in codeLanguageMarks -> CodeLanguageBadge(extension)
+        extension == "pdf" -> FormatBadge("PDF", Color(0xFFD32F2F))
+        extension in wordExtensions -> FormatBadge("DOC", Color(0xFF1976D2))
+        extension in spreadsheetExtensions -> FormatBadge("XLS", Color(0xFF2E7D32))
+        extension in presentationExtensions -> FormatBadge("PPT", Color(0xFFEF6C00))
+        else -> FileCategoryIcon(Icons.Default.Description, MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+@Composable
+private fun ImageThumbnail(file: File) {
+    val bitmap by produceState<Bitmap?>(initialValue = null, file.absolutePath, file.lastModified()) {
+        value = withContext(Dispatchers.IO) { loadImageThumbnail(file) }
+    }
+    if (bitmap != null) {
+        Image(
+            bitmap = requireNotNull(bitmap).asImageBitmap(),
+            contentDescription = file.name,
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+    } else {
+        FileCategoryIcon(Icons.Default.ImageIcon, MaterialTheme.colorScheme.primary)
+    }
+}
+
+private fun loadImageThumbnail(file: File): Bitmap? = runCatching {
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeFile(file.absolutePath, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+    var sample = 1
+    while (maxOf(bounds.outWidth, bounds.outHeight) / sample > 160) sample *= 2
+    BitmapFactory.decodeFile(
+        file.absolutePath,
+        BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = Bitmap.Config.RGB_565
+        },
+    )
+}.getOrNull()
+
+@Composable
+private fun FileCategoryIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, tint: Color) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+    }
+}
+
+@Composable
+private fun CodeLanguageBadge(extension: String) {
+    val (mark, color) = codeLanguageMarks.getValue(extension)
+    FormatBadge(mark, color)
+}
+
+@Composable
+private fun FormatBadge(mark: String, color: Color) {
+    Box(Modifier.fillMaxSize().background(color), contentAlignment = Alignment.Center) {
+        Text(
+            mark,
+            color = Color.White,
+            fontWeight = FontWeight.ExtraBold,
+            style = MaterialTheme.typography.labelSmall,
+            maxLines = 1,
+        )
+    }
+}
+
+private val codeLanguageMarks = mapOf(
+    "kt" to ("KT" to Color(0xFF7F52FF)),
+    "kts" to ("KT" to Color(0xFF7F52FF)),
+    "java" to ("JAVA" to Color(0xFFE76F00)),
+    "py" to ("PY" to Color(0xFF3776AB)),
+    "js" to ("JS" to Color(0xFFF0DB4F)),
+    "jsx" to ("JSX" to Color(0xFF087EA4)),
+    "ts" to ("TS" to Color(0xFF3178C6)),
+    "tsx" to ("TSX" to Color(0xFF3178C6)),
+    "html" to ("<>" to Color(0xFFE34F26)),
+    "htm" to ("<>" to Color(0xFFE34F26)),
+    "css" to ("CSS" to Color(0xFF1572B6)),
+    "scss" to ("SASS" to Color(0xFFCC6699)),
+    "c" to ("C" to Color(0xFF5C6BC0)),
+    "h" to ("C" to Color(0xFF5C6BC0)),
+    "cpp" to ("C++" to Color(0xFF00599C)),
+    "hpp" to ("C++" to Color(0xFF00599C)),
+    "cs" to ("C#" to Color(0xFF512BD4)),
+    "go" to ("GO" to Color(0xFF00ADD8)),
+    "rs" to ("RS" to Color(0xFF6B4F3A)),
+    "php" to ("PHP" to Color(0xFF777BB4)),
+    "rb" to ("RB" to Color(0xFFCC342D)),
+    "swift" to ("SW" to Color(0xFFF05138)),
+    "dart" to ("DART" to Color(0xFF0175C2)),
+    "vue" to ("VUE" to Color(0xFF42B883)),
+    "sh" to (">_" to Color(0xFF455A64)),
+    "bash" to (">_" to Color(0xFF455A64)),
+    "json" to ("{}" to Color(0xFF546E7A)),
+    "xml" to ("XML" to Color(0xFF8E24AA)),
+    "sql" to ("SQL" to Color(0xFF336791)),
+    "lua" to ("LUA" to Color(0xFF000080)),
+)
+
+private val archiveExtensions = setOf("zip", "rar", "7z", "tar", "gz", "bz2", "xz", "tgz", "apk", "jar", "war")
+private val wordExtensions = setOf("doc", "docx", "odt", "rtf")
+private val spreadsheetExtensions = setOf("xls", "xlsx", "ods", "csv", "tsv")
+private val presentationExtensions = setOf("ppt", "pptx", "odp")
 
 @Composable
 private fun FileActionDialog(
@@ -1696,11 +2102,6 @@ private fun previewHtmlInBrowser(context: Context, file: File) {
 
 private fun showError(context: Context, error: Throwable) {
     Toast.makeText(context, error.message.orEmpty().ifBlank { context.getString(R.string.file_open_failed) }, Toast.LENGTH_LONG).show()
-}
-
-private fun fileIcon(file: File) = when (file.extension.lowercase()) {
-    "kt", "kts", "java", "py", "js", "ts", "html", "css", "xml", "json", "md", "c", "cpp", "h", "go", "rs", "lua" -> Icons.Default.Code
-    else -> Icons.Default.Description
 }
 
 private fun formatBytes(bytes: Long): String {
