@@ -20,6 +20,11 @@ data class Conversation(
     val archivedAt: Long,
     val mode: String = ConversationStore.MODE_NORMAL,
     val workspaceUri: String = "",
+    val compressedContext: String = "",
+    val compressedThroughMessageId: Long = 0L,
+    val autoCompressionMode: String = ConversationStore.AUTO_COMPRESSION_OFF,
+    val autoCompressionTurnThreshold: Int = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS,
+    val autoCompressionTokenThreshold: Long = ConversationStore.DEFAULT_AUTO_COMPRESSION_TOKENS,
 )
 
 data class ChatMessage(
@@ -55,7 +60,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    8,
+    9,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -71,7 +76,12 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 pinned_at INTEGER NOT NULL DEFAULT 0,
                 archived_at INTEGER NOT NULL DEFAULT 0,
                 mode TEXT NOT NULL DEFAULT 'normal',
-                workspace_uri TEXT NOT NULL DEFAULT ''
+                workspace_uri TEXT NOT NULL DEFAULT '',
+                compressed_context TEXT NOT NULL DEFAULT '',
+                compressed_through_message_id INTEGER NOT NULL DEFAULT 0,
+                auto_compression_mode TEXT NOT NULL DEFAULT 'off',
+                auto_compression_turn_threshold INTEGER NOT NULL DEFAULT 20,
+                auto_compression_token_threshold INTEGER NOT NULL DEFAULT 131072
             )
             """.trimIndent(),
         )
@@ -178,6 +188,13 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         if (oldVersion < 8) {
             db.execSQL("ALTER TABLE conversations ADD COLUMN archived_at INTEGER NOT NULL DEFAULT 0")
         }
+        if (oldVersion < 9) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN compressed_context TEXT NOT NULL DEFAULT ''")
+            db.execSQL("ALTER TABLE conversations ADD COLUMN compressed_through_message_id INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE conversations ADD COLUMN auto_compression_mode TEXT NOT NULL DEFAULT 'off'")
+            db.execSQL("ALTER TABLE conversations ADD COLUMN auto_compression_turn_threshold INTEGER NOT NULL DEFAULT 20")
+            db.execSQL("ALTER TABLE conversations ADD COLUMN auto_compression_token_threshold INTEGER NOT NULL DEFAULT 131072")
+        }
     }
 
     fun createConversation(
@@ -215,6 +232,10 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         archivedAt: Long,
         mode: String,
         workspaceUri: String,
+        compressedContext: String,
+        autoCompressionMode: String,
+        autoCompressionTurnThreshold: Int,
+        autoCompressionTokenThreshold: Long,
     ): Long {
         return writableDatabase.insert(
             "conversations",
@@ -230,6 +251,10 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("archived_at", archivedAt)
                 put("mode", mode)
                 put("workspace_uri", workspaceUri)
+                put("compressed_context", compressedContext)
+                put("auto_compression_mode", autoCompressionMode)
+                put("auto_compression_turn_threshold", autoCompressionTurnThreshold)
+                put("auto_compression_token_threshold", autoCompressionTokenThreshold)
             },
         )
     }
@@ -254,7 +279,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         }
         val cursor = readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "archived_at", "mode", "workspace_uri"),
+            CONVERSATION_COLUMNS,
             clauses.joinToString(" AND ").ifBlank { null },
             args.toTypedArray().ifEmpty { null },
             null,
@@ -281,6 +306,11 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             archivedAt = it.getLong(8),
                             mode = it.getString(9),
                             workspaceUri = it.getString(10),
+                            compressedContext = it.getString(11),
+                            compressedThroughMessageId = it.getLong(12),
+                            autoCompressionMode = it.getString(13),
+                            autoCompressionTurnThreshold = it.getInt(14),
+                            autoCompressionTokenThreshold = it.getLong(15),
                         ),
                     )
                 }
@@ -291,7 +321,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun conversation(id: Long): Conversation? {
         return readableDatabase.query(
             "conversations",
-            arrayOf("id", "title", "status", "profile_id", "model", "created_at", "updated_at", "pinned_at", "archived_at", "mode", "workspace_uri"),
+            CONVERSATION_COLUMNS,
             "id=?",
             arrayOf(id.toString()),
             null,
@@ -299,7 +329,14 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             null,
         ).use {
             if (!it.moveToFirst()) return null
-            Conversation(it.getLong(0), it.getString(1), it.getString(2), it.getString(3), it.getString(4), it.getLong(5), it.getLong(6), it.getLong(7), it.getLong(8), it.getString(9), it.getString(10))
+            Conversation(
+                id = it.getLong(0), title = it.getString(1), status = it.getString(2),
+                profileId = it.getString(3), model = it.getString(4), createdAt = it.getLong(5),
+                updatedAt = it.getLong(6), pinnedAt = it.getLong(7), archivedAt = it.getLong(8),
+                mode = it.getString(9), workspaceUri = it.getString(10), compressedContext = it.getString(11),
+                compressedThroughMessageId = it.getLong(12), autoCompressionMode = it.getString(13),
+                autoCompressionTurnThreshold = it.getInt(14), autoCompressionTokenThreshold = it.getLong(15),
+            )
         }
     }
 
@@ -339,6 +376,41 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             put("updated_at", System.currentTimeMillis())
         }
         writableDatabase.update("conversations", values, "id=?", arrayOf(id.toString()))
+    }
+
+    fun setCompressedContext(id: Long, summary: String, throughMessageId: Long) {
+        writableDatabase.update(
+            "conversations",
+            ContentValues().apply {
+                put("compressed_context", summary.trim())
+                put("compressed_through_message_id", throughMessageId.coerceAtLeast(0L))
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
+    fun clearCompressedContext(id: Long) = setCompressedContext(id, "", 0L)
+
+    fun setAutoCompression(
+        id: Long,
+        mode: String,
+        turnThreshold: Int,
+        tokenThreshold: Long,
+    ) {
+        val normalizedMode = mode.takeIf { it in AUTO_COMPRESSION_MODES } ?: AUTO_COMPRESSION_OFF
+        writableDatabase.update(
+            "conversations",
+            ContentValues().apply {
+                put("auto_compression_mode", normalizedMode)
+                put("auto_compression_turn_threshold", turnThreshold.coerceIn(1, 10_000))
+                put("auto_compression_token_threshold", tokenThreshold.coerceIn(1_024L, 16_777_216L))
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
     }
 
     fun addMessage(
@@ -453,6 +525,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             "conversation_id=? AND id>?",
             arrayOf(conversationId.toString(), messageId.toString()),
         )
+        conversation(conversationId)?.takeIf { it.compressedThroughMessageId >= messageId }?.let {
+            clearCompressedContext(conversationId)
+        }
         setConversationMeta(conversationId)
     }
 
@@ -590,6 +665,11 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             .put("archivedAt", conversation.archivedAt)
                             .put("mode", conversation.mode)
                             .put("workspaceUri", conversation.workspaceUri)
+                            .put("compressedContext", conversation.compressedContext)
+                            .put("compressedMessageCount", messages(conversation.id).count { it.id <= conversation.compressedThroughMessageId })
+                            .put("autoCompressionMode", conversation.autoCompressionMode)
+                            .put("autoCompressionTurnThreshold", conversation.autoCompressionTurnThreshold)
+                            .put("autoCompressionTokenThreshold", conversation.autoCompressionTokenThreshold)
                             .put("messages", JSONArray().also { messages ->
                                 messages(conversation.id).forEach { message ->
                                     messages.put(
@@ -658,6 +738,10 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 archivedAt = item.optLong("archivedAt", 0L),
                 mode = importedMode,
                 workspaceUri = item.optString("workspaceUri"),
+                compressedContext = item.optString("compressedContext"),
+                autoCompressionMode = item.optString("autoCompressionMode").ifBlank { AUTO_COMPRESSION_OFF },
+                autoCompressionTurnThreshold = item.optInt("autoCompressionTurnThreshold", DEFAULT_AUTO_COMPRESSION_TURNS),
+                autoCompressionTokenThreshold = item.optLong("autoCompressionTokenThreshold", DEFAULT_AUTO_COMPRESSION_TOKENS),
             )
             for (messageIndex in 0 until messages.length()) {
                 val message = messages.optJSONObject(messageIndex) ?: continue
@@ -674,6 +758,12 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     createdAt = message.optLong("createdAt", exportedCreatedAt + messageIndex),
                 )
                 importedMessages++
+            }
+            val compressedCount = item.optInt("compressedMessageCount", 0).coerceAtLeast(0)
+            if (item.optString("compressedContext").isNotBlank() && compressedCount > 0) {
+                messages(conversationId).getOrNull(compressedCount - 1)?.let { through ->
+                    setCompressedContext(conversationId, item.optString("compressedContext"), through.id)
+                }
             }
             importedConversations++
         }
@@ -841,6 +931,18 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     }
 
     companion object {
+        const val AUTO_COMPRESSION_OFF = "off"
+        const val AUTO_COMPRESSION_TURNS = "turns"
+        const val AUTO_COMPRESSION_TOKENS = "tokens"
+        const val DEFAULT_AUTO_COMPRESSION_TURNS = 20
+        const val DEFAULT_AUTO_COMPRESSION_TOKENS = 131_072L
+        val AUTO_COMPRESSION_MODES = setOf(AUTO_COMPRESSION_OFF, AUTO_COMPRESSION_TURNS, AUTO_COMPRESSION_TOKENS)
+        private val CONVERSATION_COLUMNS = arrayOf(
+            "id", "title", "status", "profile_id", "model", "created_at", "updated_at",
+            "pinned_at", "archived_at", "mode", "workspace_uri", "compressed_context",
+            "compressed_through_message_id", "auto_compression_mode",
+            "auto_compression_turn_threshold", "auto_compression_token_threshold",
+        )
         const val STATUS_IDLE = "idle"
         const val STATUS_RUNNING = "running"
         const val STATUS_INTERRUPTED = "interrupted"

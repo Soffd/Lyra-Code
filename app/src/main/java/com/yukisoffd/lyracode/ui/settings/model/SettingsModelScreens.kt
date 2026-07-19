@@ -108,6 +108,41 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
 
 @Composable
 internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatController) {
+    var page by rememberSaveable { mutableStateOf("root") }
+    BackHandler(enabled = page != "root") { page = "root" }
+    when (page) {
+        "topic" -> TopicSummaryModelEditor(settings, controller, onBack = { page = "root" })
+        "compression" -> HistoryCompressionModelEditor(settings, controller, onBack = { page = "root" })
+        else -> KimiCardBox {
+            KimiMenuRow(
+                icon = Icons.Default.Topic,
+                title = uiText("话题总结模型"),
+                value = uiText("为新对话生成简短标题"),
+                onClick = { page = "topic" },
+            )
+            KimiDivider()
+            KimiMenuRow(
+                icon = Icons.Default.Compress,
+                title = uiText("会话历史压缩模型"),
+                value = uiText("设置手动与自动压缩使用的模型"),
+                onClick = { page = "compression" },
+            )
+        }
+    }
+}
+
+@Composable
+private fun FeatureModelPageHeader(title: String, onBack: () -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回"))
+        }
+        Text(title, style = MaterialTheme.typography.titleLarge)
+    }
+}
+
+@Composable
+private fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatController, onBack: () -> Unit) {
     val profiles = controller.profiles.toList()
     var profileId by remember { mutableStateOf(settings.topicSummaryProfile().id) }
     val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
@@ -118,6 +153,7 @@ internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatCo
         )
     }
     var notice by remember { mutableStateOf("") }
+    FeatureModelPageHeader(uiText("话题总结模型"), onBack)
     KimiCardBox {
         Text(uiText("独立话题总结模型"), style = MaterialTheme.typography.titleMedium)
         Text(
@@ -164,6 +200,87 @@ internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatCo
             shape = KimiPillShape,
         ) { Text(uiText("保存")) }
         if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+private fun HistoryCompressionModelEditor(settings: AppSettings, controller: ChatController, onBack: () -> Unit) {
+    val profiles = controller.profiles.toList()
+    var compressionNotice by remember { mutableStateOf("") }
+    var compressionEnabled by remember {
+        mutableStateOf(settings.historyCompressionProfileId.isNotBlank() && settings.historyCompressionModel.isNotBlank())
+    }
+    var compressionProfileId by remember {
+        mutableStateOf(settings.historyCompressionProfileId.ifBlank { settings.selectedProfile().id })
+    }
+    val compressionProfile = profiles.firstOrNull { it.id == compressionProfileId } ?: profiles.firstOrNull()
+    var compressionModel by remember(compressionProfileId) {
+        mutableStateOf(
+            settings.historyCompressionModel.takeIf {
+                compressionProfileId == settings.historyCompressionProfileId && it.isNotBlank()
+            } ?: compressionProfile?.selectedModel.orEmpty(),
+        )
+    }
+    FeatureModelPageHeader(uiText("会话历史压缩模型"), onBack)
+    KimiCardBox {
+        Text(uiText("会话历史压缩模型"), style = MaterialTheme.typography.titleMedium)
+        Text(
+            uiText("用于手动或自动压缩会话历史。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。"),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(uiText("使用独立压缩模型"), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (compressionEnabled) uiText("已启用") else uiText("跟随当前会话模型"),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = compressionEnabled, onCheckedChange = { compressionEnabled = it })
+        }
+        if (compressionEnabled) {
+            SubAgentDropdownPicker(
+                label = uiText("模型服务"),
+                value = compressionProfile?.name ?: uiText("未配置"),
+                subtitle = compressionProfile?.selectedModel.orEmpty(),
+                items = profiles,
+                itemTitle = { it.name },
+                itemSubtitle = { it.selectedModel },
+                isSelected = { it.id == compressionProfileId },
+                onSelect = { profile ->
+                    compressionProfileId = profile.id
+                    compressionModel = profile.selectedModel
+                },
+            )
+            SubAgentDropdownPicker(
+                label = uiText("历史压缩模型"),
+                value = compressionModel.ifBlank { uiText("未选择") },
+                items = compressionProfile?.savedModels.orEmpty(),
+                itemTitle = { it },
+                isSelected = { it == compressionModel },
+                onSelect = { compressionModel = it },
+            )
+            OutlinedTextField(
+                value = compressionModel,
+                onValueChange = { compressionModel = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(uiText("历史压缩模型")) },
+                singleLine = true,
+            )
+        }
+        Button(
+            enabled = !compressionEnabled || (compressionProfile != null && compressionModel.isNotBlank()),
+            onClick = {
+                settings.historyCompressionProfileId = if (compressionEnabled) compressionProfile?.id.orEmpty() else ""
+                settings.historyCompressionModel = if (compressionEnabled) compressionModel else ""
+                controller.settingsRevision.intValue++
+                compressionNotice = uiText("额外功能模型已保存")
+            },
+            shape = KimiPillShape,
+        ) { Text(uiText("保存")) }
+        if (compressionNotice.isNotBlank()) Text(compressionNotice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
 

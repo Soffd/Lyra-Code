@@ -8,12 +8,6 @@ import android.os.Build
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -57,11 +51,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -651,16 +642,6 @@ internal fun AboutLogoHeader() {
             context.assets.open(logoAsset).use(BitmapFactory::decodeStream)
         }.getOrNull()
     }
-    val transition = rememberInfiniteTransition(label = "about-logo-background")
-    val pulse by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 3600),
-            repeatMode = RepeatMode.Reverse,
-        ),
-        label = "logo-bg-pulse",
-    )
     Column(
         Modifier
             .fillMaxWidth()
@@ -673,29 +654,6 @@ internal fun AboutLogoHeader() {
                 .size(220.dp),
             contentAlignment = Alignment.Center,
         ) {
-            Canvas(
-                Modifier
-                    .fillMaxSize()
-                    .clip(CircleShape)
-                    .background(
-                        Brush.sweepGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.52f else 0.24f),
-                                Color(0xFFFF7AB6).copy(alpha = if (isDark) 0.42f else 0.18f),
-                                Color(0xFF7CFFCB).copy(alpha = if (isDark) 0.38f else 0.16f),
-                                MaterialTheme.colorScheme.primary.copy(alpha = if (isDark) 0.30f else 0.12f),
-                                MaterialTheme.colorScheme.secondary.copy(alpha = if (isDark) 0.52f else 0.24f),
-                            ),
-                        ),
-                    ),
-            ) {
-                val c1 = Offset(size.width * (0.28f + 0.08f * pulse), size.height * 0.30f)
-                val c2 = Offset(size.width * 0.76f, size.height * (0.34f + 0.10f * (1f - pulse)))
-                val c3 = Offset(size.width * (0.54f - 0.07f * pulse), size.height * 0.72f)
-                drawCircle(Color(0xFF66D9FF).copy(alpha = if (isDark) 0.30f else 0.18f), size.minDimension * 0.34f, c1)
-                drawCircle(Color(0xFFFFD166).copy(alpha = if (isDark) 0.22f else 0.15f), size.minDimension * 0.30f, c2)
-                drawCircle(Color(0xFFFF6FD8).copy(alpha = if (isDark) 0.24f else 0.14f), size.minDimension * 0.28f, c3)
-            }
             if (logoBitmap != null) {
                 Image(
                     bitmap = logoBitmap.asImageBitmap(),

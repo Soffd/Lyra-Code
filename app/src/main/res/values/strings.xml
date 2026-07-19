@@ -495,8 +495,8 @@
     <string name="menu_profile_desc">昵称、头像与用户显示信息</string>
     <string name="menu_model_service">模型服务</string>
     <string name="menu_model_service_desc">配置 AI 服务商、API Key 与默认模型</string>
-    <string name="menu_topic_summary_model">话题总结模型</string>
-    <string name="menu_topic_summary_model_desc">为新对话单独选择轻量标题总结模型</string>
+    <string name="menu_topic_summary_model">额外功能模型</string>
+    <string name="menu_topic_summary_model_desc">配置话题总结与会话历史压缩模型</string>
     <string name="menu_sub_agents">子代理编排</string>
     <string name="menu_sub_agents_desc">选择子代理模型并描述各自擅长的任务</string>
     <string name="menu_web_search">联网搜索</string>
@@ -548,7 +548,40 @@
     <!-- Settings Detail Titles -->
     <string name="detail_profile">个人资料</string>
     <string name="detail_model">模型服务</string>
-    <string name="detail_topic_summary_model">话题总结模型</string>
+    <string name="detail_topic_summary_model">额外功能模型</string>
+
+    <!-- Context window and history compression -->
+    <string name="cd_context_window_usage">上下文窗口使用信息</string>
+    <string name="title_context_window_usage">上下文窗口</string>
+    <string name="context_tokens_used">约 %1$d tokens</string>
+    <string name="context_usage_details">当前 API 上下文包含 %1$d 条消息；距上次压缩 %2$d 轮</string>
+    <string name="context_contains_summary">当前上下文已包含压缩历史摘要</string>
+    <string name="context_estimate_warning">Token 数为本地估算值，不同模型与服务商的分词方式可能不同，请预留安全余量。</string>
+    <string name="label_history_compression_model">会话历史压缩模型</string>
+    <string name="current_conversation_model">当前会话模型：%1$s</string>
+    <string name="label_custom_compression_instruction">自定义压缩指令（可选）</string>
+    <string name="custom_compression_instruction_hint">例如：重点保留代码改动与未完成事项，并将摘要控制在 2,000 tokens 内。</string>
+    <string name="action_compress_history">压缩历史</string>
+    <string name="status_compressing_history">正在压缩会话历史，完成前暂时无法发送消息…</string>
+    <string name="status_auto_compressing_history">已达到自动压缩条件，正在压缩会话历史…</string>
+    <string name="status_history_compressed">会话历史压缩完成</string>
+    <string name="error_history_compression_failed">会话历史压缩失败，原上下文已保留</string>
+    <string name="error_no_history_to_compress">当前会话没有可压缩的历史</string>
+    <string name="title_auto_compression">自动压缩</string>
+    <string name="action_auto_compression">自动压缩</string>
+    <string name="auto_compression_session_hint">仅对当前会话生效</string>
+    <string name="label_compression_mode">触发模式</string>
+    <string name="mode_fixed_turns">固定轮次</string>
+    <string name="mode_fixed_turns_desc">每完成指定数量的用户与 AI 对话后压缩</string>
+    <string name="mode_context_threshold">上下文窗口阈值</string>
+    <string name="mode_context_threshold_desc">估算 token 数达到阈值后压缩</string>
+    <string name="label_turn_threshold">压缩间隔（轮）</string>
+    <string name="turn_definition_hint">1 轮 = 用户发送 1 条消息，AI 返回若干消息并结束。</string>
+    <string name="label_token_threshold">Token 阈值</string>
+    <string name="token_threshold_hint">直接输入 token 数，例如 131072（128K）、262144（256K）或 1048576（1M）。</string>
+    <string name="auto_compression_limit_warning">阈值过高可能在自动压缩触发前先超过当前 API 模型的上下文上限。应用无法可靠获知所有模型的真实上限。</string>
+    <string name="auto_compression_turns_summary">每 %1$d 轮</string>
+    <string name="auto_compression_tokens_summary">达到 %1$d tokens</string>
     <string name="detail_sub_agents">子代理编排</string>
     <string name="detail_web_search">联网搜索</string>
     <string name="detail_workspace">工作目录</string>

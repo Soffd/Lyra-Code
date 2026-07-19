@@ -280,6 +280,101 @@ class OpenAiAgent(
         sanitizeConversationTopic(rawTitle)
     }
 
+    fun estimatedConversationContextTokens(conversationId: Long): Long {
+        return REQUEST_STATIC_INPUT_TOKENS + contextHistory(conversationId, -1L).sumOf { it.promptInputCost() }
+    }
+
+    suspend fun compressConversationHistory(
+        conversationId: Long,
+        profile: ApiProfile,
+        model: String,
+        customInstruction: String,
+    ): String = withContext(Dispatchers.IO) {
+        require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        require(model.isNotBlank()) { "未配置会话历史压缩模型" }
+        val history = contextHistory(conversationId, -1L)
+        require(history.isNotEmpty()) { "当前会话没有可压缩的历史" }
+        val transcript = buildCompressionTranscript(history)
+        val instruction = buildString {
+            append("你负责压缩会话历史，输出将直接替代旧消息并作为后续对话的唯一历史依据。")
+            append("完整保留用户目标、明确要求、关键事实、已完成工作、未完成事项、重要决定、约束、文件路径、代码符号、命令结果、错误与下一步。")
+            append("去除寒暄、重复和无助于继续任务的过程噪音。不要虚构信息。使用结构清晰、信息密集的纯文本，不要添加关于本指令的解释。")
+            customInstruction.trim().takeIf { it.isNotBlank() }?.let {
+                append("\n\n用户的额外压缩要求（优先遵循）：\n")
+                append(it)
+            }
+        }
+        val rawSummary = when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> {
+                val payload = JSONObject().put("model", model).put("max_tokens", HISTORY_COMPRESSION_MAX_OUTPUT_TOKENS)
+                    .put("temperature", 0.1).put("system", instruction)
+                    .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", transcript)))
+                val request = Request.Builder().url(profile.chatEndpoint).addHeader("x-api-key", profile.apiKey)
+                    .addHeader("anthropic-version", ANTHROPIC_VERSION).addHeader("Content-Type", "application/json")
+                    .post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error(historyCompressionHttpError(response.code, body))
+                    val blocks = JSONObject(body).optJSONArray("content") ?: JSONArray()
+                    buildString {
+                        for (index in 0 until blocks.length()) {
+                            blocks.optJSONObject(index)?.takeIf { it.optString("type") == "text" }?.optString("text")?.let(::append)
+                        }
+                    }
+                }
+            }
+            ApiProfile.API_FORMAT_GEMINI -> {
+                val payload = JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", JSONArray().put(JSONObject().put("text", transcript)))))
+                    .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", instruction))))
+                    .put("generationConfig", JSONObject().put("temperature", 0.1).put("maxOutputTokens", HISTORY_COMPRESSION_MAX_OUTPUT_TOKENS))
+                val request = Request.Builder().url(profile.geminiGenerateContentEndpoint(model)).addHeader("x-goog-api-key", profile.apiKey)
+                    .addHeader("Content-Type", "application/json").post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error(historyCompressionHttpError(response.code, body))
+                    val parts = JSONObject(body).optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts") ?: JSONArray()
+                    buildString { for (index in 0 until parts.length()) parts.optJSONObject(index)?.optString("text")?.let(::append) }
+                }
+            }
+            else -> {
+                val payload = JSONObject().put("model", model)
+                    .put("messages", JSONArray().put(JSONObject().put("role", "system").put("content", instruction)).put(JSONObject().put("role", "user").put("content", transcript)))
+                    .put("temperature", 0.1).put("max_tokens", HISTORY_COMPRESSION_MAX_OUTPUT_TOKENS).put("stream", false)
+                val request = Request.Builder().url(profile.chatEndpoint).addHeader("Authorization", "Bearer ${profile.apiKey}")
+                    .addHeader("Content-Type", "application/json").post(payload.toString().toRequestBody("application/json".toMediaType())).build()
+                client.newCall(request).execute().use { response ->
+                    val body = response.body?.string().orEmpty()
+                    if (!response.isSuccessful) error(historyCompressionHttpError(response.code, body))
+                    JSONObject(body).optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
+                }
+            }
+        }
+        cleanGeneratedText(rawSummary).trim().also {
+            require(it.isNotBlank()) { "会话历史压缩模型未返回有效摘要，原上下文已保留" }
+        }
+    }
+
+    private fun buildCompressionTranscript(history: List<ChatMessage>): String = buildString {
+        append("LYRA_HISTORY_TO_COMPRESS_V1\n")
+        history.forEachIndexed { index, message ->
+            append("\n--- message ").append(index + 1).append(" role=").append(message.role).append(" ---\n")
+            if (message.thinking.isNotBlank()) append("thinking:\n").append(message.thinking).append('\n')
+            append("content:\n").append(message.content)
+            toolCallsOutputText(message.rawJson).takeIf { it.isNotBlank() }?.let { append("\ntool_calls:\n").append(it) }
+            append('\n')
+        }
+    }
+
+    private fun historyCompressionHttpError(code: Int, body: String): String {
+        val detail = body.take(500)
+        return uiText(if (code == 400 || code == 413) {
+            "会话历史压缩失败：历史可能超过所选压缩模型的上下文窗口（HTTP $code）。原上下文已保留。$detail"
+        } else {
+            "会话历史压缩请求失败（HTTP $code）。原上下文已保留。$detail"
+        })
+    }
+
     suspend fun continueConversation(
         conversationId: Long,
         profile: ApiProfile,
@@ -709,7 +804,7 @@ class OpenAiAgent(
             .put(activeSkillsMessage(conversationId))
             .put(sessionContextMessage())
         val history = openAiHistoryGroups(conversationId, excludeMessageId)
-        compactHistoryGroups(history).forEach { group ->
+        history.forEach { group ->
             group.forEach { messages.put(it) }
         }
         return sanitizePromptMessageSequence(messages)
@@ -726,7 +821,29 @@ class OpenAiAgent(
     }
 
     private fun providerHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
-        return conversationStore.messages(conversationId).filter { it.id != excludeMessageId }
+        return contextHistory(conversationId, excludeMessageId)
+    }
+
+    private fun contextHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
+        val conversation = conversationStore.conversation(conversationId)
+        val source = conversationStore.messages(conversationId)
+            .filter { it.id != excludeMessageId && it.id > (conversation?.compressedThroughMessageId ?: 0L) }
+        val summary = conversation?.compressedContext.orEmpty().trim()
+        if (summary.isBlank()) return source
+        return listOf(
+            ChatMessage(
+                id = conversation?.compressedThroughMessageId ?: 0L,
+                conversationId = conversationId,
+                role = "user",
+                content = "LYRA_COMPRESSED_CONVERSATION_CONTEXT_V1\n$summary\n\n以上内容是此前会话历史的压缩摘要，请将其视为已发生的对话事实并继续当前任务。",
+                thinking = "",
+                profileId = conversation?.profileId.orEmpty(),
+                model = conversation?.model.orEmpty(),
+                toolCallId = null,
+                rawJson = null,
+                createdAt = conversation?.updatedAt ?: System.currentTimeMillis(),
+            ),
+        ) + source
     }
 
     private fun anthropicMessages(conversationId: Long, excludeMessageId: Long): JSONArray {
@@ -977,7 +1094,7 @@ class OpenAiAgent(
     }
 
     private fun openAiHistoryGroups(conversationId: Long, excludeMessageId: Long): List<List<JSONObject>> {
-        val source = conversationStore.messages(conversationId).filter { it.id != excludeMessageId }
+        val source = contextHistory(conversationId, excludeMessageId)
         val groups = mutableListOf<List<JSONObject>>()
         var index = 0
         while (index < source.size) {
@@ -1010,66 +1127,6 @@ class OpenAiAgent(
             }
         }
         return groups
-    }
-
-    private fun compactHistoryGroups(groups: List<List<JSONObject>>): List<List<JSONObject>> {
-        if (groups.size <= PROMPT_RECENT_GROUPS + PROMPT_SUMMARY_CHUNK_GROUPS) return groups
-        val compactable = groups.size - PROMPT_RECENT_GROUPS
-        val summaryGroupCount = (compactable / PROMPT_SUMMARY_CHUNK_GROUPS) * PROMPT_SUMMARY_CHUNK_GROUPS
-        if (summaryGroupCount <= 0) return groups
-        val summary = stableEarlySummary(groups.take(summaryGroupCount), summaryGroupCount)
-        return listOf(listOf(summary)) + groups.drop(summaryGroupCount)
-    }
-
-    private fun stableEarlySummary(groups: List<List<JSONObject>>, summaryGroupCount: Int): JSONObject {
-        val lines = mutableListOf<String>()
-        lines += "LYRA_CONVERSATION_SUMMARY_V1"
-        lines += "summary_group_count=$summaryGroupCount"
-        lines += "summary_chunk_size=$PROMPT_SUMMARY_CHUNK_GROUPS"
-        lines += "范围: 已按固定分块压缩的早期对话片段。此摘要只在跨过分块边界时更新，普通新轮次只追加到摘要之后，以保持 prompt cache 前缀稳定。"
-        val summarizedMessages = groups.flatten().mapIndexedNotNull { index, message ->
-            val role = message.optString("role").ifBlank { "unknown" }
-            val content = when {
-                role == "assistant" && message.hasToolCalls() -> {
-                    val calls = message.optJSONArray("tool_calls") ?: JSONArray()
-                    buildString {
-                        append(message.optString("content"))
-                        append(" tool_calls=")
-                        append(
-                            buildList {
-                                for (callIndex in 0 until calls.length()) {
-                                    calls.optJSONObject(callIndex)
-                                        ?.optJSONObject("function")
-                                        ?.optString("name")
-                                        ?.takeIf { it.isNotBlank() }
-                                        ?.let { add(it) }
-                                }
-                            }.joinToString(","),
-                        )
-                    }
-                }
-                else -> message.optString("content")
-            }
-            val normalized = content.replace("\r\n", "\n").replace('\r', '\n').lineSequence()
-                .map { it.trim() }
-                .filter { it.isNotBlank() }
-                .joinToString(" ")
-                .take(SUMMARY_LINE_CHARS)
-            if (normalized.isNotBlank()) "${index + 1}. [$role] $normalized" else null
-        }
-        when {
-            summarizedMessages.size <= SUMMARY_MAX_LINES -> lines += summarizedMessages
-            else -> {
-                val headCount = SUMMARY_HEAD_LINES
-                val tailCount = SUMMARY_MAX_LINES - SUMMARY_HEAD_LINES
-                lines += summarizedMessages.take(headCount)
-                lines += "...省略 ${summarizedMessages.size - SUMMARY_MAX_LINES} 条较早摘要项..."
-                lines += summarizedMessages.takeLast(tailCount)
-            }
-        }
-        return JSONObject()
-            .put("role", "user")
-            .put("content", lines.joinToString("\n"))
     }
 
     private fun applyProviderCacheHints(requestJson: JSONObject, profile: ApiProfile, model: String, conversationId: Long) {
@@ -3599,8 +3656,7 @@ class OpenAiAgent(
     private fun forcedSkillIdsFor(conversationId: Long): List<String> = forcedSkillsByConversation[conversationId].orEmpty()
 
     private fun estimatedPromptInputTokens(conversationId: Long, excludeMessageId: Long): Long {
-        val contextTokens = conversationStore.messages(conversationId)
-            .filter { it.id != excludeMessageId }
+        val contextTokens = contextHistory(conversationId, excludeMessageId)
             .sumOf { it.promptInputCost() }
         return REQUEST_STATIC_INPUT_TOKENS + contextTokens
     }
@@ -3813,11 +3869,7 @@ class OpenAiAgent(
         private const val LOG_ARGUMENT_CHARS = 1_000
         private const val MAX_TOOL_RESULT_CHARS = 500_000
         private const val MAX_SUB_AGENT_TASKS = 6
-        private const val PROMPT_RECENT_GROUPS = 36
-        private const val PROMPT_SUMMARY_CHUNK_GROUPS = 12
-        private const val SUMMARY_LINE_CHARS = 240
-        private const val SUMMARY_MAX_LINES = 96
-        private const val SUMMARY_HEAD_LINES = 24
+        private const val HISTORY_COMPRESSION_MAX_OUTPUT_TOKENS = 4096
         private const val PROMPT_CACHE_KEY_HASH_CHARS = 32
         private const val REQUEST_STATIC_INPUT_TOKENS = 1024L
         private const val MESSAGE_WRAPPER_TOKENS = 8L

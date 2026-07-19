@@ -100,6 +100,19 @@ class AppSettings(context: Context) {
             ?: available.first()
     }
 
+    var historyCompressionProfileId: String
+        get() = plainPrefs.getString(KEY_HISTORY_COMPRESSION_PROFILE_ID, "").orEmpty()
+        set(value) = plainPrefs.edit().putString(KEY_HISTORY_COMPRESSION_PROFILE_ID, value.trim()).apply()
+
+    var historyCompressionModel: String
+        get() = plainPrefs.getString(KEY_HISTORY_COMPRESSION_MODEL, "").orEmpty()
+        set(value) = plainPrefs.edit().putString(KEY_HISTORY_COMPRESSION_MODEL, value.trim()).apply()
+
+    fun historyCompressionProfileOrNull(): ApiProfile? {
+        if (historyCompressionProfileId.isBlank() || historyCompressionModel.isBlank()) return null
+        return profiles().firstOrNull { it.id == historyCompressionProfileId }
+    }
+
     var darkMode: Boolean
         get() = plainPrefs.getBoolean(KEY_DARK_MODE, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DARK_MODE, value).apply()
@@ -1283,6 +1296,8 @@ class AppSettings(context: Context) {
             .put("selectedApiProfileId", selectedApiProfileId)
             .put("topicSummaryProfileId", topicSummaryProfileId)
             .put("topicSummaryModel", topicSummaryModel)
+            .put("historyCompressionProfileId", historyCompressionProfileId)
+            .put("historyCompressionModel", historyCompressionModel)
             .put("profiles", JSONArray().also { array ->
                 profiles().forEach { profile ->
                     array.put(
@@ -1397,6 +1412,8 @@ class AppSettings(context: Context) {
         root.optString("reasoningDepth").takeIf { it in reasoningDepthValues }?.let { reasoningDepth = it }
         root.optString("topicSummaryProfileId").takeIf { it.isNotBlank() }?.let { topicSummaryProfileId = it }
         root.optString("topicSummaryModel").takeIf { it.isNotBlank() }?.let { topicSummaryModel = it }
+        if (root.has("historyCompressionProfileId")) historyCompressionProfileId = root.optString("historyCompressionProfileId")
+        if (root.has("historyCompressionModel")) historyCompressionModel = root.optString("historyCompressionModel")
         if (root.has("subAgentOrchestrationEnabled")) subAgentOrchestrationEnabled = root.optBoolean("subAgentOrchestrationEnabled")
         root.optJSONArray("subAgents")?.let { array ->
             val imported = parseSubAgents(array)
@@ -1962,6 +1979,8 @@ class AppSettings(context: Context) {
         private const val KEY_MODEL = "model"
         private const val KEY_TOPIC_SUMMARY_PROFILE_ID = "topic_summary_profile_id"
         private const val KEY_TOPIC_SUMMARY_MODEL = "topic_summary_model"
+        private const val KEY_HISTORY_COMPRESSION_PROFILE_ID = "history_compression_profile_id"
+        private const val KEY_HISTORY_COMPRESSION_MODEL = "history_compression_model"
         private const val KEY_API_PROFILES = "api_profiles"
         private const val KEY_SELECTED_API_PROFILE_ID = "selected_api_profile_id"
         private const val KEY_DARK_MODE = "dark_mode"

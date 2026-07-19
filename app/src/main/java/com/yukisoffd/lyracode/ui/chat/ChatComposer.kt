@@ -42,6 +42,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
@@ -96,6 +97,7 @@ internal fun ChatMessageComposer(
     isRunning: Boolean,
     onOpenMenu: () -> Unit,
     onOpenReasoning: () -> Unit,
+    onOpenContextInfo: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -115,6 +117,7 @@ internal fun ChatMessageComposer(
         onFullscreen = { fullscreen = true },
         onOpenMenu = onOpenMenu,
         onOpenReasoning = onOpenReasoning,
+        onOpenContextInfo = onOpenContextInfo,
         onSend = onSend,
         onStop = onStop,
     )
@@ -176,6 +179,10 @@ internal fun ChatMessageComposer(
                             fullscreen = false
                             onOpenReasoning()
                         },
+                        onOpenContextInfo = {
+                            fullscreen = false
+                            onOpenContextInfo()
+                        },
                         onSend = {
                             fullscreen = false
                             onSend()
@@ -233,6 +240,7 @@ private fun ComposerActionBar(
     onFullscreen: () -> Unit,
     onOpenMenu: () -> Unit,
     onOpenReasoning: () -> Unit,
+    onOpenContextInfo: () -> Unit,
     onSend: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -288,6 +296,20 @@ private fun ComposerActionBar(
             )
         }
         Spacer(Modifier.weight(1f))
+        Box(
+            modifier = Modifier
+                .size(26.dp)
+                .clip(CircleShape)
+                .clickable(onClick = onOpenContextInfo),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                Icons.Default.DataUsage,
+                contentDescription = uiText(stringResource(R.string.cd_context_window_usage)),
+                modifier = Modifier.size(19.dp),
+                tint = if (controller.contextWindowUsage.value.hasCompressedHistory) composerAccent.first else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
         Box(
             modifier = Modifier
                 .size(26.dp)
@@ -377,6 +399,87 @@ private fun composerSystemAccentColors(): Triple<Color, Color, Color> {
         Triple(Color(0xFF6750A4), Color(0xFFEADDFF), Color(0xFF21005D))
     }
 }
+
+@Composable
+internal fun ContextWindowInfoDialog(
+    controller: ChatController,
+    settings: AppSettings,
+    isRunning: Boolean,
+    onDismiss: () -> Unit,
+) {
+    val usage = controller.contextWindowUsage.value
+    var customInstruction by rememberSaveable(controller.activeConversationId.value) { mutableStateOf("") }
+    var resultMessage by rememberSaveable(controller.activeConversationId.value) { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = { if (!isRunning) onDismiss() },
+        title = { Text(uiText(stringResource(R.string.title_context_window_usage))) },
+        text = {
+            Column(
+                Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(
+                    uiText(stringResource(R.string.context_tokens_used, usage.estimatedTokens)),
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                )
+                Text(
+                    uiText(stringResource(R.string.context_usage_details, usage.contextMessageCount, usage.turnsSinceCompression)),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                if (usage.hasCompressedHistory) {
+                    Text(uiText(stringResource(R.string.context_contains_summary)), color = MaterialTheme.colorScheme.primary)
+                }
+                Text(uiText(stringResource(R.string.context_estimate_warning)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                KimiDivider()
+                Text(uiText(stringResource(R.string.label_history_compression_model)), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    settings.historyCompressionModel.ifBlank {
+                        uiText(stringResource(R.string.current_conversation_model, controller.activeModel.value))
+                    },
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                OutlinedTextField(
+                    value = customInstruction,
+                    onValueChange = { customInstruction = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isRunning,
+                    label = { Text(uiText(stringResource(R.string.label_custom_compression_instruction))) },
+                    supportingText = { Text(uiText(stringResource(R.string.custom_compression_instruction_hint))) },
+                    minLines = 3,
+                    maxLines = 6,
+                )
+                if (isRunning) {
+                    Text(uiText(stringResource(R.string.status_compressing_history)), color = MaterialTheme.colorScheme.primary)
+                } else if (resultMessage.isNotBlank()) {
+                    Text(resultMessage, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = !isRunning && usage.contextMessageCount > 0 && !usage.updating,
+                onClick = {
+                    resultMessage = ""
+                    controller.compressActiveHistory(customInstruction) { result ->
+                        resultMessage = result.fold(
+                            onSuccess = { uiText("会话历史压缩完成") },
+                            onFailure = { uiText(it.message.orEmpty()).ifBlank { uiText("会话历史压缩失败") } },
+                        )
+                    }
+                },
+            ) { Text(uiText(stringResource(R.string.action_compress_history))) }
+        },
+        dismissButton = {
+            TextButton(enabled = !isRunning, onClick = onDismiss) {
+                Text(uiText(stringResource(R.string.action_close)))
+            }
+        },
+    )
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun AttachmentActionBottomSheet(
@@ -398,6 +501,7 @@ internal fun AttachmentActionBottomSheet(
         settings.systemPromptPresets()
     }
     val activePrompt = prompts.firstOrNull { it.id == settings.selectedSystemPromptId } ?: prompts.firstOrNull()
+    val autoCompressionConfig = controller.settingsRevision.intValue.let { controller.autoCompressionConfig() }
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.surface,
@@ -549,6 +653,92 @@ internal fun AttachmentActionBottomSheet(
                                 }
                             }
                         }
+                        "auto_compression" -> {
+                            SheetBackTitle(uiText(stringResource(R.string.title_auto_compression))) { onPageChange("root") }
+                            val mode = autoCompressionConfig.first
+                            ActionSheetSwitchRow(
+                                icon = Icons.Default.Compress,
+                                title = uiText(stringResource(R.string.action_auto_compression)),
+                                subtitle = uiText(stringResource(R.string.auto_compression_session_hint)),
+                                checked = mode != com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_OFF,
+                                onCheckedChange = { enabled ->
+                                    controller.setAutoCompressionForActiveSession(
+                                        if (enabled) com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS else com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_OFF,
+                                        autoCompressionConfig.second,
+                                        autoCompressionConfig.third,
+                                    )
+                                },
+                            )
+                            if (mode != com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_OFF) {
+                                Text(uiText(stringResource(R.string.label_compression_mode)), style = MaterialTheme.typography.titleSmall)
+                                ActionSheetRow(
+                                    icon = Icons.Default.Repeat,
+                                    title = uiText(stringResource(R.string.mode_fixed_turns)),
+                                    subtitle = uiText(stringResource(R.string.mode_fixed_turns_desc)),
+                                    trailing = if (mode == com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS) Icons.Default.Check else null,
+                                    onClick = {
+                                        controller.setAutoCompressionForActiveSession(
+                                            com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS,
+                                            autoCompressionConfig.second,
+                                            autoCompressionConfig.third,
+                                        )
+                                    },
+                                )
+                                ActionSheetRow(
+                                    icon = Icons.Default.DataUsage,
+                                    title = uiText(stringResource(R.string.mode_context_threshold)),
+                                    subtitle = uiText(stringResource(R.string.mode_context_threshold_desc)),
+                                    trailing = if (mode == com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS) Icons.Default.Check else null,
+                                    onClick = {
+                                        controller.setAutoCompressionForActiveSession(
+                                            com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS,
+                                            autoCompressionConfig.second,
+                                            autoCompressionConfig.third,
+                                        )
+                                    },
+                                )
+                                if (mode == com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS) {
+                                    var turnThresholdText by remember(controller.activeConversationId.value, mode) {
+                                        mutableStateOf(autoCompressionConfig.second.toString())
+                                    }
+                                    OutlinedTextField(
+                                        value = turnThresholdText,
+                                        onValueChange = { value ->
+                                            turnThresholdText = value.filter(Char::isDigit)
+                                            turnThresholdText.toIntOrNull()?.let { turns ->
+                                                controller.setAutoCompressionForActiveSession(mode, turns, autoCompressionConfig.third)
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        label = { Text(uiText(stringResource(R.string.label_turn_threshold))) },
+                                        supportingText = { Text(uiText(stringResource(R.string.turn_definition_hint))) },
+                                        singleLine = true,
+                                    )
+                                } else {
+                                    var tokenThresholdText by remember(controller.activeConversationId.value, mode) {
+                                        mutableStateOf(autoCompressionConfig.third.toString())
+                                    }
+                                    OutlinedTextField(
+                                        value = tokenThresholdText,
+                                        onValueChange = { value ->
+                                            tokenThresholdText = value.filter(Char::isDigit)
+                                            tokenThresholdText.toLongOrNull()?.let { tokens ->
+                                                controller.setAutoCompressionForActiveSession(mode, autoCompressionConfig.second, tokens)
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        label = { Text(uiText(stringResource(R.string.label_token_threshold))) },
+                                        supportingText = { Text(uiText(stringResource(R.string.token_threshold_hint))) },
+                                        singleLine = true,
+                                    )
+                                }
+                                Text(
+                                    uiText(stringResource(R.string.auto_compression_limit_warning)),
+                                    color = KimiMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                        }
                         else -> {
                             Row(
                                 Modifier.fillMaxWidth(),
@@ -592,6 +782,17 @@ internal fun AttachmentActionBottomSheet(
                                 subtitle = reasoningDepthLabel(settings.reasoningDepth),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("reasoning") },
+                            )
+                            ActionSheetRow(
+                                icon = Icons.Default.Compress,
+                                title = uiText(stringResource(R.string.action_auto_compression)),
+                                subtitle = when (autoCompressionConfig.first) {
+                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS -> uiText(stringResource(R.string.auto_compression_turns_summary, autoCompressionConfig.second))
+                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS -> uiText(stringResource(R.string.auto_compression_tokens_summary, autoCompressionConfig.third))
+                                    else -> uiText(stringResource(R.string.status_off))
+                                },
+                                trailing = Icons.Default.ChevronRight,
+                                onClick = { onPageChange("auto_compression") },
                             )
                             val hasSubAgents = settings.enabledSubAgents().isNotEmpty()
                             ActionSheetSwitchRow(

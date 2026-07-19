@@ -39,6 +39,42 @@ internal object UiTextBridge {
         "话题总结模型" to "Topic summary model",
         "每次新对话首次发送消息后，由此模型单独生成会话标题，不再占用主对话模型的工具调用。可选择轻量模型以降低消耗。" to "After the first message in each new conversation, this model generates the title independently without using the main chat model's tool calls. Choose a lightweight model to reduce usage.",
         "话题总结模型已保存" to "Topic summary model saved",
+        "会话历史压缩模型" to "Conversation history compression model",
+        "用于手动或自动压缩会话历史。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。" to "Used for manual or automatic conversation-history compression. If no separate model is configured, the current conversation model is used; a failed compression never replaces the original context.",
+        "使用独立压缩模型" to "Use a separate compression model",
+        "跟随当前会话模型" to "Use current conversation model",
+        "历史压缩模型" to "History compression model",
+        "额外功能模型已保存" to "Additional feature models saved",
+        "会话历史压缩完成" to "Conversation history compressed",
+        "会话历史压缩失败" to "Conversation history compression failed",
+        "当前会话没有可压缩的历史" to "There is no conversation history to compress",
+        "未配置会话历史压缩模型" to "No conversation history compression model is configured",
+        "会话历史压缩模型未返回有效摘要，原上下文已保留" to "The history compression model returned no valid summary. The original context was preserved.",
+        "上下文窗口使用信息" to "Context window usage",
+        "上下文窗口" to "Context window",
+        "当前上下文已包含压缩历史摘要" to "The current context includes a compressed history summary",
+        "Token 数为本地估算值，不同模型与服务商的分词方式可能不同，请预留安全余量。" to "The token count is estimated locally. Tokenization differs across models and providers, so leave a safety margin.",
+        "自定义压缩指令（可选）" to "Custom compression instructions (optional)",
+        "例如：重点保留代码改动与未完成事项，并将摘要控制在 2,000 tokens 内。" to "For example: prioritize code changes and unfinished work, and keep the summary under 2,000 tokens.",
+        "压缩历史" to "Compress history",
+        "正在压缩会话历史，完成前暂时无法发送消息…" to "Compressing conversation history. Messages cannot be sent until it finishes…",
+        "已达到自动压缩条件，正在压缩会话历史…" to "The automatic compression condition was reached. Compressing conversation history…",
+        "会话历史压缩失败，原上下文已保留" to "Conversation history compression failed. The original context was preserved.",
+        "自动压缩" to "Automatic compression",
+        "仅对当前会话生效" to "Applies only to the current conversation",
+        "触发模式" to "Trigger mode",
+        "固定轮次" to "Fixed turns",
+        "每完成指定数量的用户与 AI 对话后压缩" to "Compress after a set number of completed user–AI turns",
+        "上下文窗口阈值" to "Context window threshold",
+        "估算 token 数达到阈值后压缩" to "Compress when the estimated token count reaches the threshold",
+        "压缩间隔（轮）" to "Compression interval (turns)",
+        "1 轮 = 用户发送 1 条消息，AI 返回若干消息并结束。" to "1 turn = the user sends one message and the AI returns one or more messages before finishing.",
+        "Token 阈值" to "Token threshold",
+        "直接输入 token 数，例如 131072（128K）、262144（256K）或 1048576（1M）。" to "Enter a token count, such as 131072 (128K), 262144 (256K), or 1048576 (1M).",
+        "阈值过高可能在自动压缩触发前先超过当前 API 模型的上下文上限。应用无法可靠获知所有模型的真实上限。" to "A threshold that is too high may exceed the current API model's context limit before compression starts. The app cannot reliably know every model's true limit.",
+        "为新对话生成简短标题" to "Generate short titles for new conversations",
+        "设置手动与自动压缩使用的模型" to "Choose the model used for manual and automatic compression",
+        "返回" to "Back",
         "返回顶部" to "Back to top",
         "上一条用户消息" to "Previous user message",
         "下一条用户消息" to "Next user message",
@@ -1107,6 +1143,18 @@ internal object UiTextBridge {
     private fun translateDynamic(text: String): String {
         val t = text.trim()
         return when {
+            t.startsWith("约 ") && t.endsWith(" tokens") -> "About " + t.removePrefix("约 ")
+            t.startsWith("当前 API 上下文包含 ") -> t
+                .replace("当前 API 上下文包含 ", "The current API context contains ")
+                .replace(" 条消息；距上次压缩 ", " messages; ")
+                .replace(" 轮", " turns since the last compression")
+            t.startsWith("当前会话模型：") -> "Current conversation model: " + t.removePrefix("当前会话模型：")
+            t.startsWith("每 ") && t.endsWith(" 轮") -> "Every " + t.removePrefix("每 ").removeSuffix(" 轮") + " turns"
+            t.startsWith("达到 ") && t.endsWith(" tokens") -> "At " + t.removePrefix("达到 ")
+            t.startsWith("会话历史压缩失败：历史可能超过所选压缩模型的上下文窗口") ->
+                "Conversation history compression failed because the history may exceed the selected compression model's context window. The original context was preserved. " + t.substringAfter("原上下文已保留。", "")
+            t.startsWith("会话历史压缩请求失败") ->
+                "Conversation history compression request failed. The original context was preserved. " + t.substringAfter("原上下文已保留。", "")
             t.startsWith("过程记录已收起 · thinking ") -> t.replace("过程记录已收起", "Process log collapsed").replace(" / 工具 ", " / tools ")
             t.startsWith("已导入 ") && t.endsWith(" 个字体") -> t.replace("已导入 ", "Imported ").replace(" 个字体", " fonts")
             t.startsWith("已切换文本字体：") -> "Text font changed to: " + t.removePrefix("已切换文本字体：")

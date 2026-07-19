@@ -199,6 +199,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     var attachmentMenuOpen by rememberSaveable { mutableStateOf(false) }
     var attachmentMenuPage by rememberSaveable { mutableStateOf("root") }
     var attachmentMenuSearch by rememberSaveable { mutableStateOf("") }
+    var contextInfoOpen by rememberSaveable { mutableStateOf(false) }
     var cropUploadUri by rememberSaveable { mutableStateOf<Uri?>(null) }
     var selectionResetKey by remember { mutableIntStateOf(0) }
     var selectedWorkspaceFiles by remember { mutableStateOf<List<WorkspaceFileReference>>(emptyList()) }
@@ -268,6 +269,14 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
         if (navigationRevealToken == token) navigationVisible = false
     }
     val isInterrupted = controller.activeConversation()?.status == ConversationStore.STATUS_INTERRUPTED
+    if (contextInfoOpen) {
+        ContextWindowInfoDialog(
+            controller = controller,
+            settings = settings,
+            isRunning = isRunning,
+            onDismiss = { contextInfoOpen = false },
+        )
+    }
     controller.pendingToolApproval.value?.let { pending ->
         ToolApprovalDialog(
             pending = pending,
@@ -544,6 +553,10 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                     onOpenReasoning = {
                         attachmentMenuPage = "reasoning"
                         attachmentMenuOpen = true
+                    },
+                    onOpenContextInfo = {
+                        controller.refreshContextWindowUsage()
+                        contextInfoOpen = true
                     },
                     onSend = {
                         val text = input

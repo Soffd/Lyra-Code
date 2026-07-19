@@ -476,8 +476,8 @@
     <string name="menu_profile_desc">Nickname, avatar, and display information</string>
     <string name="menu_model_service">Model services</string>
     <string name="menu_model_service_desc">Configure AI providers, API keys, and default models</string>
-    <string name="menu_topic_summary_model">Topic summary model</string>
-    <string name="menu_topic_summary_model_desc">Use a separate lightweight model to title new conversations</string>
+    <string name="menu_topic_summary_model">Additional feature models</string>
+    <string name="menu_topic_summary_model_desc">Configure topic-summary and conversation-history compression models</string>
     <string name="menu_sub_agents">Sub-agent orchestration</string>
     <string name="menu_sub_agents_desc">Choose sub-agent models and describe their strengths</string>
     <string name="menu_web_search">Web search</string>
@@ -527,7 +527,40 @@
     <string name="menu_about_desc">Version, package name, and security notes</string>
     <string name="detail_profile">Profile</string>
     <string name="detail_model">Model services</string>
-    <string name="detail_topic_summary_model">Topic summary model</string>
+    <string name="detail_topic_summary_model">Additional feature models</string>
+
+    <!-- Context window and history compression -->
+    <string name="cd_context_window_usage">Context window usage</string>
+    <string name="title_context_window_usage">Context window</string>
+    <string name="context_tokens_used">About %1$d tokens</string>
+    <string name="context_usage_details">The current API context contains %1$d messages; %2$d turns since the last compression</string>
+    <string name="context_contains_summary">The current context includes a compressed history summary</string>
+    <string name="context_estimate_warning">The token count is estimated locally. Tokenization differs across models and providers, so leave a safety margin.</string>
+    <string name="label_history_compression_model">Conversation history compression model</string>
+    <string name="current_conversation_model">Current conversation model: %1$s</string>
+    <string name="label_custom_compression_instruction">Custom compression instructions (optional)</string>
+    <string name="custom_compression_instruction_hint">For example: prioritize code changes and unfinished work, and keep the summary under 2,000 tokens.</string>
+    <string name="action_compress_history">Compress history</string>
+    <string name="status_compressing_history">Compressing conversation history. Messages cannot be sent until it finishes…</string>
+    <string name="status_auto_compressing_history">The automatic compression condition was reached. Compressing conversation history…</string>
+    <string name="status_history_compressed">Conversation history compressed</string>
+    <string name="error_history_compression_failed">Conversation history compression failed. The original context was preserved.</string>
+    <string name="error_no_history_to_compress">There is no conversation history to compress</string>
+    <string name="title_auto_compression">Automatic compression</string>
+    <string name="action_auto_compression">Automatic compression</string>
+    <string name="auto_compression_session_hint">Applies only to the current conversation</string>
+    <string name="label_compression_mode">Trigger mode</string>
+    <string name="mode_fixed_turns">Fixed turns</string>
+    <string name="mode_fixed_turns_desc">Compress after a set number of completed user–AI turns</string>
+    <string name="mode_context_threshold">Context window threshold</string>
+    <string name="mode_context_threshold_desc">Compress when the estimated token count reaches the threshold</string>
+    <string name="label_turn_threshold">Compression interval (turns)</string>
+    <string name="turn_definition_hint">1 turn = the user sends one message and the AI returns one or more messages before finishing.</string>
+    <string name="label_token_threshold">Token threshold</string>
+    <string name="token_threshold_hint">Enter a token count, such as 131072 (128K), 262144 (256K), or 1048576 (1M).</string>
+    <string name="auto_compression_limit_warning">A threshold that is too high may exceed the current API model’s context limit before compression starts. The app cannot reliably know every model’s true limit.</string>
+    <string name="auto_compression_turns_summary">Every %1$d turns</string>
+    <string name="auto_compression_tokens_summary">At %1$d tokens</string>
     <string name="detail_sub_agents">Sub-agent orchestration</string>
     <string name="detail_web_search">Web search</string>
     <string name="detail_workspace">Workspace</string>

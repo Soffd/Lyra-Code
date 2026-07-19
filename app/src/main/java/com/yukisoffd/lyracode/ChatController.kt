@@ -62,6 +62,14 @@ data class EditorFileActivity(
     val content: String?,
 )
 
+data class ContextWindowUsage(
+    val estimatedTokens: Long = 0L,
+    val contextMessageCount: Int = 0,
+    val turnsSinceCompression: Int = 0,
+    val hasCompressedHistory: Boolean = false,
+    val updating: Boolean = false,
+)
+
 class ChatController(
     private val appContext: Context,
     private val settings: AppSettings,
@@ -94,6 +102,7 @@ class ChatController(
     val editorFileChangeRevision = mutableIntStateOf(0)
     val todoItems = mutableStateListOf<TodoItem>()
     val settingsRevision = mutableIntStateOf(0)
+    val contextWindowUsage = mutableStateOf(ContextWindowUsage())
     private var lastMessageReloadAt = 0L
     private var approvalId = 0L
     private val approvalWaiters = mutableMapOf<Long, CompletableDeferred<ToolApprovalDecision>>()
@@ -101,6 +110,9 @@ class ChatController(
     private val autoApprovedConversations = mutableSetOf<Long>()
     private var transientWorkspaceUri = ""
     private var transientAutoApprovalEnabled = false
+    private var transientAutoCompressionMode = ConversationStore.AUTO_COMPRESSION_OFF
+    private var transientAutoCompressionTurnThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS
+    private var transientAutoCompressionTokenThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TOKENS
     private val todoByConversation = mutableMapOf<Long, MutableList<TodoItem>>()
 
     init {
@@ -203,6 +215,12 @@ class ChatController(
             title = appContext.getString(R.string.title_new_chat),
             workspaceUri = transientWorkspaceUri,
         )
+        conversationStore.setAutoCompression(
+            id,
+            transientAutoCompressionMode,
+            transientAutoCompressionTurnThreshold,
+            transientAutoCompressionTokenThreshold,
+        )
         todoByConversation[id] = mutableListOf()
         if (transientAutoApprovalEnabled) autoApprovedConversations += id
         reloadConversations()
@@ -219,6 +237,10 @@ class ChatController(
         status.value = ""
         transientWorkspaceUri = ""
         transientAutoApprovalEnabled = false
+        transientAutoCompressionMode = ConversationStore.AUTO_COMPRESSION_OFF
+        transientAutoCompressionTurnThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS
+        transientAutoCompressionTokenThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TOKENS
+        contextWindowUsage.value = ContextWindowUsage()
         workspaceManager.setActiveWorkspaceUri("")
         settingsRevision.intValue++
     }
@@ -241,6 +263,7 @@ class ChatController(
         }
         reloadMessages()
         reloadTodos()
+        refreshContextWindowUsage()
     }
 
     fun deleteConversation(id: Long) {
@@ -413,6 +436,120 @@ class ChatController(
         settingsRevision.intValue++
     }
 
+    fun autoCompressionConfig(): Triple<String, Int, Long> {
+        val conversationId = activeConversationId.value
+        val conversation = conversationId.takeIf { it > 0L }?.let(conversationStore::conversation)
+        return if (conversation != null) {
+            Triple(conversation.autoCompressionMode, conversation.autoCompressionTurnThreshold, conversation.autoCompressionTokenThreshold)
+        } else {
+            Triple(transientAutoCompressionMode, transientAutoCompressionTurnThreshold, transientAutoCompressionTokenThreshold)
+        }
+    }
+
+    fun setAutoCompressionForActiveSession(mode: String, turnThreshold: Int, tokenThreshold: Long) {
+        val normalizedMode = mode.takeIf { it in ConversationStore.AUTO_COMPRESSION_MODES }
+            ?: ConversationStore.AUTO_COMPRESSION_OFF
+        val normalizedTurns = turnThreshold.coerceIn(1, 10_000)
+        val normalizedTokens = tokenThreshold.coerceIn(1_024L, 16_777_216L)
+        val conversationId = activeConversationId.value
+        if (conversationId > 0L) {
+            conversationStore.setAutoCompression(conversationId, normalizedMode, normalizedTurns, normalizedTokens)
+            reloadConversations()
+        } else {
+            transientAutoCompressionMode = normalizedMode
+            transientAutoCompressionTurnThreshold = normalizedTurns
+            transientAutoCompressionTokenThreshold = normalizedTokens
+        }
+        settingsRevision.intValue++
+    }
+
+    fun refreshContextWindowUsage() {
+        val conversationId = activeConversationId.value
+        if (conversationId <= 0L) {
+            contextWindowUsage.value = ContextWindowUsage()
+            return
+        }
+        val previous = contextWindowUsage.value
+        contextWindowUsage.value = previous.copy(updating = true)
+        scope.launch {
+            val usage = withContext(Dispatchers.IO) { calculateContextWindowUsage(conversationId) }
+            if (activeConversationId.value == conversationId) contextWindowUsage.value = usage
+        }
+    }
+
+    private fun calculateContextWindowUsage(conversationId: Long): ContextWindowUsage {
+        val conversation = conversationStore.conversation(conversationId) ?: return ContextWindowUsage()
+        val recent = conversationStore.messages(conversationId).filter { it.id > conversation.compressedThroughMessageId }
+        return ContextWindowUsage(
+            estimatedTokens = agent.estimatedConversationContextTokens(conversationId),
+            contextMessageCount = recent.size + if (conversation.compressedContext.isNotBlank()) 1 else 0,
+            turnsSinceCompression = recent.count { it.role == "user" },
+            hasCompressedHistory = conversation.compressedContext.isNotBlank(),
+        )
+    }
+
+    fun compressActiveHistory(customInstruction: String, onDone: (Result<Unit>) -> Unit = {}) {
+        val conversationId = activeConversationId.value.takeIf { it > 0L } ?: run {
+            onDone(Result.failure(IllegalStateException(appContext.getString(R.string.error_no_history_to_compress))))
+            return
+        }
+        if (jobs[conversationId]?.isActive == true) return
+        val throughMessageId = conversationStore.messages(conversationId).lastOrNull()?.id ?: run {
+            onDone(Result.failure(IllegalStateException(appContext.getString(R.string.error_no_history_to_compress))))
+            return
+        }
+        val (profile, model) = historyCompressionTarget(conversationId)
+        conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_RUNNING)
+        reloadConversations()
+        jobs[conversationId] = scope.launch {
+            status.value = appContext.getString(R.string.status_compressing_history)
+            val result = runCatching {
+                val summary = agent.compressConversationHistory(conversationId, profile, model, customInstruction)
+                conversationStore.setCompressedContext(conversationId, summary, throughMessageId)
+            }
+            conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE)
+            reloadMessages()
+            reloadConversations()
+            refreshContextWindowUsage()
+            status.value = result.fold(
+                onSuccess = { appContext.getString(R.string.status_history_compressed) },
+                onFailure = { uiText(it.message.orEmpty()).ifBlank { appContext.getString(R.string.error_history_compression_failed) } },
+            )
+            onDone(result)
+        }
+    }
+
+    private fun historyCompressionTarget(conversationId: Long): Pair<ApiProfile, String> {
+        val configuredProfile = settings.historyCompressionProfileOrNull()
+        if (configuredProfile != null && settings.historyCompressionModel.isNotBlank()) {
+            return configuredProfile to settings.historyCompressionModel
+        }
+        val conversation = conversationStore.conversation(conversationId)
+        val profile = profiles.firstOrNull { it.id == conversation?.profileId } ?: currentProfile()
+        return profile to conversation?.model.orEmpty().ifBlank { activeModel.value.ifBlank { profile.selectedModel } }
+    }
+
+    private suspend fun maybeAutoCompress(conversationId: Long): Throwable? {
+        val conversation = conversationStore.conversation(conversationId) ?: return null
+        if (conversation.autoCompressionMode == ConversationStore.AUTO_COMPRESSION_OFF) return null
+        val usage = withContext(Dispatchers.IO) { calculateContextWindowUsage(conversationId) }
+        val shouldCompress = when (conversation.autoCompressionMode) {
+            ConversationStore.AUTO_COMPRESSION_TURNS -> usage.turnsSinceCompression >= conversation.autoCompressionTurnThreshold
+            ConversationStore.AUTO_COMPRESSION_TOKENS -> usage.estimatedTokens >= conversation.autoCompressionTokenThreshold
+            else -> false
+        }
+        if (!shouldCompress) return null
+        val throughMessageId = conversationStore.messages(conversationId).lastOrNull()?.id ?: return null
+        val (profile, model) = historyCompressionTarget(conversationId)
+        status.value = appContext.getString(R.string.status_auto_compressing_history)
+        return runCatching { agent.compressConversationHistory(conversationId, profile, model, "") }
+            .onSuccess { summary -> conversationStore.setCompressedContext(conversationId, summary, throughMessageId) }
+            .onFailure { error ->
+                status.value = uiText(error.message.orEmpty()).ifBlank { appContext.getString(R.string.error_history_compression_failed) }
+            }
+            .exceptionOrNull()
+    }
+
     fun setConversationPinned(id: Long, pinned: Boolean) {
         conversationStore.setPinned(id, pinned)
         reloadConversations()
@@ -512,9 +649,11 @@ class ChatController(
                     status.value = it.status
                 }
             }
+            val compressionError = maybeAutoCompress(conversationId)
             reloadMessages()
             reloadConversations()
-            markConversationFinished(conversationId)
+            refreshContextWindowUsage()
+            if (compressionError == null) markConversationFinished(conversationId)
         }
     }
 
@@ -547,9 +686,11 @@ class ChatController(
                     status.value = it.status
                 }
             }
+            val compressionError = maybeAutoCompress(conversationId)
             reloadMessages()
             reloadConversations()
-            markConversationFinished(conversationId)
+            refreshContextWindowUsage()
+            if (compressionError == null) markConversationFinished(conversationId)
         }
     }
 
@@ -574,9 +715,11 @@ class ChatController(
                     status.value = it.status
                 }
             }
+            val compressionError = maybeAutoCompress(conversationId)
             reloadMessages()
             reloadConversations()
-            markConversationFinished(conversationId)
+            refreshContextWindowUsage()
+            if (compressionError == null) markConversationFinished(conversationId)
         }
     }
 
