@@ -359,15 +359,15 @@
     <string name="error_missing_version_code">Error Missing Version Code</string>
     <string name="default_release_notes">Default Release Notes</string>
     <!-- MiniServerManager.kt -->
-    <string name="server_status_not_started">Server Status Not Started</string>
+    <string name="server_status_not_started">Not started</string>
     <string name="server_status_running">Running</string>
-    <string name="server_status_start_failed">Server Status Start Failed</string>
-    <string name="server_status_stopped">Server Status Stopped</string>
+    <string name="server_status_start_failed">Failed to start</string>
+    <string name="server_status_stopped">Stopped</string>
     <string name="server_log_cleared">Server Log Cleared</string>
     <string name="error_no_workspace">Error No Workspace</string>
-    <string name="server_serving">Server Serving %1$s</string>
+    <string name="server_serving">Serving %1$s</string>
     <string name="server_started">Server Started %1$s</string>
-    <string name="server_listen_failed">Server Listen Failed %1$s</string>
+    <string name="server_listen_failed">Listen failed: %1$s</string>
     <string name="server_stopped_log">Server Stopped Log</string>
     <string name="server_log_client_accepted">Server Log Client Accepted</string>
     <string name="server_error_method_not_allowed">Server Error Method Not Allowed</string>
@@ -642,7 +642,7 @@
     <string name="format_anthropic_desc">Format Anthropic Desc</string>
     <string name="format_gemini_desc">Format Gemini Desc</string>
     <string name="format_openai_desc">Format Openai Desc</string>
-    <string name="endpoint_hint_format">Endpoint Hint Format %1$s %2$s</string>
+    <string name="endpoint_hint_format">Request endpoint: %1$s; model list: %2$s</string>
     <string name="menu_current_directory">Menu Current Directory</string>
     <string name="menu_termux_path">Termux Path</string>
     <string name="termux_path_primary">Termux Path Primary</string>
@@ -715,8 +715,8 @@
     <string name="cache_code">Cache Code</string>
     <string name="cache_no_backup">Cache No Backup</string>
     <string name="cache_persistent">Cache Persistent</string>
-    <string name="cache_external_private">Cache External Private %1$d</string>
-    <string name="cache_external_cache">Cache External Cache %1$d</string>
+    <string name="cache_external_private">External private files %1$d</string>
+    <string name="cache_external_cache">External cache %1$d</string>
     <string name="title_root_permission">Root Permission</string>
     <string name="root_permission_desc">Root Permission Desc</string>
     <string name="title_shell_permission">Shell Permission</string>
@@ -746,7 +746,7 @@
     <string name="permission_hint">Permission Hint</string>
     <string name="title_search_tools">SearchTool</string>
     <string name="search_tools_placeholder">Tools Placeholder</string>
-    <string name="label_tools_match">Tools Match %1$d %2$d</string>
+    <string name="label_tools_match">Matching %1$d / %2$d tools</string>
     <string name="notice_no_matching_tools">No Matching Tools</string>
     <string name="notice_termux_permission_required">Termux Permission Required</string>
     <string name="notice_ssh_not_configured">SSH Not Configured</string>
@@ -786,7 +786,7 @@
     <string name="tool_manage_tasks">Scheduled tasks</string>
     <string name="tool_manage_tasks_desc">Manage Tasks Desc</string>
     <string name="tool_mini_server_status">Mini Server Status</string>
-    <string name="tool_mini_server_status_desc">Mini Server Status Desc</string>
+    <string name="tool_mini_server_status_desc">Read the built-in HTTP static server status and access URLs.</string>
     <string name="tool_mini_server_logs">Mini Server Logs</string>
     <string name="tool_mini_server_logs_desc">Mini Server Logs Desc</string>
     <string name="tool_manage_mini_server">Manage Mini Server</string>
@@ -941,7 +941,7 @@
     <string name="mini_server_desc">Mini Server Desc</string>
     <string name="label_server_running">Running</string>
     <string name="label_server_stopped">Server Stopped</string>
-    <string name="label_local_address">Local Address %1$s</string>
+    <string name="label_local_address">Local address: %1$s</string>
     <string name="label_lan_address">Lan Address %1$s</string>
     <string name="label_bound_domains">Bound Domains %1$s</string>
     <string name="action_view_logs">View Logs</string>
@@ -1073,8 +1073,8 @@
     <string name="notice_local_mcp_saved">Local MCP Saved</string>
     <string name="title_local_mcp_as_server">Local MCP As Server</string>
     <string name="local_mcp_desc">Local MCP Desc</string>
-    <string name="label_server_status">Server Status %1$s %2$s</string>
-    <string name="label_local_address_info">Local Address Info %1$s</string>
+    <string name="label_server_status">Status: %1$s · %2$s</string>
+    <string name="label_local_address_info">Local address: %1$s</string>
     <string name="label_lan_address_info">Lan Address Info %1$s</string>
     <string name="local_mcp_auth_not_set">Local MCP Auth Not Set</string>
     <string name="local_mcp_auth_enabled">Authentication: Enabled Authorization Bearer / X-Lyra-MCP-Key</string>

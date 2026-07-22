@@ -146,10 +146,10 @@ internal fun scanStorageUsage(context: Context): StorageScanResult {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) add(storageItem(uiText("No backup 数据"), context.noBackupFilesDir, cleanable = false))
         add(storageItem(uiText("应用持久数据"), context.filesDir, cleanable = false))
         context.getExternalFilesDirs(null).filterNotNull().forEachIndexed { index, dir ->
-            add(storageItem(uiText("外部私有文件 ${index + 1}"), dir, cleanable = false))
+            add(storageItem(uiText(context.getString(R.string.cache_external_private, index + 1)), dir, cleanable = false))
         }
         context.externalCacheDirs.filterNotNull().forEachIndexed { index, dir ->
-            add(storageItem(uiText("外部缓存 ${index + 1}"), dir, cleanable = true))
+            add(storageItem(uiText(context.getString(R.string.cache_external_cache, index + 1)), dir, cleanable = true))
         }
     }
     val total = appBytes + dataBytes + cacheBytes

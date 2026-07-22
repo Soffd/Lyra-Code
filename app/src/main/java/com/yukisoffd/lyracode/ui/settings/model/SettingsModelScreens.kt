@@ -110,23 +110,37 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
 internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatController) {
     var page by rememberSaveable { mutableStateOf("root") }
     BackHandler(enabled = page != "root") { page = "root" }
-    when (page) {
-        "topic" -> TopicSummaryModelEditor(settings, controller, onBack = { page = "root" })
-        "compression" -> HistoryCompressionModelEditor(settings, controller, onBack = { page = "root" })
-        else -> KimiCardBox {
-            KimiMenuRow(
-                icon = Icons.Default.Topic,
-                title = uiText("话题总结模型"),
-                value = uiText("为新对话生成简短标题"),
-                onClick = { page = "topic" },
-            )
-            KimiDivider()
-            KimiMenuRow(
-                icon = Icons.Default.Compress,
-                title = uiText("会话历史压缩模型"),
-                value = uiText("设置手动与自动压缩使用的模型"),
-                onClick = { page = "compression" },
-            )
+    AnimatedContent(
+        targetState = page,
+        modifier = Modifier.fillMaxWidth(),
+        transitionSpec = {
+            val forward = initialState == "root" && targetState != "root"
+            slideInHorizontally(animationSpec = tween(260)) { fullWidth ->
+                if (forward) fullWidth else -fullWidth / 3
+            } togetherWith slideOutHorizontally(animationSpec = tween(260)) { fullWidth ->
+                if (forward) -fullWidth / 3 else fullWidth
+            }
+        },
+        label = "feature-model-page-transition",
+    ) { targetPage ->
+        when (targetPage) {
+            "topic" -> TopicSummaryModelEditor(settings, controller, onBack = { page = "root" })
+            "compression" -> HistoryCompressionModelEditor(settings, controller, onBack = { page = "root" })
+            else -> KimiCardBox {
+                KimiMenuRow(
+                    icon = Icons.Default.Topic,
+                    title = uiText("话题总结模型"),
+                    value = uiText("为新对话生成简短标题"),
+                    onClick = { page = "topic" },
+                )
+                KimiDivider()
+                KimiMenuRow(
+                    icon = Icons.Default.Compress,
+                    title = uiText("会话历史压缩模型"),
+                    value = uiText("设置手动与自动压缩使用的模型"),
+                    onClick = { page = "compression" },
+                )
+            }
         }
     }
 }

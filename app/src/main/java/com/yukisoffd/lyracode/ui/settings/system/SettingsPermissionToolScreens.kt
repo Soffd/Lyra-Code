@@ -45,6 +45,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -271,7 +272,17 @@ internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExec
             placeholder = uiText("搜索名称、工具名或描述"),
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
         )
-        Text(uiText("匹配 ${filteredLocalTools.size + filteredMcpTools.size} / ${localTools.size + mcpTools.size} 个工具"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+        Text(
+            uiText(
+                stringResource(
+                    R.string.label_tools_match,
+                    filteredLocalTools.size + filteredMcpTools.size,
+                    localTools.size + mcpTools.size,
+                ),
+            ),
+            color = KimiMuted,
+            style = MaterialTheme.typography.labelSmall,
+        )
     }
     KimiCardBox {
         if (filteredLocalTools.isEmpty() && filteredMcpTools.isEmpty()) {

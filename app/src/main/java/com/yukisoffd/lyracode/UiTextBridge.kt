@@ -8,6 +8,17 @@ internal object UiTextBridge {
     var languageMode: String = AppSettings.LANGUAGE_SYSTEM
 
     private val translations: Map<String, String> = mapOf(
+        "未选择工作目录" to "No workspace selected",
+        "请求端点：%1\$s；模型列表：%2\$s" to "Request endpoint: %1\$s; model list: %2\$s",
+        "状态：%1\$s · %2\$s" to "Status: %1\$s · %2\$s",
+        "本地地址：%1\$s" to "Local address: %1\$s",
+        "匹配 %1\$d / %2\$d 个工具" to "Matching %1\$d / %2\$d tools",
+        "外部私有文件 %1\$d" to "External private files %1\$d",
+        "外部缓存 %1\$d" to "External cache %1\$d",
+        "未启动" to "Not started",
+        "启动失败" to "Failed to start",
+        "正在服务 %1\$s" to "Serving %1\$s",
+        "监听失败：%1\$s" to "Listen failed: %1\$s",
         "Lyra 用户" to "Lyra User",
         "头像和昵称可在侧边栏顶部点击编辑。" to "Tap the profile card in the drawer to edit your avatar and nickname.",
         "导入失败" to "Import failed",
@@ -1143,6 +1154,21 @@ internal object UiTextBridge {
     private fun translateDynamic(text: String): String {
         val t = text.trim()
         return when {
+            t.startsWith("请求端点：") && t.contains("；模型列表：") ->
+                "Request endpoint: ${t.substringAfter("请求端点：").substringBefore("；模型列表：")}; model list: ${t.substringAfter("；模型列表：")}"
+            t.startsWith("本地地址：") -> "Local address: " + t.removePrefix("本地地址：")
+            t.startsWith("匹配 ") && t.endsWith(" 个工具") ->
+                "Matching ${t.removePrefix("匹配 ").removeSuffix(" 个工具")} tools"
+            t.startsWith("外部私有文件 ") -> "External private files " + t.removePrefix("外部私有文件 ")
+            t.startsWith("外部缓存 ") -> "External cache " + t.removePrefix("外部缓存 ")
+            t.startsWith("正在服务 ") -> "Serving " + t.removePrefix("正在服务 ")
+            t.startsWith("监听失败：") -> "Listen failed: " + t.removePrefix("监听失败：")
+            t.startsWith("已通过 mDNS 发布 ") -> "Published via mDNS: " + t.removePrefix("已通过 mDNS 发布 ")
+            t.startsWith("mDNS 发布失败：") -> "mDNS publish failed: " + t.removePrefix("mDNS 发布失败：")
+            t.startsWith("已上传 ") -> "Uploaded " + t.removePrefix("已上传 ")
+            t.startsWith("待发送 ") && t.endsWith(" 个附件") ->
+                t.removePrefix("待发送 ").removeSuffix(" 个附件") + " attachments pending"
+            t.startsWith("等待确认：") -> "Waiting for confirmation: " + t.removePrefix("等待确认：")
             t.startsWith("约 ") && t.endsWith(" tokens") -> "About " + t.removePrefix("约 ")
             t.startsWith("当前 API 上下文包含 ") -> t
                 .replace("当前 API 上下文包含 ", "The current API context contains ")
@@ -1189,6 +1215,10 @@ internal object UiTextBridge {
                 .replace("频率：", "Schedule: ")
                 .replace("模型：", "Model: ")
                 .replace("最近执行：", "Last run: ")
+                .replace("未启动", "Not started")
+                .replace("启动失败", "Failed to start")
+                .replace("运行中", "Running")
+                .replace("已停止", "Stopped")
                 .replace("尚未执行", "Not run yet")
             t.startsWith("执行频率：") -> t.replace("执行频率：", "Frequency: ")
             t.startsWith("服务商：") -> t.replace("服务商：", "Provider: ")

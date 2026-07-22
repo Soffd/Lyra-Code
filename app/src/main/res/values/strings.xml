@@ -127,7 +127,7 @@
     <string name="action_fetch_models">获取当前平台模型</string>
     <string name="subtitle_fetch_models">从 models 端点刷新可用模型</string>
     <string name="label_workspace_session">当前会话工作区</string>
-    <string name="label_no_workspace">未选择工作区</string>
+    <string name="label_no_workspace">未选择工作目录</string>
     <string name="notice_workspace_selected_current_chat">已为当前会话选择工作区：%1$s</string>
     <string name="label_auto_approve">无审批</string>
     <string name="subtitle_auto_approve_off">仅当前会话生效，开启前需要确认风险</string>

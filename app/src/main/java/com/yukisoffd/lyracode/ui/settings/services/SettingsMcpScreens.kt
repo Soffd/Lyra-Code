@@ -42,6 +42,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -279,11 +280,21 @@ internal fun LocalMcpServerSettings(
         }
         KimiDivider()
         Text(
-            uiText("状态：") + (if (localStatus.running) uiText("运行中") else uiText("已停止")) + " · ${localStatus.message}",
+            uiText(
+                stringResource(
+                    R.string.label_server_status,
+                    if (localStatus.running) uiText("运行中") else uiText("已停止"),
+                    uiText(localStatus.message),
+                ),
+            ),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
-        Text(uiText("本地地址：${localStatus.url}"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(
+            uiText(stringResource(R.string.label_local_address_info, localStatus.url)),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
         if (localStatus.lanUrls.isNotEmpty()) {
             Text(
                 uiText("局域网地址：") + localStatus.lanUrls.joinToString("  "),

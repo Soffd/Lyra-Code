@@ -46,6 +46,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -188,7 +189,11 @@ internal fun MiniServerSettings(
             Text(if (status.running) uiText("运行中") else uiText("已停止"), color = if (status.running) MaterialTheme.colorScheme.primary else KimiMuted)
         }
         KimiDivider()
-        Text(uiText("本地地址：${status.url}"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(
+            uiText(stringResource(R.string.label_local_address, status.url)),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
         if (lanUrls.isNotEmpty()) {
             Text(uiText("局域网地址：") + lanUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
@@ -196,7 +201,7 @@ internal fun MiniServerSettings(
             Text(uiText("绑定域名：") + customUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         if (status.message.isNotBlank()) {
-            Text(status.message, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(status.message), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         if (statusText.isNotBlank()) {
             Text(statusText, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)

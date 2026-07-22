@@ -493,6 +493,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             }
         }
         val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, fetchStatus)
+            .map(::uiText)
             .filter { it.isNotBlank() && it != uiText("完成") }
             .joinToString(" ")
         if (statusLine.isNotBlank()) {

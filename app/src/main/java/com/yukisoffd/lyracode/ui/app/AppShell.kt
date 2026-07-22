@@ -377,8 +377,13 @@ internal fun LyraCodeApp(
                                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                     val activeProfile = controller.profiles.firstOrNull { it.id == controller.activeProfileId.value }
                                     val activeModelName = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { context.getString(R.string.label_model) } }
+                                    val workspaceLabel = if (workspaceName == "未选择工作目录") {
+                                        uiText(context.getString(R.string.label_no_workspace))
+                                    } else {
+                                        workspaceName
+                                    }
                                     Text(
-                                        "$activeModelName / $workspaceName",
+                                        "$activeModelName / $workspaceLabel",
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         style = MaterialTheme.typography.labelMedium,
                                         maxLines = 1,
