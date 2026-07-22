@@ -24,6 +24,10 @@ class UiTextBridgeMissingEnglishTest {
             assertEquals("Uploaded notes.txt", uiText("已上传 notes.txt"))
             assertEquals("2 attachments pending", uiText("待发送 2 个附件"))
             assertEquals("Waiting for confirmation: write_file", uiText("等待确认：write_file"))
+            assertEquals(
+                "Request failed. Retrying in 5 seconds (3/5)",
+                uiText("请求失败，5 秒后重试（3/5）"),
+            )
         } finally {
             UiTextBridge.languageMode = previous
         }

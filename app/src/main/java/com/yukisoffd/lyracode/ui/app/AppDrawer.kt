@@ -108,7 +108,7 @@ internal fun KimiDrawerContent(
         context.getString(R.string.date_format_year_month),
     ).joinToString("|")
     val groupedConversations = remember(filteredConversations, historyLanguageKey) {
-        groupConversationsByTime(filteredConversations, context)
+        groupConversationsByTime(filteredConversations, context, languageMode)
     }
     var editingProfile by rememberSaveable { mutableStateOf(false) }
     actionConversation?.let { conversation ->
@@ -349,6 +349,7 @@ private fun KimiFunctionTile(
 private fun groupConversationsByTime(
     conversations: List<Conversation>,
     context: android.content.Context,
+    languageMode: String,
     nowMillis: Long = System.currentTimeMillis(),
 ): List<Pair<String, List<Conversation>>> {
     if (conversations.isEmpty()) return emptyList()
@@ -380,11 +381,26 @@ private fun groupConversationsByTime(
             conversation.updatedAt >= yesterdayStart -> context.getString(R.string.label_yesterday)
             conversation.updatedAt >= weekStart -> context.getString(R.string.label_this_week)
             conversation.updatedAt >= monthStart -> context.getString(R.string.label_this_month)
-            else -> SimpleDateFormat(context.getString(R.string.date_format_year_month), Locale.getDefault()).format(Date(conversation.updatedAt))
+            else -> formatConversationYearMonth(conversation.updatedAt, languageMode)
         }
         groups.getOrPut(label) { mutableListOf() }.add(conversation)
     }
     return groups.map { it.key to it.value }
+}
+
+internal fun formatConversationYearMonth(
+    timestamp: Long,
+    languageMode: String,
+    systemLocale: Locale = Locale.getDefault(),
+): String {
+    val normalizedMode = AppSettings.normalizeLanguageMode(languageMode)
+    val useEnglish = normalizedMode == AppSettings.LANGUAGE_EN ||
+        (normalizedMode == AppSettings.LANGUAGE_SYSTEM && systemLocale.language == Locale.ENGLISH.language)
+    return if (useEnglish) {
+        SimpleDateFormat("MMM yyyy", Locale.ENGLISH).format(Date(timestamp))
+    } else {
+        SimpleDateFormat("yyyy年M月", Locale.SIMPLIFIED_CHINESE).format(Date(timestamp))
+    }
 }
 
 @Composable

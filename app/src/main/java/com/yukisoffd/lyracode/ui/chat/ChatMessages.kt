@@ -86,35 +86,55 @@ internal data class ChatRenderItem(
     val key: String,
     val message: ChatRecord? = null,
     val process: List<ChatRecord> = emptyList(),
+    val processStartedAt: Long? = null,
+    val processFinishedAt: Long? = null,
 )
 
 internal fun chatRenderItems(messages: List<ChatRecord>): List<ChatRenderItem> {
     val result = mutableListOf<ChatRenderItem>()
-    val processBuffer = mutableListOf<ChatRecord>()
-    fun flushProcess() {
-        if (processBuffer.isNotEmpty()) {
-            val group = processBuffer.toList()
-            result += ChatRenderItem("process-${group.first().id}", process = group)
-            processBuffer.clear()
+    val assistantTurn = mutableListOf<ChatRecord>()
+
+    fun flushAssistantTurn() {
+        if (assistantTurn.isEmpty()) return
+        val turn = assistantTurn.toList()
+        assistantTurn.clear()
+        val finalAnswerIndex = turn.indexOfLast {
+            it.role == "assistant" && it.content.isNotBlank()
         }
-    }
-    messages.forEach { message ->
-        if (isInternalProcessMessage(message)) {
-            processBuffer += message
-        } else {
-            if (message.role == "assistant") {
-                if (message.thinking.isNotBlank()) {
-                    processBuffer += message.copy(id = -message.id, content = "")
+        val process = buildList {
+            turn.forEachIndexed { index, message ->
+                if (index == finalAnswerIndex) {
+                    if (message.thinking.isNotBlank()) {
+                        add(message.copy(id = -message.id, content = ""))
+                    }
+                } else {
+                    add(message)
                 }
-                flushProcess()
-                result += ChatRenderItem("message-${message.id}", message = message.copy(thinking = ""))
-            } else {
-                if (message.role == "user") flushProcess()
-                result += ChatRenderItem("message-${message.id}", message = message)
             }
         }
+        if (process.isNotEmpty()) {
+            result += ChatRenderItem(
+                key = "process-${turn.first().id}",
+                process = process,
+                processStartedAt = turn.minOfOrNull { it.createdAt },
+                processFinishedAt = turn.maxOfOrNull { it.createdAt },
+            )
+        }
+        if (finalAnswerIndex >= 0) {
+            val finalAnswer = turn[finalAnswerIndex].copy(thinking = "")
+            result += ChatRenderItem("message-${finalAnswer.id}", message = finalAnswer)
+        }
     }
-    flushProcess()
+
+    messages.forEach { message ->
+        if (message.role == "user") {
+            flushAssistantTurn()
+            result += ChatRenderItem("message-${message.id}", message = message)
+        } else {
+            assistantTurn += message
+        }
+    }
+    flushAssistantTurn()
     return result
 }
 
@@ -123,6 +143,8 @@ internal fun AgentProcessSummary(
     messages: List<ChatRecord>,
     selectionResetKey: Int,
     active: Boolean = false,
+    startedAtOverride: Long? = null,
+    finishedAtOverride: Long? = null,
 ) {
     var expanded by rememberSaveable(messages.firstOrNull()?.id ?: 0L) { mutableStateOf(false) }
     val toolCount = messages.count { it.role == "tool" }
@@ -139,8 +161,8 @@ internal fun AgentProcessSummary(
             completedAt = System.currentTimeMillis()
         }
     }
-    val startedAt = messages.minOfOrNull { it.createdAt } ?: fallbackNow
-    val finishedAt = completedAt ?: messages.maxOfOrNull { it.createdAt } ?: fallbackNow
+    val startedAt = startedAtOverride ?: messages.minOfOrNull { it.createdAt } ?: fallbackNow
+    val finishedAt = completedAt ?: finishedAtOverride ?: messages.maxOfOrNull { it.createdAt } ?: fallbackNow
     val collapsedText = if (expanded) {
         uiText("过程记录已展开")
     } else {
@@ -530,6 +552,7 @@ internal fun MessageCard(
     streamingAnimationMode: String = AppSettings.STREAMING_ANIMATION_TYPEWRITER,
     isStreaming: Boolean = false,
     onEditAndRegenerate: ((Long, String) -> Unit)? = null,
+    onCreateBranch: ((Long) -> Unit)? = null,
 ) {
     val visibleContent = displayMessageContent(message)
     val mediaPreviews = remember(message.content) { uploadedMediaPreviews(message.content) }
@@ -612,7 +635,14 @@ internal fun MessageCard(
                                 },
                             )
                     } else {
-                        Modifier.fillMaxWidth()
+                        Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {},
+                                onLongClick = {
+                                    if (!inProcessRecord && !isStreaming) menuExpanded = true
+                                },
+                            )
                     }
                     Card(
                         colors = CardDefaults.cardColors(containerColor = container),
@@ -696,15 +726,35 @@ internal fun MessageCard(
                                             )
                                             Spacer(Modifier.weight(1f))
                                             if (!isStreaming) {
-                                                IconButton(
-                                                    onClick = { clipboard.setText(AnnotatedString(message.content)) },
-                                                    modifier = Modifier.size(36.dp),
-                                                ) {
-                                                    Icon(
-                                                        Icons.Default.ContentCopy,
-                                                        contentDescription = uiText("复制"),
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(20.dp),
+                                                Box {
+                                                    IconButton(
+                                                        onClick = { menuExpanded = true },
+                                                        modifier = Modifier.size(36.dp),
+                                                    ) {
+                                                        Icon(
+                                                            Icons.Default.MoreVert,
+                                                            contentDescription = uiText("更多操作"),
+                                                            tint = MaterialTheme.colorScheme.primary,
+                                                            modifier = Modifier.size(20.dp),
+                                                        )
+                                                    }
+                                                    MessageActionsDropdown(
+                                                        expanded = menuExpanded,
+                                                        onDismiss = { menuExpanded = false },
+                                                        onCopy = {
+                                                            clipboard.setText(AnnotatedString(message.content))
+                                                            menuExpanded = false
+                                                        },
+                                                        onSelectText = {
+                                                            selectable = true
+                                                            menuExpanded = false
+                                                        },
+                                                        onCreateBranch = onCreateBranch?.let { createBranch ->
+                                                            {
+                                                                menuExpanded = false
+                                                                createBranch(message.id)
+                                                            }
+                                                        },
                                                     )
                                                 }
                                             }
@@ -716,45 +766,86 @@ internal fun MessageCard(
                             }
                         }
                     }
-                    if (isUser) DropdownMenu(expanded = menuExpanded, onDismissRequest = { menuExpanded = false }) {
-                        DropdownMenuItem(
-                            text = { Text(uiText("复制")) },
-                            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
-                            onClick = {
+                    if (isUser) {
+                        MessageActionsDropdown(
+                            expanded = menuExpanded,
+                            onDismiss = { menuExpanded = false },
+                            onCopy = {
                                 clipboard.setText(AnnotatedString(message.content))
                                 menuExpanded = false
                             },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(uiText("选择文本")) },
-                            leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-                            onClick = {
+                            onSelectText = {
                                 selectable = true
                                 menuExpanded = false
                             },
-                        )
-                        if (isUser && onEditAndRegenerate != null) {
-                            DropdownMenuItem(
-                                text = { Text(uiText("修改并重新生成")) },
-                                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
-                                onClick = {
+                            onCreateBranch = onCreateBranch?.let { createBranch ->
+                                {
+                                    menuExpanded = false
+                                    createBranch(message.id)
+                                }
+                            },
+                            onEditAndRegenerate = onEditAndRegenerate?.let {
+                                {
                                     editText = message.content
                                     menuExpanded = false
                                     editDialogOpen = true
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(uiText("重新生成")) },
-                                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
-                                onClick = {
+                                }
+                            },
+                            onRegenerate = onEditAndRegenerate?.let { regenerate ->
+                                {
                                     menuExpanded = false
-                                    onEditAndRegenerate(message.id, message.content)
-                                },
-                            )
-                        }
+                                    regenerate(message.id, message.content)
+                                }
+                            },
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MessageActionsDropdown(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onCopy: () -> Unit,
+    onSelectText: () -> Unit,
+    onCreateBranch: (() -> Unit)? = null,
+    onEditAndRegenerate: (() -> Unit)? = null,
+    onRegenerate: (() -> Unit)? = null,
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text(uiText("复制")) },
+            leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
+            onClick = onCopy,
+        )
+        DropdownMenuItem(
+            text = { Text(uiText("选择文本")) },
+            leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
+            onClick = onSelectText,
+        )
+        onCreateBranch?.let { createBranch ->
+            DropdownMenuItem(
+                text = { Text(uiText("从此处创建分支")) },
+                leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null) },
+                onClick = createBranch,
+            )
+        }
+        onEditAndRegenerate?.let { editAndRegenerate ->
+            DropdownMenuItem(
+                text = { Text(uiText("修改并重新生成")) },
+                leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                onClick = editAndRegenerate,
+            )
+        }
+        onRegenerate?.let { regenerate ->
+            DropdownMenuItem(
+                text = { Text(uiText("重新生成")) },
+                leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
+                onClick = regenerate,
+            )
         }
     }
 }

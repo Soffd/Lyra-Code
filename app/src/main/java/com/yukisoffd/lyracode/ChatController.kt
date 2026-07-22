@@ -285,6 +285,24 @@ class ChatController(
         reloadConversations()
     }
 
+    fun createConversationBranch(messageId: Long) {
+        val sourceId = activeConversationId.value.takeIf { it > 0L } ?: return
+        if (jobs[sourceId]?.isActive == true) return
+        val source = conversationStore.conversation(sourceId) ?: return
+        val title = appContext.getString(R.string.conversation_branch_title, source.title).let(::uiText)
+        val branchId = conversationStore.createConversationBranch(sourceId, messageId, title)
+        if (branchId <= 0L) return
+
+        todoByConversation[branchId] = todoByConversation[sourceId]
+            .orEmpty()
+            .map { it.copy() }
+            .toMutableList()
+        if (sourceId in autoApprovedConversations) autoApprovedConversations += branchId
+        reloadConversations()
+        selectConversation(branchId)
+        status.value = uiText(appContext.getString(R.string.status_branch_created))
+    }
+
     fun persistWorkspaceForActiveSession(uri: Uri): String {
         val workspaceUri = workspaceManager.persistWorkspace(uri)
         val conversationId = activeConversationId.value

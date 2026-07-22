@@ -225,6 +225,7 @@
     <string name="status_approved_tool">Tool call approved</string>
     <string name="status_rejected_tool">Tool call rejected</string>
     <string name="status_waiting_confirm">Waiting for confirmation: %1$s</string>
+    <string name="status_request_retry">Request failed. Retrying in 5 seconds (%1$d/%2$d)</string>
     <string name="todo_list_set">TODO list set, %1$d items.</string>
     <string name="todo_item_default_name">Untitled step</string>
     <string name="todo_status_completed">completed</string>
@@ -1538,4 +1539,8 @@ Shizuku and Root are separately enabled under System Permissions. Review every S
     <string name="compliance_permission_control_body">Go to Settings → General → App permissions, or Android Settings → Apps → Lyra Code → Permissions/Special access.
 
 Revocation stops new access through that permission but does not automatically erase previously saved local data. Delete it in the app, clear app data, or uninstall.</string>
+    <string name="conversation_branch_title">%1$s · Branch</string>
+    <string name="status_branch_created">Conversation branch created</string>
+    <string name="action_create_branch">Create branch from here</string>
+    <string name="action_more">More actions</string>
 </resources>

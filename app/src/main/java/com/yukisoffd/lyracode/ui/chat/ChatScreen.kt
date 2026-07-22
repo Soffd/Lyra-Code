@@ -448,6 +448,8 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             messages = item.process,
                             selectionResetKey = selectionResetKey,
                             active = item.key == activeProcessKey,
+                            startedAtOverride = item.processStartedAt,
+                            finishedAtOverride = item.processFinishedAt,
                         )
                     } else if (item.message != null) {
                         MessageCard(
@@ -456,6 +458,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                             streamingAnimationMode = settings.streamingAnimationMode,
                             isStreaming = isRunning && item.message.id == messageSnapshot.lastOrNull { it.role == "assistant" }?.id,
                             onEditAndRegenerate = controller::editAndRegenerateUserMessage,
+                            onCreateBranch = controller::createConversationBranch,
                         )
                     }
                 }

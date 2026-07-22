@@ -227,6 +227,7 @@
     <string name="status_approved_tool">已批准工具调用</string>
     <string name="status_rejected_tool">已拒绝工具调用</string>
     <string name="status_waiting_confirm">等待确认：%1$s</string>
+    <string name="status_request_retry">请求失败，5 秒后重试（%1$d/%2$d）</string>
     <string name="todo_list_set">TODO 列表已设置，共 %1$d 项。</string>
     <string name="todo_item_default_name">未命名步骤</string>
     <string name="todo_status_completed">completed</string>
@@ -1621,6 +1622,10 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="compliance_permission_control_body">路径：设置 → 常规 → 应用权限，或 Android 系统设置 → 应用 → Lyra Code → 权限/特殊访问权限。
 
 撤回权限后，应用会停止通过该权限读取新信息，但此前由用户保存的本地数据不会自动删除；可在应用内删除、清除应用数据或卸载。</string>
+    <string name="conversation_branch_title">%1$s · 分支</string>
+    <string name="status_branch_created">对话分支已创建</string>
+    <string name="action_create_branch">从此处创建分支</string>
+    <string name="action_more">更多操作</string>
 </resources>
 
 

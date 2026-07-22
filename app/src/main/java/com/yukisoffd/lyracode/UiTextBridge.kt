@@ -12,6 +12,9 @@ internal object UiTextBridge {
         "请求端点：%1\$s；模型列表：%2\$s" to "Request endpoint: %1\$s; model list: %2\$s",
         "状态：%1\$s · %2\$s" to "Status: %1\$s · %2\$s",
         "本地地址：%1\$s" to "Local address: %1\$s",
+        "请求失败，5 秒后重试（%1\$d/%2\$d）" to "Request failed. Retrying in 5 seconds (%1\$d/%2\$d)",
+        "请求中断：" to "Request interrupted: ",
+        "AI 请求失败 " to "AI request failed ",
         "匹配 %1\$d / %2\$d 个工具" to "Matching %1\$d / %2\$d tools",
         "外部私有文件 %1\$d" to "External private files %1\$d",
         "外部缓存 %1\$d" to "External cache %1\$d",
@@ -256,6 +259,10 @@ internal object UiTextBridge {
         "thinking..." to "thinking...",
         "思考完毕" to "Thinking complete",
         "复制" to "Copy",
+        "更多操作" to "More actions",
+        "从此处创建分支" to "Create branch from here",
+        "对话分支已创建" to "Conversation branch created",
+        "分支" to "Branch",
         "正在组织输出..." to "Composing response...",
         "选择文本" to "Select text",
         "修改并重新生成" to "Edit and regenerate",
@@ -1157,6 +1164,9 @@ internal object UiTextBridge {
             t.startsWith("请求端点：") && t.contains("；模型列表：") ->
                 "Request endpoint: ${t.substringAfter("请求端点：").substringBefore("；模型列表：")}; model list: ${t.substringAfter("；模型列表：")}"
             t.startsWith("本地地址：") -> "Local address: " + t.removePrefix("本地地址：")
+            t.endsWith(" · 分支") -> t.removeSuffix(" · 分支") + " · Branch"
+            t.startsWith("请求失败，5 秒后重试（") && t.endsWith("）") ->
+                "Request failed. Retrying in 5 seconds (${t.removePrefix("请求失败，5 秒后重试（").removeSuffix("）")})"
             t.startsWith("匹配 ") && t.endsWith(" 个工具") ->
                 "Matching ${t.removePrefix("匹配 ").removeSuffix(" 个工具")} tools"
             t.startsWith("外部私有文件 ") -> "External private files " + t.removePrefix("外部私有文件 ")

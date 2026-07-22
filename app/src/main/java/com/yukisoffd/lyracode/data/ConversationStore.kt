@@ -221,6 +221,69 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         )
     }
 
+    fun createConversationBranch(
+        sourceConversationId: Long,
+        throughMessageId: Long,
+        title: String,
+    ): Long {
+        val source = conversation(sourceConversationId) ?: return -1L
+        val target = message(throughMessageId) ?: return -1L
+        if (target.conversationId != sourceConversationId || target.role !in setOf("user", "assistant")) {
+            return -1L
+        }
+        val sourceMessages = messages(sourceConversationId).filter { it.id <= throughMessageId }
+        if (sourceMessages.none { it.id == throughMessageId }) return -1L
+
+        val db = writableDatabase
+        val now = System.currentTimeMillis()
+        db.beginTransaction()
+        return try {
+            val branchId = db.insertOrThrow(
+                "conversations",
+                null,
+                ContentValues().apply {
+                    put("title", title.take(120))
+                    put("status", STATUS_IDLE)
+                    put("profile_id", source.profileId)
+                    put("model", source.model)
+                    put("created_at", now)
+                    put("updated_at", now)
+                    put("pinned_at", 0L)
+                    put("archived_at", 0L)
+                    put("mode", source.mode)
+                    put("workspace_uri", source.workspaceUri)
+                    put("compressed_context", "")
+                    put("compressed_through_message_id", 0L)
+                    put("auto_compression_mode", source.autoCompressionMode)
+                    put("auto_compression_turn_threshold", source.autoCompressionTurnThreshold)
+                    put("auto_compression_token_threshold", source.autoCompressionTokenThreshold)
+                },
+            )
+            sourceMessages.forEach { sourceMessage ->
+                db.insertOrThrow(
+                    "messages",
+                    null,
+                    ContentValues().apply {
+                        put("conversation_id", branchId)
+                        put("role", sourceMessage.role)
+                        put("content", sourceMessage.content)
+                        put("thinking", sourceMessage.thinking)
+                        put("profile_id", sourceMessage.profileId)
+                        put("model", sourceMessage.model)
+                        put("tool_call_id", sourceMessage.toolCallId)
+                        put("raw_json", sourceMessage.rawJson)
+                        put("tokens_per_second", sourceMessage.tokensPerSecond)
+                        put("created_at", sourceMessage.createdAt)
+                    },
+                )
+            }
+            db.setTransactionSuccessful()
+            branchId
+        } finally {
+            db.endTransaction()
+        }
+    }
+
     private fun createImportedConversation(
         profileId: String,
         model: String,

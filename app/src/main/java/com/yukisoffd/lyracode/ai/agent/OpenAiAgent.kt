@@ -9,6 +9,7 @@ import android.util.Base64
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.yukisoffd.lyracode.DeviceInfoCollector
+import com.yukisoffd.lyracode.R
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.BackupManager
@@ -409,10 +410,25 @@ class OpenAiAgent(
             while (true) {
                 currentCoroutineContext().ensureActive()
                 val assistantId = conversationStore.addMessage(conversationId, "assistant", "", profileId = profile.id, model = model)
-                val result = streamModel(conversationId, assistantId, profile, model) { content, thinking ->
-                    conversationStore.updateMessage(assistantId, content = content, thinking = thinking)
-                    onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
-                }
+                val result = streamModel(
+                    conversationId = conversationId,
+                    excludeMessageId = assistantId,
+                    profile = profile,
+                    model = model,
+                    onDelta = { content, thinking ->
+                        conversationStore.updateMessage(assistantId, content = content, thinking = thinking)
+                        onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
+                    },
+                    onRetry = { retryNumber, maxRetries, error ->
+                        conversationStore.updateMessage(assistantId, content = "", thinking = "")
+                        val retryStatus = uiText(context.getString(R.string.status_request_retry, retryNumber, maxRetries))
+                        Log.w(
+                            AGENT_TAG,
+                            "model_request_retry conversation=$conversationId model=$model retry=$retryNumber/$maxRetries error=${error.message}",
+                        )
+                        onUpdate(ChatUpdate("", "", retryStatus, assistantId))
+                    },
+                )
                 conversationStore.updateMessage(
                     assistantId,
                     content = result.content,
@@ -451,8 +467,9 @@ class OpenAiAgent(
             throw error
         } catch (error: Throwable) {
             conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_INTERRUPTED, profileId = profile.id, model = model)
-            conversationStore.addMessage(conversationId, "assistant", "请求中断: ${error.message}", profileId = profile.id, model = model)
-            onUpdate(ChatUpdate("", "", uiText("请求中断：") + error.message))
+            val finalError = uiText("请求中断：") + error.message.orEmpty()
+            conversationStore.addMessage(conversationId, "assistant", finalError, profileId = profile.id, model = model)
+            onUpdate(ChatUpdate("", "", finalError))
             if (propagateErrors) throw error
         }
     }
@@ -463,11 +480,14 @@ class OpenAiAgent(
         profile: ApiProfile,
         model: String,
         onDelta: suspend (String, String) -> Unit,
+        onRetry: suspend (retryNumber: Int, maxRetries: Int, error: Throwable) -> Unit,
     ): StreamingResult {
-        return when (profile.apiFormat) {
-            ApiProfile.API_FORMAT_ANTHROPIC -> requestAnthropicModel(conversationId, excludeMessageId, profile, model, onDelta)
-            ApiProfile.API_FORMAT_GEMINI -> requestGeminiModel(conversationId, excludeMessageId, profile, model, onDelta)
-            else -> streamOpenAiModel(conversationId, excludeMessageId, profile, model, onDelta)
+        return executeModelRequestWithRetry(onRetry = onRetry) {
+            when (profile.apiFormat) {
+                ApiProfile.API_FORMAT_ANTHROPIC -> requestAnthropicModel(conversationId, excludeMessageId, profile, model, onDelta)
+                ApiProfile.API_FORMAT_GEMINI -> requestGeminiModel(conversationId, excludeMessageId, profile, model, onDelta)
+                else -> streamOpenAiModel(conversationId, excludeMessageId, profile, model, onDelta)
+            }
         }
     }
 
@@ -520,10 +540,10 @@ class OpenAiAgent(
         var cachedPromptTokens = 0L
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         client.newCall(request).execute().use { response ->
-            val source = response.body ?: error("响应为空")
+            val source = response.body ?: throw IOException("响应为空")
             if (!response.isSuccessful) {
                 val text = source.string()
-                error("AI 请求失败 ${response.code}: ${text.take(600)}")
+                throwModelRequestHttpError(response.code, text)
             }
             source.byteStream().bufferedReader().useLines { lines ->
                 lines.forEach { line ->
@@ -638,10 +658,10 @@ class OpenAiAgent(
         val nonStreamingBody = StringBuilder()
         var sawStreamingData = false
         client.newCall(request).execute().use { response ->
-            val source = response.body ?: error("响应为空")
+            val source = response.body ?: throw IOException("响应为空")
             if (!response.isSuccessful) {
                 val body = source.string()
-                error("AI 请求失败 ${response.code}: ${body.take(600)}")
+                throwModelRequestHttpError(response.code, body)
             }
             source.byteStream().bufferedReader().useLines { lines ->
                 lines.forEach { line ->
@@ -756,8 +776,9 @@ class OpenAiAgent(
             .build()
         val startedAtNanos = System.nanoTime()
         client.newCall(request).execute().use { response ->
-            val body = response.body?.string().orEmpty()
-            if (!response.isSuccessful) error("AI 请求失败 ${response.code}: ${body.take(600)}")
+            val source = response.body ?: throw IOException("响应为空")
+            val body = source.string()
+            if (!response.isSuccessful) throwModelRequestHttpError(response.code, body)
             val root = JSONObject(body)
             val outputTokens = root.optJSONObject("usageMetadata")?.optLong("candidatesTokenCount", 0L) ?: 0L
             val parts = root.optJSONArray("candidates")
@@ -785,6 +806,14 @@ class OpenAiAgent(
             val raw = assistantRawMessage(cleanContent, "", calls)
             return StreamingResult(cleanContent, "", raw, calls, outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos))
         }
+    }
+
+    private fun throwModelRequestHttpError(statusCode: Int, body: String): Nothing {
+        val message = uiText("AI 请求失败 ") + "$statusCode: ${body.take(600)}"
+        if (isRetryableModelHttpStatus(statusCode)) {
+            throw RetryableModelHttpException(statusCode, message)
+        }
+        error(message)
     }
 
     private fun assistantRawMessage(content: String, thinking: String, calls: List<ToolCall>): JSONObject {
