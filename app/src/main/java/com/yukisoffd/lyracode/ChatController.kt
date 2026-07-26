@@ -22,6 +22,7 @@ import com.yukisoffd.lyracode.ai.TodoItem
 import com.yukisoffd.lyracode.ai.toRecord
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
+import com.yukisoffd.lyracode.data.ChatProject
 import com.yukisoffd.lyracode.data.Conversation
 import android.content.Context
 import com.yukisoffd.lyracode.data.ConversationStore
@@ -86,6 +87,8 @@ class ChatController(
 
     val conversations = mutableStateListOf<Conversation>()
     val archivedConversations = mutableStateListOf<Conversation>()
+    val projects = mutableStateListOf<ChatProject>()
+    val archivedProjects = mutableStateListOf<ChatProject>()
     private val _messages = mutableStateOf<List<ChatRecord>>(emptyList())
     val messages: State<List<ChatRecord>> = _messages
     val profiles = mutableStateListOf<ApiProfile>()
@@ -109,6 +112,7 @@ class ChatController(
     private val editorMutationWaiters = mutableMapOf<Long, CompletableDeferred<AgentFileEditResult>>()
     private val autoApprovedConversations = mutableSetOf<Long>()
     private var transientWorkspaceUri = ""
+    private var transientProjectId = 0L
     private var transientAutoApprovalEnabled = false
     private var transientAutoCompressionMode = ConversationStore.AUTO_COMPRESSION_OFF
     private var transientAutoCompressionTurnThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS
@@ -134,7 +138,11 @@ class ChatController(
     }
 
     fun usageStore(): ConversationStore = conversationStore
-    fun inputDraftKey(): String = "normal:${activeConversationId.value}"
+    fun inputDraftKey(): String = if (activeProjectId() > 0L) {
+        "project:${activeProjectId()}:${activeConversationId.value}"
+    } else {
+        "normal:${activeConversationId.value}"
+    }
 
     fun loadInputDraft(): String = settings.chatInputDraft(inputDraftKey())
 
@@ -214,6 +222,7 @@ class ChatController(
             model = activeModel.value.ifBlank { profile.selectedModel },
             title = appContext.getString(R.string.title_new_chat),
             workspaceUri = transientWorkspaceUri,
+            projectId = transientProjectId,
         )
         conversationStore.setAutoCompression(
             id,
@@ -228,20 +237,22 @@ class ChatController(
         return id
     }
 
-    private fun showTransientNewConversation() {
+    private fun showTransientNewConversation(projectId: Long = 0L) {
+        val project = projectId.takeIf { it > 0L }?.let(conversationStore::project)
         activeConversationId.value = 0L
         _messages.value = emptyList()
         todoItems.clear()
         pendingUploads.clear()
         uploadingStatus.value = ""
         status.value = ""
-        transientWorkspaceUri = ""
+        transientProjectId = project?.id ?: 0L
+        transientWorkspaceUri = project?.workspaceUri.orEmpty()
         transientAutoApprovalEnabled = false
         transientAutoCompressionMode = ConversationStore.AUTO_COMPRESSION_OFF
         transientAutoCompressionTurnThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS
         transientAutoCompressionTokenThreshold = ConversationStore.DEFAULT_AUTO_COMPRESSION_TOKENS
         contextWindowUsage.value = ContextWindowUsage()
-        workspaceManager.setActiveWorkspaceUri("")
+        workspaceManager.setActiveWorkspaceUri(transientWorkspaceUri)
         settingsRevision.intValue++
     }
 
@@ -249,14 +260,36 @@ class ChatController(
         if (activeConversationId.value <= 0L || isCurrentConversationBlank()) {
             return false
         }
-        newConversation()
+        showTransientNewConversation(activeProjectId())
         return true
+    }
+
+    fun startProjectConversation(projectId: Long): Boolean {
+        val project = conversationStore.project(projectId)?.takeIf { it.archivedAt <= 0L } ?: return false
+        if (activeConversationId.value <= 0L && transientProjectId == project.id) return false
+        showTransientNewConversation(project.id)
+        return true
+    }
+
+    fun createProject(uri: Uri): ChatProject? {
+        val workspaceUri = workspaceManager.persistWorkspace(uri)
+        val projectName = workspaceManager.displayName()
+            .takeUnless { it == "未选择工作目录" }
+            .orEmpty()
+            .ifBlank { appContext.getString(R.string.default_project_name) }
+        val projectId = conversationStore.createProject(projectName, workspaceUri)
+        if (projectId <= 0L) return null
+        reloadConversations()
+        showTransientNewConversation(projectId)
+        return conversationStore.project(projectId)
     }
 
     fun selectConversation(id: Long) {
         activeConversationId.value = id
         val conversation = conversationStore.conversation(id)
         if (conversation != null) {
+            transientProjectId = conversation.projectId
+            transientWorkspaceUri = conversation.workspaceUri
             activeProfileId.value = conversation.profileId.ifBlank { activeProfileId.value }
             activeModel.value = conversation.model.ifBlank { activeModel.value }
             workspaceManager.setActiveWorkspaceUri(conversation.workspaceUri)
@@ -306,14 +339,59 @@ class ChatController(
     fun persistWorkspaceForActiveSession(uri: Uri): String {
         val workspaceUri = workspaceManager.persistWorkspace(uri)
         val conversationId = activeConversationId.value
+        val projectId = activeProjectId()
         if (conversationId > 0L) {
             conversationStore.setConversationMeta(conversationId, workspaceUri = workspaceUri)
-            reloadConversations()
         } else {
             transientWorkspaceUri = workspaceUri
         }
+        if (projectId > 0L) conversationStore.updateProjectWorkspace(projectId, workspaceUri)
+        reloadConversations()
         settingsRevision.intValue++
         return workspaceManager.displayName()
+    }
+
+    fun activeProjectId(): Long {
+        val conversationProjectId = activeConversationId.value
+            .takeIf { it > 0L }
+            ?.let(conversationStore::conversation)
+            ?.projectId
+            ?: 0L
+        return conversationProjectId.takeIf { it > 0L } ?: transientProjectId
+    }
+
+    fun renameProject(id: Long, name: String) {
+        conversationStore.renameProject(id, name)
+        reloadConversations()
+    }
+
+    fun setProjectPinned(id: Long, pinned: Boolean) {
+        conversationStore.setProjectPinned(id, pinned)
+        reloadConversations()
+    }
+
+    fun archiveProject(id: Long) {
+        conversationStore.setProjectArchived(id, true)
+        if (activeProjectId() == id) showTransientNewConversation()
+        reloadConversations()
+    }
+
+    fun restoreArchivedProject(id: Long) {
+        conversationStore.setProjectArchived(id, false)
+        reloadConversations()
+    }
+
+    fun deleteProject(id: Long) {
+        val conversationIds = conversationStore.conversationsForProject(id, archived = null).map { it.id }
+        conversationIds.forEach { conversationId ->
+            jobs.remove(conversationId)?.cancel()
+            autoApprovedConversations.remove(conversationId)
+            todoByConversation.remove(conversationId)
+        }
+        val wasActive = activeProjectId() == id
+        conversationStore.deleteProject(id)
+        if (wasActive) showTransientNewConversation()
+        reloadConversations()
     }
 
     fun workspaceDisplayName(): String = workspaceManager.displayName()
@@ -807,7 +885,7 @@ class ChatController(
 
     private fun workspaceReferenceMarker(files: List<WorkspaceFileReference>): String {
         val payload = JSONObject()
-            .put("instruction", "优先读取并处理这些用户明确选中的工作区文件；路径均为工作区相对路径。")
+            .put("instruction", "Prioritize these workspace files explicitly selected by the user. Every path is workspace-relative.")
             .put("files", org.json.JSONArray().also { array ->
                 files.forEach { file ->
                     array.put(JSONObject().put("name", file.name).put("path", file.relativePath).put("size", file.size))
@@ -821,7 +899,7 @@ class ChatController(
             .put("path", path)
             .put(
                 "instruction",
-                "这是用户当前正在文件编辑器中查看的 Android 共享存储文件。按需使用 global_read_file 读取；修改时使用 global_write_file，并保持用户可见确认流程。若已添加工作目录，可同时使用工作区工具处理跨文件关系。",
+                "This is the Android shared-storage file currently open in the user's editor. Read it with global_read_file/global_read_file_lines as needed; prefer global_edit_file for precise changes and preserve the user-approval flow. Workspace tools may be used for related files when a workspace is selected.",
             )
         return "$EDITOR_CONTEXT_MARKER_START$payload$EDITOR_CONTEXT_MARKER_END"
     }
@@ -946,6 +1024,10 @@ class ChatController(
         conversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL))
         archivedConversations.clear()
         archivedConversations.addAll(conversationStore.conversations(ConversationStore.MODE_NORMAL, archived = true))
+        projects.clear()
+        projects.addAll(conversationStore.projects())
+        archivedProjects.clear()
+        archivedProjects.addAll(conversationStore.projects(archived = true))
         val active = activeConversationId.value
         if (active > 0 && conversations.none { it.id == active }) {
             val next = conversations.firstOrNull()?.id

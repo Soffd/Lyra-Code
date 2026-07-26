@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
+import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material3.AlertDialog
@@ -32,14 +33,17 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.yukisoffd.lyracode.data.ChatProject
 import com.yukisoffd.lyracode.data.Conversation
 
 @Composable
 internal fun ArchivedConversationsScreen(controller: ChatController) {
     val context = LocalContext.current
     val archivedSnapshot = controller.archivedConversations.toList()
+    val archivedProjectSnapshot = controller.archivedProjects.toList()
     var query by rememberSaveable { mutableStateOf("") }
     var pendingDelete by remember { mutableStateOf<Conversation?>(null) }
+    var pendingProjectDelete by remember { mutableStateOf<ChatProject?>(null) }
     val filteredConversations = remember(archivedSnapshot, query) {
         val normalizedQuery = query.trim()
         if (normalizedQuery.isBlank()) {
@@ -49,6 +53,17 @@ internal fun ArchivedConversationsScreen(controller: ChatController) {
                 conversation.title.contains(normalizedQuery, ignoreCase = true) ||
                     conversation.model.contains(normalizedQuery, ignoreCase = true) ||
                     conversation.status.contains(normalizedQuery, ignoreCase = true)
+            }
+        }
+    }
+    val filteredProjects = remember(archivedProjectSnapshot, query) {
+        val normalizedQuery = query.trim()
+        if (normalizedQuery.isBlank()) {
+            archivedProjectSnapshot
+        } else {
+            archivedProjectSnapshot.filter { project ->
+                project.name.contains(normalizedQuery, ignoreCase = true) ||
+                    project.workspaceUri.contains(normalizedQuery, ignoreCase = true)
             }
         }
     }
@@ -73,6 +88,31 @@ internal fun ArchivedConversationsScreen(controller: ChatController) {
             },
             dismissButton = {
                 TextButton(onClick = { pendingDelete = null }) {
+                    Text(context.getString(R.string.action_cancel))
+                }
+            },
+        )
+    }
+    pendingProjectDelete?.let { project ->
+        AlertDialog(
+            onDismissRequest = { pendingProjectDelete = null },
+            title = { Text(context.getString(R.string.title_delete_archived_project)) },
+            text = { Text(context.getString(R.string.confirm_delete_archived_project, project.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        controller.deleteProject(project.id)
+                        pendingProjectDelete = null
+                    },
+                ) {
+                    Text(
+                        context.getString(R.string.action_delete_permanently),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingProjectDelete = null }) {
                     Text(context.getString(R.string.action_cancel))
                 }
             },
@@ -107,7 +147,7 @@ internal fun ArchivedConversationsScreen(controller: ChatController) {
                 )
             }
         }
-        if (filteredConversations.isEmpty()) {
+        if (filteredConversations.isEmpty() && filteredProjects.isEmpty()) {
             item {
                 Text(
                     context.getString(R.string.notice_no_archived_chats),
@@ -116,12 +156,73 @@ internal fun ArchivedConversationsScreen(controller: ChatController) {
                 )
             }
         } else {
+            items(filteredProjects, key = { "archived-project-${it.id}" }) { project ->
+                ArchivedProjectCard(
+                    project = project,
+                    onRestore = { controller.restoreArchivedProject(project.id) },
+                    onDelete = { pendingProjectDelete = project },
+                )
+            }
             items(filteredConversations, key = { it.id }) { conversation ->
                 ArchivedConversationCard(
                     conversation = conversation,
                     onRestore = { controller.restoreArchivedConversation(conversation.id) },
                     onDelete = { pendingDelete = conversation },
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchivedProjectCard(
+    project: ChatProject,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val context = LocalContext.current
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(Icons.Default.Folder, contentDescription = null)
+                Text(
+                    project.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Text(
+                context.getString(R.string.history_mode_projects),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedButton(onClick = onRestore, modifier = Modifier.weight(1f)) {
+                    Icon(Icons.Default.Unarchive, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(context.getString(R.string.action_restore_project))
+                }
+                TextButton(onClick = onDelete, modifier = Modifier.weight(1f)) {
+                    Icon(
+                        Icons.Default.DeleteForever,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        context.getString(R.string.action_delete_permanently),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
             }
         }
     }

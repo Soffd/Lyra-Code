@@ -29,6 +29,34 @@ internal object UiTextBridge {
         "保存失败" to "Save failed",
         "上传背景" to "Upload background",
         "当前" to "Current",
+        "会话" to "Chats",
+        "项目" to "Projects",
+        "搜索项目或项目对话" to "Search projects or project chats",
+        "归档的对话和项目仍会完整保留，可随时恢复。" to "Archived chats and projects remain fully intact and can be restored at any time.",
+        "搜索已归档对话或项目" to "Search archived chats or projects",
+        "暂无已归档对话或项目" to "No archived chats or projects",
+        "暂无项目。选择一个工作区文件夹来创建项目。" to "No projects yet. Choose a workspace folder to create one.",
+        "此项目暂无对话" to "No chats in this project",
+        "创建项目" to "Create project",
+        "在项目中新建对话" to "New chat in project",
+        "展开项目" to "Expand project",
+        "收起项目" to "Collapse project",
+        "%1\$d 个对话" to "%1\$d chats",
+        "已创建项目“%1\$s”" to "Created project “%1\$s”",
+        "你已在此项目的新对话中" to "You are already in a new chat for this project.",
+        "未命名项目" to "Untitled project",
+        "项目操作" to "Project actions",
+        "项目名称" to "Project name",
+        "保存项目名称" to "Save project name",
+        "置顶项目" to "Pin project",
+        "取消置顶项目" to "Unpin project",
+        "归档项目" to "Archive project",
+        "删除项目及其对话" to "Delete project and chats",
+        "删除项目？" to "Delete project?",
+        "将删除“%1\$s”及项目内的所有对话。此操作无法撤销。" to "This will delete “%1\$s” and every chat in the project. This action cannot be undone.",
+        "恢复项目" to "Restore project",
+        "彻底删除项目？" to "Permanently delete project?",
+        "将永久删除“%1\$s”及项目内的所有对话，此操作无法撤销。" to "This will permanently delete “%1\$s” and every chat in the project. This action cannot be undone.",
         "删除" to "Delete",
         "未命名平台" to "Unnamed provider",
         "模型服务已保存" to "Model service saved",
@@ -653,6 +681,11 @@ internal object UiTextBridge {
         "API Key 保存在本机配置中；对话、工具输出、缓存和审查日志默认留在本机。" to "API keys are stored in local config. Chats, tool outputs, caches, and review logs stay local by default.",
         "使用第三方模型接口、HTTP 明文 URL、联网搜索、MCP 或 Termux 命令时，数据会按用户配置发送到对应服务或本机执行环境。" to "When using third-party model APIs, plain HTTP URLs, web search, MCP, or Termux commands, data is sent according to the user's configuration.",
         "选择不同用途的系统提示词。修改后会保存到当前预设；恢复预设只影响当前选中的提示词。" to "Choose system prompts for different use cases. Edits are saved to the current preset; restore only affects the selected prompt.",
+        "未选择自定义提示词时使用应用原生提示词；你仍可新增并切换自己的提示词。" to "The app-native prompt is used when no custom prompt is selected. You can still add and switch to your own prompts.",
+        "应用原生提示词" to "App-native prompt",
+        "已切换到应用原生提示词" to "Switched to the app-native prompt",
+        "由 Lyra Code 内置维护，适配当前工具和 Android 运行环境" to "Maintained by Lyra Code and adapted to the current tools and Android environment",
+        "适配 Lyra Code 当前工具和 Android 运行环境" to "Adapted to Lyra Code's current tools and Android environment",
         "通过用户确认后添加、修改、启用、禁用或删除 MCP、SSH、WebDAV、Skills 与其他 Agent 工具配置。" to "Add, edit, enable, disable, or delete MCP, SSH, WebDAV, Skills, and other Agent tool configs after user confirmation.",
         "跨普通会话按关键词和时间段搜索历史记录，不读取思维链或工具日志。" to "Search normal chat history by keyword and time range without reading thinking chains or tool logs.",
         "新会话首次对话时，根据用户第一条消息设置简短主题标题。" to "For the first message in a new chat, generate a short topic title.",
@@ -1173,6 +1206,13 @@ internal object UiTextBridge {
             t.startsWith("外部缓存 ") -> "External cache " + t.removePrefix("外部缓存 ")
             t.startsWith("正在服务 ") -> "Serving " + t.removePrefix("正在服务 ")
             t.startsWith("监听失败：") -> "Listen failed: " + t.removePrefix("监听失败：")
+            t.endsWith(" 个对话") -> t.removeSuffix(" 个对话") + " chats"
+            t.startsWith("已创建项目“") && t.endsWith("”") ->
+                "Created project “${t.removePrefix("已创建项目“").removeSuffix("”")}”"
+            t.startsWith("将删除“") && t.endsWith("”及项目内的所有对话。此操作无法撤销。") ->
+                "This will delete “${t.removePrefix("将删除“").removeSuffix("”及项目内的所有对话。此操作无法撤销。")}” and every chat in the project. This action cannot be undone."
+            t.startsWith("将永久删除“") && t.endsWith("”及项目内的所有对话，此操作无法撤销。") ->
+                "This will permanently delete “${t.removePrefix("将永久删除“").removeSuffix("”及项目内的所有对话，此操作无法撤销。")}” and every chat in the project. This action cannot be undone."
             t.startsWith("已通过 mDNS 发布 ") -> "Published via mDNS: " + t.removePrefix("已通过 mDNS 发布 ")
             t.startsWith("mDNS 发布失败：") -> "mDNS publish failed: " + t.removePrefix("mDNS 发布失败：")
             t.startsWith("已上传 ") -> "Uploaded " + t.removePrefix("已上传 ")

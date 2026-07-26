@@ -83,6 +83,7 @@ import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Undo
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -138,6 +139,7 @@ import com.yukisoffd.lyracode.ToolApprovalDialog
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.AgentFileEditResult
 import com.yukisoffd.lyracode.data.AppSettings
+import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.termux.TermuxExecutor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -146,6 +148,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.DateFormat
 import kotlin.math.abs
+import rikka.shizuku.Shizuku
 
 @Composable
 internal fun FileManagerScreen(
@@ -155,6 +158,10 @@ internal fun FileManagerScreen(
     onExit: () -> Unit,
 ) {
     val context = LocalContext.current
+    val systemCommandExecutor = remember(context, settings) { SystemCommandExecutor(context, settings) }
+    val fileOperations = remember(context, settings, systemCommandExecutor) {
+        PrivilegedFileOperations(context, settings, systemCommandExecutor)
+    }
     var permissionRevision by remember { mutableIntStateOf(0) }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         permissionRevision++
@@ -203,8 +210,8 @@ internal fun FileManagerScreen(
         if (!sameFile) {
             if (beforeSnapshot != null) {
                 openFile = target to TextFileContent(beforeSnapshot, hasUtf8Errors = false)
-            } else if (target.isFile) {
-                withContext(Dispatchers.IO) { LocalFileOperations.readUtf8(target) }
+            } else {
+                withContext(Dispatchers.IO) { fileOperations.readUtf8(target) }
                     .onSuccess { openFile = target to it }
             }
         }
@@ -212,17 +219,24 @@ internal fun FileManagerScreen(
     }
     Box(Modifier.fillMaxSize()) {
         DualPaneFileManager(
+            fileOperations = fileOperations,
+            settings = settings,
+            systemCommandExecutor = systemCommandExecutor,
             onExit = onExit,
             externalRefreshRevision = aiFileChangeRevision,
             onOpenFile = { file ->
                 val mediaKind = mediaPreviewKind(file)
                 if (mediaKind != null) {
                     openFile = null
-                    previewFile = file to mediaKind
+                    scope.launch {
+                        fileOperations.prepareReadableCopy(file)
+                            .onSuccess { previewFile = it to mediaKind }
+                            .onFailure { showError(context, it) }
+                    }
                     return@DualPaneFileManager
                 }
                 scope.launch {
-                    val result = withContext(Dispatchers.IO) { LocalFileOperations.readUtf8(file) }
+                    val result = withContext(Dispatchers.IO) { fileOperations.readUtf8(file) }
                     result.onSuccess { openFile = file to it }
                         .onFailure { openExternalFile(context, file) }
                 }
@@ -272,12 +286,127 @@ internal fun FileManagerScreen(
                         controller = controller,
                         settings = settings,
                         termuxExecutor = termuxExecutor,
+                        fileOperations = fileOperations,
                         onClose = { openFile = null },
                     )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun PrivilegedFileAccessDialog(
+    settings: AppSettings,
+    executor: SystemCommandExecutor,
+    fileOperations: PrivilegedFileOperations,
+    revision: Int,
+    status: String,
+    onStatus: (String) -> Unit,
+    onRevision: () -> Unit,
+    onDismiss: () -> Unit,
+    onAccessReady: () -> Unit,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val shizukuRunning = remember(revision) { executor.isShizukuRunning() }
+    val shellGranted = remember(revision) { executor.hasShellPermission() }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(context.getString(R.string.file_privileged_access)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    context.getString(R.string.file_privileged_access_message),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                OutlinedButton(
+                    onClick = {
+                        settings.requestRootAccess = true
+                        onStatus(context.getString(R.string.file_privileged_testing_root))
+                        onRevision()
+                        scope.launch {
+                            val result = executor.probeRoot()
+                            val rootReady = result.ok && result.stdout.trim().lineSequence().lastOrNull() == "0"
+                            if (!rootReady) {
+                                settings.requestRootAccess = false
+                                onRevision()
+                            }
+                            onStatus(if (rootReady) {
+                                context.getString(R.string.file_privileged_root_ready)
+                            } else {
+                                result.stderr.ifBlank { result.message }
+                            })
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(context.getString(R.string.file_privileged_use_root))
+                }
+                OutlinedButton(
+                    onClick = {
+                        settings.requestShellAccess = true
+                        onRevision()
+                        when {
+                            !shizukuRunning -> onStatus(context.getString(R.string.file_privileged_shizuku_not_running))
+                            !shellGranted -> {
+                                onStatus(context.getString(R.string.file_privileged_requesting_shell))
+                                Shizuku.requestPermission(FILE_SHIZUKU_PERMISSION_REQUEST_CODE)
+                            }
+                            else -> onStatus(context.getString(R.string.file_privileged_shell_ready))
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(context.getString(R.string.file_privileged_use_shizuku))
+                }
+                Button(
+                    onClick = {
+                        onStatus(context.getString(R.string.file_privileged_testing_access))
+                        scope.launch {
+                            fileOperations.testAccess()
+                                .onSuccess { mode ->
+                                    onStatus(context.getString(R.string.file_privileged_access_ready, mode))
+                                    onAccessReady()
+                                }
+                                .onFailure { onStatus(it.message.orEmpty()) }
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(context.getString(R.string.file_privileged_test_access))
+                }
+                if (status.isNotBlank()) {
+                    Text(
+                        status,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (
+                            status.startsWith(context.getString(R.string.file_privileged_access_ready_prefix))
+                        ) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(context.getString(android.R.string.ok)) }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = {
+                    settings.requestRootAccess = false
+                    settings.requestShellAccess = false
+                    onRevision()
+                    onStatus(context.getString(R.string.file_privileged_disabled))
+                },
+            ) {
+                Text(context.getString(R.string.file_privileged_disable))
+            }
+        },
+    )
 }
 
 @Composable
@@ -304,6 +433,9 @@ private fun FilePermissionRequest(onGrant: () -> Unit, onRetry: () -> Unit) {
 
 @Composable
 private fun DualPaneFileManager(
+    fileOperations: PrivilegedFileOperations,
+    settings: AppSettings,
+    systemCommandExecutor: SystemCommandExecutor,
     onOpenFile: (File) -> Unit,
     onExit: () -> Unit,
     externalRefreshRevision: Int,
@@ -340,6 +472,18 @@ private fun DualPaneFileManager(
     var rightSortName by rememberSaveable { mutableStateOf(FileSortMode.NAME.name) }
     var leftSortDescending by rememberSaveable { mutableStateOf(false) }
     var rightSortDescending by rememberSaveable { mutableStateOf(false) }
+    var privilegedDialogOpen by rememberSaveable { mutableStateOf(false) }
+    var privilegedRevision by remember { mutableIntStateOf(0) }
+    var privilegedStatus by remember { mutableStateOf("") }
+    val shizukuPermissionListener = remember {
+        Shizuku.OnRequestPermissionResultListener { requestCode, _ ->
+            if (requestCode == FILE_SHIZUKU_PERMISSION_REQUEST_CODE) privilegedRevision++
+        }
+    }
+    DisposableEffect(Unit) {
+        Shizuku.addRequestPermissionResultListener(shizukuPermissionListener)
+        onDispose { Shizuku.removeRequestPermissionResultListener(shizukuPermissionListener) }
+    }
 
     val activePath = if (activePane == 0) leftPath else rightPath
     val activeRefresh = if (activePane == 0) leftRefresh else rightRefresh
@@ -359,7 +503,7 @@ private fun DualPaneFileManager(
         searchError = ""
         delay(280)
         val result = withContext(Dispatchers.IO) {
-            LocalFileOperations.search(
+            fileOperations.search(
                 directory = File(activePath),
                 query = searchQuery,
                 includeFiles = searchScope != FileSearchScope.FOLDERS,
@@ -437,6 +581,23 @@ private fun DualPaneFileManager(
 
     BackHandler(onBack = ::navigateActivePaneBack)
 
+    if (privilegedDialogOpen) {
+        PrivilegedFileAccessDialog(
+            settings = settings,
+            executor = systemCommandExecutor,
+            fileOperations = fileOperations,
+            revision = privilegedRevision,
+            status = privilegedStatus,
+            onStatus = { privilegedStatus = it },
+            onRevision = { privilegedRevision++ },
+            onDismiss = { privilegedDialogOpen = false },
+            onAccessReady = {
+                refreshBoth()
+                privilegedDialogOpen = false
+            },
+        )
+    }
+
     action?.let { selected ->
         FileActionDialog(
             target = selected.file,
@@ -444,12 +605,12 @@ private fun DualPaneFileManager(
             onCopy = {
                 action = null
                 val destination = File(if (selected.pane == 0) rightPath else leftPath)
-                perform { LocalFileOperations.copy(selected.file, destination) }
+                perform { fileOperations.copy(selected.file, destination) }
             },
             onMove = {
                 action = null
                 val destination = File(if (selected.pane == 0) rightPath else leftPath)
-                perform { LocalFileOperations.move(selected.file, destination) }
+                perform { fileOperations.move(selected.file, destination) }
             },
             onRename = { action = null; renameTarget = selected },
             onProperties = { action = null; propertiesTarget = selected.file },
@@ -459,7 +620,7 @@ private fun DualPaneFileManager(
             },
             onUnzip = {
                 action = null
-                perform { LocalFileOperations.unzip(selected.file, selected.file.parentFile ?: File(root)) }
+                perform { fileOperations.unzip(selected.file, selected.file.parentFile ?: File(root)) }
             },
             onDelete = { action = null; deleteTarget = selected },
         )
@@ -472,7 +633,7 @@ private fun DualPaneFileManager(
             confirmButton = {
                 TextButton(onClick = {
                     deleteTarget = null
-                    perform { LocalFileOperations.delete(selected.file) }
+                    perform { fileOperations.delete(selected.file) }
                 }) { Text(context.getString(R.string.file_action_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(context.getString(android.R.string.cancel)) } },
@@ -498,15 +659,15 @@ private fun DualPaneFileManager(
                     pendingBatchOperation = null
                     perform(onSuccess = ::clearSelection) {
                         when (pending.operation) {
-                            BatchOperation.COPY -> LocalFileOperations.copyAll(
+                            BatchOperation.COPY -> fileOperations.copyAll(
                                 pending.selection.files,
                                 requireNotNull(pending.destination),
                             )
-                            BatchOperation.MOVE -> LocalFileOperations.moveAll(
+                            BatchOperation.MOVE -> fileOperations.moveAll(
                                 pending.selection.files,
                                 requireNotNull(pending.destination),
                             )
-                            BatchOperation.DELETE -> LocalFileOperations.deleteAll(pending.selection.files)
+                            BatchOperation.DELETE -> fileOperations.deleteAll(pending.selection.files)
                         }
                     }
                 }) {
@@ -532,7 +693,7 @@ private fun DualPaneFileManager(
             onDismiss = { renameTarget = null },
             onConfirm = { name ->
                 renameTarget = null
-                perform { LocalFileOperations.rename(selected.file, name) }
+                perform { fileOperations.rename(selected.file, name) }
             },
         )
     }
@@ -543,7 +704,7 @@ private fun DualPaneFileManager(
             onDismiss = { createFolderPane = null },
             onConfirm = { name ->
                 createFolderPane = null
-                perform { LocalFileOperations.createDirectory(File(if (pane == 0) leftPath else rightPath), name) }
+                perform { fileOperations.createDirectory(File(if (pane == 0) leftPath else rightPath), name) }
             },
         )
     }
@@ -554,12 +715,12 @@ private fun DualPaneFileManager(
             onDismiss = { createFilePane = null },
             onConfirm = { name ->
                 createFilePane = null
-                perform { LocalFileOperations.createFile(File(if (pane == 0) leftPath else rightPath), name) }
+                perform { fileOperations.createFile(File(if (pane == 0) leftPath else rightPath), name) }
             },
         )
     }
     propertiesTarget?.let { file ->
-        FilePropertiesDialog(file = file, onDismiss = { propertiesTarget = null })
+        FilePropertiesDialog(file = file, fileOperations = fileOperations, onDismiss = { propertiesTarget = null })
     }
 
     Box(Modifier.fillMaxSize()) {
@@ -575,6 +736,7 @@ private fun DualPaneFileManager(
                 searchResultCount = if (searchQuery.isNotBlank()) searchResults.size else null,
                 sortMode = activeSortMode,
                 sortDescending = activeSortDescending,
+                privilegedAccessLabel = fileOperations.accessLabel(),
                 onMenuOpen = { menuOpen = it },
                 onSearchToggle = {
                     searchOpen = !searchOpen
@@ -592,6 +754,14 @@ private fun DualPaneFileManager(
                     else rightSortDescending = !rightSortDescending
                     menuOpen = false
                 },
+                onPrivilegedAccess = {
+                    menuOpen = false
+                    privilegedDialogOpen = true
+                },
+                onOpenAndroidData = {
+                    menuOpen = false
+                    navigate(activePane, File(root, "Android/data"))
+                },
             )
             HorizontalDivider()
             Row(Modifier.weight(1f).fillMaxWidth()) {
@@ -603,6 +773,7 @@ private fun DualPaneFileManager(
                     modifier = Modifier.fillMaxSize(),
                 ) { animatedPath ->
                     FilePane(
+                        fileOperations = fileOperations,
                         directory = File(animatedPath),
                         refreshToken = leftRefresh,
                         active = activePane == 0,
@@ -636,6 +807,7 @@ private fun DualPaneFileManager(
                     modifier = Modifier.fillMaxSize(),
                 ) { animatedPath ->
                     FilePane(
+                        fileOperations = fileOperations,
                         directory = File(animatedPath),
                         refreshToken = rightRefresh,
                         active = activePane == 1,
@@ -725,12 +897,15 @@ private fun FileManagerHeader(
     searchResultCount: Int?,
     sortMode: FileSortMode,
     sortDescending: Boolean,
+    privilegedAccessLabel: String,
     onMenuOpen: (Boolean) -> Unit,
     onSearchToggle: () -> Unit,
     onSearchQuery: (String) -> Unit,
     onSearchScope: (FileSearchScope) -> Unit,
     onSortMode: (FileSortMode) -> Unit,
     onToggleSortDirection: () -> Unit,
+    onPrivilegedAccess: () -> Unit,
+    onOpenAndroidData: () -> Unit,
 ) {
     val context = LocalContext.current
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
@@ -771,6 +946,27 @@ private fun FileManagerHeader(
                     Icon(Icons.Default.MoreVert, contentDescription = context.getString(R.string.file_manager_menu))
                 }
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { onMenuOpen(false) }) {
+                    DropdownMenuItem(
+                        text = {
+                            Column {
+                                Text(context.getString(R.string.file_privileged_access))
+                                if (privilegedAccessLabel.isNotBlank()) {
+                                    Text(
+                                        privilegedAccessLabel,
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary,
+                                    )
+                                }
+                            }
+                        },
+                        leadingIcon = { Icon(Icons.Default.Security, contentDescription = null) },
+                        onClick = onPrivilegedAccess,
+                    )
+                    DropdownMenuItem(
+                        text = { Text(context.getString(R.string.file_open_android_data)) },
+                        leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
+                        onClick = onOpenAndroidData,
+                    )
                     DropdownMenuItem(
                         text = { Text(context.getString(R.string.file_manager_search)) },
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
@@ -868,6 +1064,7 @@ private fun sortFileEntries(
 
 @Composable
 private fun FilePane(
+    fileOperations: PrivilegedFileOperations,
     directory: File,
     refreshToken: Int,
     active: Boolean,
@@ -907,7 +1104,7 @@ private fun FilePane(
     var createMenuOpen by remember { mutableStateOf(false) }
     LaunchedEffect(directory.absolutePath, refreshToken) {
         loading = true
-        val result = withContext(Dispatchers.IO) { LocalFileOperations.list(directory) }
+        val result = withContext(Dispatchers.IO) { fileOperations.list(directory) }
         result.onSuccess { entries = it; error = "" }.onFailure { error = it.message.orEmpty() }
         loading = false
     }
@@ -995,7 +1192,15 @@ private fun FilePane(
                     directory.parentFile?.let(onNavigate)
                 },
             ) { Icon(Icons.Default.ArrowUpward, contentDescription = context.getString(R.string.file_parent_folder)) }
-            IconButton(onClick = { onActivate(); onRefresh() }) { Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.file_refresh)) }
+            IconButton(
+                onClick = {
+                    onActivate()
+                    fileOperations.invalidate(directory)
+                    onRefresh()
+                },
+            ) {
+                Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.file_refresh))
+            }
             Box {
                 IconButton(onClick = { onActivate(); createMenuOpen = true }) {
                     Icon(Icons.Default.Add, contentDescription = context.getString(R.string.file_create))
@@ -1288,7 +1493,11 @@ private fun NameDialog(title: String, initial: String, onDismiss: () -> Unit, on
 }
 
 @Composable
-private fun FilePropertiesDialog(file: File, onDismiss: () -> Unit) {
+private fun FilePropertiesDialog(
+    file: File,
+    fileOperations: PrivilegedFileOperations,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     var totalSize by remember(file.absolutePath, file.lastModified()) {
         mutableStateOf<Long?>(if (file.isFile) file.length() else null)
@@ -1296,7 +1505,7 @@ private fun FilePropertiesDialog(file: File, onDismiss: () -> Unit) {
     LaunchedEffect(file.absolutePath, file.lastModified()) {
         if (file.isDirectory) {
             totalSize = withContext(Dispatchers.IO) {
-                LocalFileOperations.totalSize(file).getOrElse { file.length() }
+                fileOperations.totalSize(file).getOrElse { file.length() }
             }
         }
     }
@@ -1348,6 +1557,7 @@ private fun FileEditorScreen(
     controller: ChatController,
     settings: AppSettings,
     termuxExecutor: TermuxExecutor,
+    fileOperations: PrivilegedFileOperations,
     onClose: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -1472,7 +1682,7 @@ private fun FileEditorScreen(
         if (readOnly) return
         val text = handle.text()
         scope.launch {
-            val result = withContext(Dispatchers.IO) { LocalFileOperations.saveUtf8WithBackup(file, text) }
+            val result = withContext(Dispatchers.IO) { fileOperations.saveUtf8WithBackup(file, text) }
             result.onSuccess { backup ->
                 original = text
                 status = context.getString(if (backup != null) R.string.file_editor_saved_backup else R.string.file_editor_saved)
@@ -2070,6 +2280,8 @@ private fun isStorageRoot(file: File): Boolean = runCatching {
 private fun filesReferToSamePath(first: File, second: File): Boolean = runCatching {
     first.canonicalFile == second.canonicalFile
 }.getOrDefault(first.absolutePath == second.absolutePath)
+
+private const val FILE_SHIZUKU_PERMISSION_REQUEST_CODE = 2401
 
 private fun hasFileManagerPermission(context: Context): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
     Environment.isExternalStorageManager()

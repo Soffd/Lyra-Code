@@ -25,6 +25,17 @@ data class Conversation(
     val autoCompressionMode: String = ConversationStore.AUTO_COMPRESSION_OFF,
     val autoCompressionTurnThreshold: Int = ConversationStore.DEFAULT_AUTO_COMPRESSION_TURNS,
     val autoCompressionTokenThreshold: Long = ConversationStore.DEFAULT_AUTO_COMPRESSION_TOKENS,
+    val projectId: Long = 0L,
+)
+
+data class ChatProject(
+    val id: Long,
+    val name: String,
+    val workspaceUri: String,
+    val createdAt: Long,
+    val updatedAt: Long,
+    val pinnedAt: Long,
+    val archivedAt: Long,
 )
 
 data class ChatMessage(
@@ -60,7 +71,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    9,
+    10,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -81,10 +92,12 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 compressed_through_message_id INTEGER NOT NULL DEFAULT 0,
                 auto_compression_mode TEXT NOT NULL DEFAULT 'off',
                 auto_compression_turn_threshold INTEGER NOT NULL DEFAULT 20,
-                auto_compression_token_threshold INTEGER NOT NULL DEFAULT 131072
+                auto_compression_token_threshold INTEGER NOT NULL DEFAULT 131072,
+                project_id INTEGER NOT NULL DEFAULT 0
             )
             """.trimIndent(),
         )
+        createProjectsTable(db)
         db.execSQL(
             """
             CREATE TABLE messages (
@@ -129,6 +142,23 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         )
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_usage_message_events_created_at ON usage_message_events(created_at)")
         db.execSQL("CREATE INDEX IF NOT EXISTS idx_usage_model_requests_created_at ON usage_model_requests(created_at)")
+    }
+
+    private fun createProjectsTable(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS projects (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                workspace_uri TEXT NOT NULL,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL,
+                pinned_at INTEGER NOT NULL DEFAULT 0,
+                archived_at INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent(),
+        )
+        db.execSQL("CREATE INDEX IF NOT EXISTS idx_conversations_project_id ON conversations(project_id)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -195,6 +225,10 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             db.execSQL("ALTER TABLE conversations ADD COLUMN auto_compression_turn_threshold INTEGER NOT NULL DEFAULT 20")
             db.execSQL("ALTER TABLE conversations ADD COLUMN auto_compression_token_threshold INTEGER NOT NULL DEFAULT 131072")
         }
+        if (oldVersion < 10) {
+            db.execSQL("ALTER TABLE conversations ADD COLUMN project_id INTEGER NOT NULL DEFAULT 0")
+            createProjectsTable(db)
+        }
     }
 
     fun createConversation(
@@ -203,6 +237,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         title: String = appContext.getString(R.string.default_conversation_title),
         mode: String = MODE_NORMAL,
         workspaceUri: String = "",
+        projectId: Long = 0L,
     ): Long {
         val now = System.currentTimeMillis()
         return writableDatabase.insert(
@@ -217,6 +252,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("updated_at", now)
                 put("mode", mode)
                 put("workspace_uri", workspaceUri)
+                put("project_id", projectId.coerceAtLeast(0L))
             },
         )
     }
@@ -257,6 +293,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     put("auto_compression_mode", source.autoCompressionMode)
                     put("auto_compression_turn_threshold", source.autoCompressionTurnThreshold)
                     put("auto_compression_token_threshold", source.autoCompressionTokenThreshold)
+                    put("project_id", source.projectId)
                 },
             )
             sourceMessages.forEach { sourceMessage ->
@@ -299,6 +336,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         autoCompressionMode: String,
         autoCompressionTurnThreshold: Int,
         autoCompressionTokenThreshold: Long,
+        projectId: Long,
     ): Long {
         return writableDatabase.insert(
             "conversations",
@@ -318,6 +356,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("auto_compression_mode", autoCompressionMode)
                 put("auto_compression_turn_threshold", autoCompressionTurnThreshold)
                 put("auto_compression_token_threshold", autoCompressionTokenThreshold)
+                put("project_id", projectId.coerceAtLeast(0L))
             },
         )
     }
@@ -374,6 +413,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             autoCompressionMode = it.getString(13),
                             autoCompressionTurnThreshold = it.getInt(14),
                             autoCompressionTokenThreshold = it.getLong(15),
+                            projectId = it.getLong(16),
                         ),
                     )
                 }
@@ -399,6 +439,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 mode = it.getString(9), workspaceUri = it.getString(10), compressedContext = it.getString(11),
                 compressedThroughMessageId = it.getLong(12), autoCompressionMode = it.getString(13),
                 autoCompressionTurnThreshold = it.getInt(14), autoCompressionTokenThreshold = it.getLong(15),
+                projectId = it.getLong(16),
             )
         }
     }
@@ -429,17 +470,215 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     }
 
 
-    fun setConversationMeta(id: Long, title: String? = null, status: String? = null, profileId: String? = null, model: String? = null, workspaceUri: String? = null) {
+    fun setConversationMeta(
+        id: Long,
+        title: String? = null,
+        status: String? = null,
+        profileId: String? = null,
+        model: String? = null,
+        workspaceUri: String? = null,
+        projectId: Long? = null,
+    ) {
+        val now = System.currentTimeMillis()
         val values = ContentValues().apply {
             title?.let { put("title", it.take(120)) }
             status?.let { put("status", it) }
             profileId?.let { put("profile_id", it) }
             model?.let { put("model", it) }
             workspaceUri?.let { put("workspace_uri", it) }
-            put("updated_at", System.currentTimeMillis())
+            projectId?.let { put("project_id", it.coerceAtLeast(0L)) }
+            put("updated_at", now)
         }
-        writableDatabase.update("conversations", values, "id=?", arrayOf(id.toString()))
+        val db = writableDatabase
+        db.update("conversations", values, "id=?", arrayOf(id.toString()))
+        db.update(
+            "projects",
+            ContentValues().apply { put("updated_at", now) },
+            "id=(SELECT project_id FROM conversations WHERE id=?)",
+            arrayOf(id.toString()),
+        )
     }
+
+    fun createProject(name: String, workspaceUri: String): Long {
+        val now = System.currentTimeMillis()
+        return writableDatabase.insert(
+            "projects",
+            null,
+            ContentValues().apply {
+                put("name", name.trim().ifBlank { appContext.getString(R.string.default_project_name) }.take(120))
+                put("workspace_uri", workspaceUri)
+                put("created_at", now)
+                put("updated_at", now)
+            },
+        )
+    }
+
+    private fun createImportedProject(
+        name: String,
+        workspaceUri: String,
+        createdAt: Long,
+        updatedAt: Long,
+        pinnedAt: Long,
+        archivedAt: Long,
+    ): Long = writableDatabase.insert(
+        "projects",
+        null,
+        ContentValues().apply {
+            put("name", name.trim().ifBlank { appContext.getString(R.string.default_project_name) }.take(120))
+            put("workspace_uri", workspaceUri)
+            put("created_at", createdAt)
+            put("updated_at", updatedAt)
+            put("pinned_at", pinnedAt)
+            put("archived_at", archivedAt)
+        },
+    )
+
+    private fun importedProjectId(
+        name: String,
+        workspaceUri: String,
+        createdAt: Long,
+        updatedAt: Long,
+        archivedAt: Long,
+    ): Long? = readableDatabase.query(
+        "projects",
+        arrayOf("id"),
+        "name=? AND workspace_uri=? AND created_at=? AND updated_at=? AND archived_at=?",
+        arrayOf(
+            name.take(120),
+            workspaceUri,
+            createdAt.toString(),
+            updatedAt.toString(),
+            archivedAt.toString(),
+        ),
+        null,
+        null,
+        null,
+    ).use { cursor ->
+        if (cursor.moveToFirst()) cursor.getLong(0) else null
+    }
+
+    fun projects(archived: Boolean = false): List<ChatProject> {
+        return readableDatabase.query(
+            "projects",
+            PROJECT_COLUMNS,
+            if (archived) "archived_at>0" else "archived_at=0",
+            null,
+            null,
+            null,
+            if (archived) {
+                "archived_at DESC"
+            } else {
+                "CASE WHEN pinned_at > 0 THEN 0 ELSE 1 END ASC, pinned_at DESC, updated_at DESC"
+            },
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.toProject())
+            }
+        }
+    }
+
+    fun project(id: Long): ChatProject? {
+        return readableDatabase.query(
+            "projects",
+            PROJECT_COLUMNS,
+            "id=?",
+            arrayOf(id.toString()),
+            null,
+            null,
+            null,
+        ).use { cursor ->
+            if (cursor.moveToFirst()) cursor.toProject() else null
+        }
+    }
+
+    fun conversationsForProject(projectId: Long, archived: Boolean? = false): List<Conversation> =
+        conversations(archived = archived).filter { it.projectId == projectId }
+
+    fun renameProject(id: Long, name: String) {
+        writableDatabase.update(
+            "projects",
+            ContentValues().apply {
+                put("name", name.trim().take(120))
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
+    fun updateProjectWorkspace(id: Long, workspaceUri: String) {
+        val db = writableDatabase
+        db.update(
+            "projects",
+            ContentValues().apply {
+                put("workspace_uri", workspaceUri)
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+        db.update(
+            "conversations",
+            ContentValues().apply {
+                put("workspace_uri", workspaceUri)
+                put("updated_at", System.currentTimeMillis())
+            },
+            "project_id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
+    fun setProjectPinned(id: Long, pinned: Boolean) {
+        writableDatabase.update(
+            "projects",
+            ContentValues().apply {
+                put("pinned_at", if (pinned) System.currentTimeMillis() else 0L)
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
+    fun setProjectArchived(id: Long, archived: Boolean) {
+        writableDatabase.update(
+            "projects",
+            ContentValues().apply {
+                put("archived_at", if (archived) System.currentTimeMillis() else 0L)
+                put("updated_at", System.currentTimeMillis())
+            },
+            "id=?",
+            arrayOf(id.toString()),
+        )
+    }
+
+    fun deleteProject(id: Long) {
+        val conversationIds = conversationsForProject(id, archived = null).map { it.id }
+        val db = writableDatabase
+        db.beginTransaction()
+        try {
+            conversationIds.forEach { conversationId ->
+                db.delete("usage_model_requests", "conversation_id=?", arrayOf(conversationId.toString()))
+                db.delete("usage_message_events", "conversation_id=?", arrayOf(conversationId.toString()))
+                db.delete("messages", "conversation_id=?", arrayOf(conversationId.toString()))
+                db.delete("conversations", "id=?", arrayOf(conversationId.toString()))
+            }
+            db.delete("projects", "id=?", arrayOf(id.toString()))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
+    }
+
+    private fun android.database.Cursor.toProject(): ChatProject = ChatProject(
+        id = getLong(0),
+        name = getString(1),
+        workspaceUri = getString(2),
+        createdAt = getLong(3),
+        updatedAt = getLong(4),
+        pinnedAt = getLong(5),
+        archivedAt = getLong(6),
+    )
 
     fun setCompressedContext(id: Long, summary: String, throughMessageId: Long) {
         writableDatabase.update(
@@ -713,6 +952,20 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun exportJson(): JSONObject {
         return JSONObject()
             .put("schema", "lyra_conversations_backup_v1")
+            .put("projects", JSONArray().also { array ->
+                (projects(archived = false) + projects(archived = true)).forEach { project ->
+                    array.put(
+                        JSONObject()
+                            .put("id", project.id)
+                            .put("name", project.name)
+                            .put("workspaceUri", project.workspaceUri)
+                            .put("createdAt", project.createdAt)
+                            .put("updatedAt", project.updatedAt)
+                            .put("pinnedAt", project.pinnedAt)
+                            .put("archivedAt", project.archivedAt),
+                    )
+                }
+            })
             .put("conversations", JSONArray().also { array ->
                 conversations(archived = null).forEach { conversation ->
                     array.put(
@@ -728,6 +981,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             .put("archivedAt", conversation.archivedAt)
                             .put("mode", conversation.mode)
                             .put("workspaceUri", conversation.workspaceUri)
+                            .put("projectId", conversation.projectId)
                             .put("compressedContext", conversation.compressedContext)
                             .put("compressedMessageCount", messages(conversation.id).count { it.id <= conversation.compressedThroughMessageId })
                             .put("autoCompressionMode", conversation.autoCompressionMode)
@@ -761,6 +1015,31 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             writableDatabase.delete("usage_message_events", null, null)
             writableDatabase.delete("messages", null, null)
             writableDatabase.delete("conversations", null, null)
+            writableDatabase.delete("projects", null, null)
+        }
+        val importedProjectIds = mutableMapOf<Long, Long>()
+        val projectArray = root.optJSONArray("projects") ?: JSONArray()
+        for (projectIndex in 0 until projectArray.length()) {
+            val project = projectArray.optJSONObject(projectIndex) ?: continue
+            val exportedId = project.optLong("id", 0L)
+            val createdAt = project.optLong("createdAt", System.currentTimeMillis())
+            val name = project.optString("name").ifBlank { appContext.getString(R.string.default_project_name) }
+            val workspaceUri = project.optString("workspaceUri")
+            val updatedAt = project.optLong("updatedAt", createdAt)
+            val archivedAt = project.optLong("archivedAt", 0L)
+            val importedId = if (mode != "replace") {
+                importedProjectId(name, workspaceUri, createdAt, updatedAt, archivedAt)
+            } else {
+                null
+            } ?: createImportedProject(
+                name = name,
+                workspaceUri = workspaceUri,
+                createdAt = createdAt,
+                updatedAt = updatedAt,
+                pinnedAt = project.optLong("pinnedAt", 0L),
+                archivedAt = archivedAt,
+            )
+            if (exportedId > 0L && importedId > 0L) importedProjectIds[exportedId] = importedId
         }
         var importedConversations = 0
         var importedMessages = 0
@@ -776,6 +1055,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             val exportedCreatedAt = item.optLong("createdAt", System.currentTimeMillis())
             val exportedUpdatedAt = item.optLong("updatedAt", exportedCreatedAt)
             val messages = item.optJSONArray("messages") ?: JSONArray()
+            val mappedProjectId = importedProjectIds[item.optLong("projectId", 0L)] ?: 0L
             if (mode != "replace" && importedConversationExists(
                     title = title,
                     profileId = item.optString("profileId"),
@@ -784,6 +1064,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     updatedAt = exportedUpdatedAt,
                     mode = importedMode,
                     archivedAt = item.optLong("archivedAt", 0L),
+                    projectId = mappedProjectId,
                     messages = messages,
                 )
             ) {
@@ -805,6 +1086,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 autoCompressionMode = item.optString("autoCompressionMode").ifBlank { AUTO_COMPRESSION_OFF },
                 autoCompressionTurnThreshold = item.optInt("autoCompressionTurnThreshold", DEFAULT_AUTO_COMPRESSION_TURNS),
                 autoCompressionTokenThreshold = item.optLong("autoCompressionTokenThreshold", DEFAULT_AUTO_COMPRESSION_TOKENS),
+                projectId = mappedProjectId,
             )
             for (messageIndex in 0 until messages.length()) {
                 val message = messages.optJSONObject(messageIndex) ?: continue
@@ -844,14 +1126,24 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         updatedAt: Long,
         mode: String,
         archivedAt: Long,
+        projectId: Long,
         messages: JSONArray,
     ): Boolean {
         val exportedSignature = importedMessagesSignature(messages)
         return readableDatabase.query(
             "conversations",
             arrayOf("id"),
-            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=? AND archived_at=?",
-            arrayOf(title.take(120), profileId, model, createdAt.toString(), updatedAt.toString(), mode, archivedAt.toString()),
+            "title=? AND profile_id=? AND model=? AND created_at=? AND updated_at=? AND mode=? AND archived_at=? AND project_id=?",
+            arrayOf(
+                title.take(120),
+                profileId,
+                model,
+                createdAt.toString(),
+                updatedAt.toString(),
+                mode,
+                archivedAt.toString(),
+                projectId.toString(),
+            ),
             null,
             null,
             null,
@@ -1004,7 +1296,10 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             "id", "title", "status", "profile_id", "model", "created_at", "updated_at",
             "pinned_at", "archived_at", "mode", "workspace_uri", "compressed_context",
             "compressed_through_message_id", "auto_compression_mode",
-            "auto_compression_turn_threshold", "auto_compression_token_threshold",
+            "auto_compression_turn_threshold", "auto_compression_token_threshold", "project_id",
+        )
+        private val PROJECT_COLUMNS = arrayOf(
+            "id", "name", "workspace_uri", "created_at", "updated_at", "pinned_at", "archived_at",
         )
         const val STATUS_IDLE = "idle"
         const val STATUS_RUNNING = "running"

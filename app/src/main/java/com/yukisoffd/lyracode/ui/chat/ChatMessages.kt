@@ -571,7 +571,7 @@ internal fun MessageCard(
     var showThinking by rememberSaveable(message.id) { mutableStateOf(false) }
     var showToolResult by rememberSaveable(message.id) { mutableStateOf(false) }
     var menuExpanded by remember { mutableStateOf(false) }
-    var selectable by rememberSaveable(message.id) { mutableStateOf(false) }
+    var localSelectionResetKey by rememberSaveable(message.id) { mutableStateOf(0) }
     var editDialogOpen by rememberSaveable(message.id) { mutableStateOf(false) }
     var editText by rememberSaveable(message.id) { mutableStateOf(message.content) }
     val isUser = message.role == "user"
@@ -628,7 +628,7 @@ internal fun MessageCard(
                         Modifier
                             .widthIn(max = 320.dp)
                             .combinedClickable(
-                                onClick = {},
+                                onClick = { localSelectionResetKey++ },
                                 onLongClick = {
                                     editText = message.content
                                     menuExpanded = true
@@ -637,12 +637,7 @@ internal fun MessageCard(
                     } else {
                         Modifier
                             .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {},
-                                onLongClick = {
-                                    if (!inProcessRecord && !isStreaming) menuExpanded = true
-                                },
-                            )
+                            .clickable { localSelectionResetKey++ }
                     }
                     Card(
                         colors = CardDefaults.cardColors(containerColor = container),
@@ -664,7 +659,13 @@ internal fun MessageCard(
                                     else -> 6.dp
                                 },
                             ),
-                            verticalArrangement = Arrangement.spacedBy(if (compactToolResult) 2.dp else 8.dp),
+                            verticalArrangement = Arrangement.spacedBy(
+                                when {
+                                    compactToolResult -> 2.dp
+                                    isUser || message.role == "assistant" -> 4.dp
+                                    else -> 8.dp
+                                },
+                            ),
                         ) {
                             if (!isUser && message.role != "assistant" && !compactToolResult) {
                                 Text(uiText("工具结果"), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
@@ -700,16 +701,12 @@ internal fun MessageCard(
                                 if (visibleContent.isNotBlank()) {
                                     key(selectionResetKey) {
                                         if (isUser) {
-                                            if (selectable) {
-                                                SelectionContainer {
-                                                    Text(visibleContent, color = contentColor, style = MaterialTheme.typography.bodyLarge)
-                                                }
-                                            } else {
-                                                Text(visibleContent, color = contentColor, style = MaterialTheme.typography.bodyLarge)
-                                            }
+                                            Text(visibleContent, color = contentColor, style = MaterialTheme.typography.bodyLarge)
                                         } else {
-                                            SelectionContainer {
-                                                StreamingAssistantContent(visibleContent, isStreaming, streamingAnimationMode)
+                                            key(localSelectionResetKey) {
+                                                SelectionContainer {
+                                                    StreamingAssistantContent(visibleContent, isStreaming, streamingAnimationMode)
+                                                }
                                             }
                                         }
                                     }
@@ -729,13 +726,13 @@ internal fun MessageCard(
                                                 Box {
                                                     IconButton(
                                                         onClick = { menuExpanded = true },
-                                                        modifier = Modifier.size(36.dp),
+                                                        modifier = Modifier.size(32.dp),
                                                     ) {
                                                         Icon(
                                                             Icons.Default.MoreVert,
                                                             contentDescription = uiText("更多操作"),
                                                             tint = MaterialTheme.colorScheme.primary,
-                                                            modifier = Modifier.size(20.dp),
+                                                            modifier = Modifier.size(18.dp),
                                                         )
                                                     }
                                                     MessageActionsDropdown(
@@ -743,10 +740,6 @@ internal fun MessageCard(
                                                         onDismiss = { menuExpanded = false },
                                                         onCopy = {
                                                             clipboard.setText(AnnotatedString(message.content))
-                                                            menuExpanded = false
-                                                        },
-                                                        onSelectText = {
-                                                            selectable = true
                                                             menuExpanded = false
                                                         },
                                                         onCreateBranch = onCreateBranch?.let { createBranch ->
@@ -766,16 +759,12 @@ internal fun MessageCard(
                             }
                         }
                     }
-                    if (isUser) {
+                    if (isUser && !inProcessRecord) {
                         MessageActionsDropdown(
                             expanded = menuExpanded,
                             onDismiss = { menuExpanded = false },
                             onCopy = {
                                 clipboard.setText(AnnotatedString(message.content))
-                                menuExpanded = false
-                            },
-                            onSelectText = {
-                                selectable = true
                                 menuExpanded = false
                             },
                             onCreateBranch = onCreateBranch?.let { createBranch ->
@@ -810,7 +799,6 @@ private fun MessageActionsDropdown(
     expanded: Boolean,
     onDismiss: () -> Unit,
     onCopy: () -> Unit,
-    onSelectText: () -> Unit,
     onCreateBranch: (() -> Unit)? = null,
     onEditAndRegenerate: (() -> Unit)? = null,
     onRegenerate: (() -> Unit)? = null,
@@ -820,11 +808,6 @@ private fun MessageActionsDropdown(
             text = { Text(uiText("复制")) },
             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
             onClick = onCopy,
-        )
-        DropdownMenuItem(
-            text = { Text(uiText("选择文本")) },
-            leadingIcon = { Icon(Icons.Default.TextFields, contentDescription = null) },
-            onClick = onSelectText,
         )
         onCreateBranch?.let { createBranch ->
             DropdownMenuItem(

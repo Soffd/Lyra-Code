@@ -41,8 +41,8 @@ class AppSettings(context: Context) {
         plainPrefs.all.keys
             .filter { it.startsWith("roleplay_affection_") || it.startsWith("${KEY_CHAT_INPUT_DRAFT_PREFIX}roleplay:") }
             .forEach { editor.remove(it) }
-        if (plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID) == RETIRED_ROLEPLAY_PROMPT_ID) {
-            editor.putString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID)
+        if (plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, NATIVE_SYSTEM_PROMPT_ID) == RETIRED_ROLEPLAY_PROMPT_ID) {
+            editor.putString(KEY_SELECTED_SYSTEM_PROMPT_ID, NATIVE_SYSTEM_PROMPT_ID)
         }
         plainPrefs.getString(KEY_CUSTOM_SYSTEM_PROMPTS, null)
             ?.let { raw -> runCatching { JSONObject(raw) }.getOrNull() }
@@ -533,15 +533,21 @@ class AppSettings(context: Context) {
     }
 
     var selectedSystemPromptId: String
-        get() = plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, DEFAULT_SYSTEM_PROMPT_ID)
-            .orEmpty()
-            .takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID }
-            .orEmpty()
-            .ifBlank { DEFAULT_SYSTEM_PROMPT_ID }
+        get() {
+            val stored = plainPrefs.getString(KEY_SELECTED_SYSTEM_PROMPT_ID, NATIVE_SYSTEM_PROMPT_ID)
+                .orEmpty()
+                .takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID }
+                .orEmpty()
+                .ifBlank { NATIVE_SYSTEM_PROMPT_ID }
+            if (stored == NATIVE_SYSTEM_PROMPT_ID) return stored
+            val preserved = customSystemPromptConfigs().any { it.id == stored } ||
+                customSystemPrompts()[stored].orEmpty().isNotBlank()
+            return if (preserved) stored else NATIVE_SYSTEM_PROMPT_ID
+        }
         set(value) = plainPrefs.edit()
             .putString(
                 KEY_SELECTED_SYSTEM_PROMPT_ID,
-                value.takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID } ?: DEFAULT_SYSTEM_PROMPT_ID,
+                value.takeUnless { it == RETIRED_ROLEPLAY_PROMPT_ID || it.isBlank() } ?: NATIVE_SYSTEM_PROMPT_ID,
             )
             .apply()
 
@@ -595,28 +601,29 @@ class AppSettings(context: Context) {
             .toSet()
 
     fun systemPromptPresets(): List<SystemPromptPreset> {
-        val custom = customSystemPrompts()
-        val customConfigs = customSystemPromptConfigs()
-        val customById = customConfigs.associateBy { it.id }
-        val builtIns = defaultSystemPromptPresets.map { preset ->
-            val config = customById[preset.id]
-            preset.copy(
-                name = config?.name?.takeIf { it.isNotBlank() } ?: preset.name,
-                prompt = config?.prompt?.takeIf { it.isNotBlank() } ?: custom[preset.id] ?: preset.prompt,
-                exampleConversation = config?.exampleConversation.orEmpty(),
-                builtIn = true,
-            )
-        }
-        return builtIns + customConfigs.filterNot { config -> builtIns.any { it.id == config.id } }
+        val configured = customSystemPromptConfigs().map { it.copy(builtIn = false) }
+        val configuredIds = configured.mapTo(mutableSetOf()) { it.id }
+        val preservedLegacyEdits = customSystemPrompts()
+            .filter { (id, prompt) -> id !in configuredIds && prompt.isNotBlank() }
+            .map { (id, prompt) ->
+                SystemPromptPreset(
+                    id = id,
+                    name = "自定义提示词",
+                    prompt = prompt,
+                    builtIn = false,
+                )
+            }
+        return configured + preservedLegacyEdits
     }
 
     fun activeSystemPromptText(): String {
+        if (selectedSystemPromptId == NATIVE_SYSTEM_PROMPT_ID) return ""
         val preset = systemPromptPresets().firstOrNull { it.id == selectedSystemPromptId }
-            ?: defaultSystemPromptPresets.first()
+            ?: return ""
         return buildString {
             append(preset.prompt)
             if (preset.exampleConversation.isNotBlank()) {
-                append("\n\n以下是用户配置的示例对话风格，仅用于模仿语气和交互方式，不代表事实：\n")
+                append("\n\nThe following user-provided example dialogue defines style only; do not treat it as factual context:\n")
                 append(preset.exampleConversation.trim())
             }
         }
@@ -631,23 +638,23 @@ class AppSettings(context: Context) {
     fun saveSystemPromptConfig(preset: SystemPromptPreset) {
         val configs = customSystemPromptConfigs().toMutableList()
         val clean = preset.copy(
-            id = preset.id.ifBlank { newId() },
+            id = preset.id.takeUnless { it.isBlank() || it == NATIVE_SYSTEM_PROMPT_ID } ?: newId(),
             name = preset.name.trim().ifBlank { "自定义提示词" },
             prompt = preset.prompt.trim(),
             exampleConversation = preset.exampleConversation.trim(),
-            builtIn = defaultSystemPromptPresets.any { it.id == preset.id },
+            builtIn = false,
         )
         val index = configs.indexOfFirst { it.id == clean.id }
         if (index >= 0) configs[index] = clean else configs += clean
         saveCustomSystemPromptConfigs(configs)
-        val custom = customSystemPrompts().toMutableMap()
-        if (clean.builtIn) custom[clean.id] = clean.prompt
-        saveCustomSystemPrompts(custom)
     }
 
     fun deleteSystemPromptConfig(id: String) {
         saveCustomSystemPromptConfigs(customSystemPromptConfigs().filterNot { it.id == id })
-        if (selectedSystemPromptId == id) selectedSystemPromptId = DEFAULT_SYSTEM_PROMPT_ID
+        val custom = customSystemPrompts().toMutableMap()
+        custom.remove(id)
+        saveCustomSystemPrompts(custom)
+        if (selectedSystemPromptId == id) selectedSystemPromptId = NATIVE_SYSTEM_PROMPT_ID
     }
 
     fun restoreSystemPrompt(presetId: String): String {
@@ -655,7 +662,8 @@ class AppSettings(context: Context) {
         custom.remove(presetId)
         saveCustomSystemPrompts(custom)
         saveCustomSystemPromptConfigs(customSystemPromptConfigs().filterNot { it.id == presetId })
-        return defaultSystemPromptPresets.firstOrNull { it.id == presetId }?.prompt.orEmpty()
+        if (selectedSystemPromptId == presetId) selectedSystemPromptId = NATIVE_SYSTEM_PROMPT_ID
+        return ""
     }
 
     private fun customSystemPrompts(): Map<String, String> {
@@ -665,14 +673,14 @@ class AppSettings(context: Context) {
             val root = JSONObject(raw)
             root.keys()
                 .asSequence()
-                .filterNot { it == RETIRED_ROLEPLAY_PROMPT_ID }
+                .filterNot { it == RETIRED_ROLEPLAY_PROMPT_ID || it == NATIVE_SYSTEM_PROMPT_ID }
                 .associateWith { root.optString(it) }
         }.getOrDefault(emptyMap())
     }
 
     private fun saveCustomSystemPrompts(prompts: Map<String, String>) {
         val root = JSONObject()
-        prompts.filterKeys { it != RETIRED_ROLEPLAY_PROMPT_ID }.forEach { (id, prompt) -> root.put(id, prompt) }
+        prompts.filterKeys { it != RETIRED_ROLEPLAY_PROMPT_ID && it != NATIVE_SYSTEM_PROMPT_ID }.forEach { (id, prompt) -> root.put(id, prompt) }
         plainPrefs.edit().putString(KEY_CUSTOM_SYSTEM_PROMPTS, root.toString()).apply()
     }
 
@@ -685,14 +693,14 @@ class AppSettings(context: Context) {
                 for (index in 0 until array.length()) {
                     val item = array.optJSONObject(index) ?: continue
                     val id = item.optString("id").ifBlank { newId() }
-                    if (id == RETIRED_ROLEPLAY_PROMPT_ID) continue
+                    if (id == RETIRED_ROLEPLAY_PROMPT_ID || id == NATIVE_SYSTEM_PROMPT_ID) continue
                     add(
                         SystemPromptPreset(
                             id = id,
                             name = item.optString("name").ifBlank { "自定义提示词" },
                             prompt = item.optString("prompt"),
                             exampleConversation = item.optString("exampleConversation"),
-                            builtIn = defaultSystemPromptPresets.any { it.id == id },
+                            builtIn = false,
                         ),
                     )
                 }
@@ -702,7 +710,7 @@ class AppSettings(context: Context) {
 
     private fun saveCustomSystemPromptConfigs(prompts: List<SystemPromptPreset>) {
         val array = JSONArray()
-        prompts.filterNot { it.id == RETIRED_ROLEPLAY_PROMPT_ID }.forEach { preset ->
+        prompts.filterNot { it.id == RETIRED_ROLEPLAY_PROMPT_ID || it.id == NATIVE_SYSTEM_PROMPT_ID }.forEach { preset ->
             array.put(
                 JSONObject()
                     .put("id", preset.id)
@@ -1814,7 +1822,9 @@ class AppSettings(context: Context) {
             val item = array.optJSONObject(index) ?: continue
             val prompt = item.optString("prompt")
             if (prompt.isBlank()) continue
-            val id = item.optString("id").ifBlank { newId() }
+            val id = item.optString("id")
+                .takeUnless { it.isBlank() || it == NATIVE_SYSTEM_PROMPT_ID }
+                ?: newId()
             if (id == RETIRED_ROLEPLAY_PROMPT_ID) continue
             add(
                 SystemPromptPreset(
@@ -1822,7 +1832,7 @@ class AppSettings(context: Context) {
                     name = item.optString("name").ifBlank { "自定义提示词" },
                     prompt = prompt,
                     exampleConversation = item.optString("exampleConversation"),
-                    builtIn = defaultSystemPromptPresets.any { it.id == id },
+                    builtIn = false,
                 ),
             )
         }
@@ -2037,7 +2047,7 @@ class AppSettings(context: Context) {
         private const val DEFAULT_ENDPOINT = "https://api.openai.com/v1/chat/completions"
         private const val DEFAULT_BASE_URL = "https://api.openai.com/v1"
         private const val DEFAULT_MODEL = "gpt-4o-mini"
-        private const val DEFAULT_SYSTEM_PROMPT_ID = "default"
+        const val NATIVE_SYSTEM_PROMPT_ID = "native"
         private const val RETIRED_ROLEPLAY_PROMPT_ID = "roleplay"
         const val STREAMING_ANIMATION_TYPEWRITER = "typewriter"
         const val STREAMING_ANIMATION_FADE = "fade"
@@ -2113,65 +2123,6 @@ class AppSettings(context: Context) {
             FILE_TRANSFER_FTPS -> 21
             else -> 21
         }
-
-        val defaultSystemPromptPresets = listOf(
-            SystemPromptPreset(
-                id = "default",
-                name = "默认助手",
-                prompt = """
-                你是 Lyra Code 中的通用 AI 助手。目标是准确理解用户意图，并根据当前任务选择合适的回答方式。
-                工作方式：
-                - 对事实、步骤、限制和风险保持清晰，不确定时说明不确定点。
-                - 能直接完成的任务直接完成；需要工具时按工具能力边界谨慎调用。
-                - 回答应简洁、有结构，优先给用户可执行的信息。
-                - 对创作、推理、编程、解释、总结等任务，自动采用对应的表达风格。
-                - 不编造工具结果，不把猜测当成事实。
-                输出应自然、可靠、便于用户继续操作。
-                """.trimIndent(),
-            ),
-            SystemPromptPreset(
-                id = "coding",
-                name = "编程开发",
-                prompt = """
-                你是一名严谨、务实的高级软件工程师。目标是帮助用户完成真实可运行的软件开发任务。
-                工作方式：
-                - 优先理解现有项目结构、依赖、运行环境和用户目标，再动手修改。
-                - 代码修改应小步、可验证、符合现有风格，不做无关重构。
-                - 遇到不确定行为时，用工具检查文件、运行命令或读取日志，而不是猜测。
-                - 输出结论时说明已完成内容、验证结果、剩余风险。
-                - 对 Android/Termux/Lyra Code 场景，文件工具只使用工作区相对路径；run_command 会直接回传 stdout/stderr，仅在输出过大或回传超时时才重定向到工作区文件。
-                质量标准：正确性优先，其次是可维护性、清晰度和用户可复现性。
-                """.trimIndent(),
-            ),
-            SystemPromptPreset(
-                id = "writing",
-                name = "文学创作",
-                prompt = """
-                你是一名有审美判断和结构能力的文学创作助手。目标是帮助用户构思、续写、润色和改写文本。
-                工作方式：
-                - 先把握题材、叙事视角、人物关系、情绪张力和语言风格。
-                - 创作时避免空泛堆砌，注重画面、节奏、潜台词和具体细节。
-                - 角色行为应符合动机，情节推进应有因果，不用突然转折逃避铺垫。
-                - 润色时保留作者原意和声音，增强表达而非改成模板腔。
-                - 如用户要求多个方案，提供风格差异明确的版本。
-                输出应具备可读性和文学质感，少解释，多给可直接使用的文本。
-                """.trimIndent(),
-            ),
-            SystemPromptPreset(
-                id = "math",
-                name = "数学推理",
-                prompt = """
-                你是一名严谨的数学推理助手。目标是帮助用户解决数学、逻辑、算法和定量分析问题。
-                工作方式：
-                - 先明确已知条件、要求证明或求解的目标、变量和约束。
-                - 分步骤推导，每一步说明依据，避免跳步和凭直觉给结论。
-                - 计算题要检查量纲、边界条件、特殊值和近似误差。
-                - 证明题要区分充分性、必要性、反例和隐含假设。
-                - 如果有多种方法，可给出最简方法，并补充可验证的替代思路。
-                输出应清晰、可复核；最终答案单独列出。
-                """.trimIndent(),
-            ),
-        )
 
         fun newId(): String = System.currentTimeMillis().toString(36)
     }

@@ -192,7 +192,12 @@ private fun Context.realDisplayHeightPx(): Int {
 }
 
 @Composable
-internal fun ChatScreen(controller: ChatController, settings: AppSettings, termuxExecutor: TermuxExecutor) {
+internal fun ChatScreen(
+    controller: ChatController,
+    settings: AppSettings,
+    termuxExecutor: TermuxExecutor,
+    keyboardLiftPx: Int? = null,
+) {
     val context = LocalContext.current
     var input by rememberSaveable { mutableStateOf("") }
     var fetchStatus by remember { mutableStateOf("") }
@@ -216,8 +221,12 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
-    val keyboardLiftPx = rememberAnimatedKeyboardAvoidanceOffsetPx()
-    val keyboardLiftDp = with(LocalDensity.current) { keyboardLiftPx.toDp() }
+    val resolvedKeyboardLiftPx = if (keyboardLiftPx == null) {
+        rememberAnimatedKeyboardAvoidanceOffsetPx()
+    } else {
+        keyboardLiftPx
+    }
+    val keyboardLiftDp = with(LocalDensity.current) { resolvedKeyboardLiftPx.toDp() }
     val messageSnapshot = controller.messages.value
     val renderItems = remember(messageSnapshot) { chatRenderItems(messageSnapshot) }
     val pendingUploads = controller.pendingUploads
@@ -375,7 +384,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             Modifier
                 .fillMaxSize()
                 .padding(horizontal = 18.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
         TodoProgressPanel(settings, controller.activeConversationId.value, controller.todoItems)
         ConversationChangesPanel(settings, controller.activeConversationId.value, messageSnapshot)
@@ -395,8 +404,8 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                 }
             }
         }
-        LaunchedEffect(keyboardLiftPx, isNearOutputEnd) {
-            if (keyboardLiftPx == 0) {
+        LaunchedEffect(resolvedKeyboardLiftPx, isNearOutputEnd) {
+            if (resolvedKeyboardLiftPx == 0) {
                 keyboardShouldLiftOutput = isNearOutputEnd
             } else if (isNearOutputEnd) {
                 keyboardShouldLiftOutput = true
@@ -413,8 +422,8 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                 listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
             }
         }
-        LaunchedEffect(keyboardLiftPx) {
-            if (keyboardLiftPx > 0 && messageSnapshot.isNotEmpty() && keyboardShouldLiftOutput) {
+        LaunchedEffect(resolvedKeyboardLiftPx) {
+            if (resolvedKeyboardLiftPx > 0 && messageSnapshot.isNotEmpty() && keyboardShouldLiftOutput) {
                 listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
             }
         }
@@ -440,7 +449,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(bottom = if (keyboardShouldLiftOutput) keyboardLiftDp else 0.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
                 items(renderItems, key = { it.key }) { item ->
                     if (item.process.isNotEmpty()) {
@@ -503,7 +512,7 @@ internal fun ChatScreen(controller: ChatController, settings: AppSettings, termu
             Text(statusLine, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
         }
         Card(
-            Modifier.fillMaxWidth().keyboardAwareInputOffset(keyboardLiftPx),
+            Modifier.fillMaxWidth().keyboardAwareInputOffset(resolvedKeyboardLiftPx),
             shape = RoundedCornerShape(28.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         ) {

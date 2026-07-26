@@ -71,7 +71,7 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
             KimiCardBox {
                 Text(uiText("系统提示词"), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("选择不同用途的系统提示词。修改后会保存到当前预设；恢复预设只影响当前选中的提示词。"),
+                    uiText("未选择自定义提示词时使用应用原生提示词；你仍可新增并切换自己的提示词。"),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -96,6 +96,35 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                         Text(uiText("新增"))
                     }
                 }
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(16.dp))
+                        .clickable {
+                            selectedId = AppSettings.NATIVE_SYSTEM_PROMPT_ID
+                            settings.selectedSystemPromptId = AppSettings.NATIVE_SYSTEM_PROMPT_ID
+                            notice = uiText("已切换到应用原生提示词")
+                        }
+                        .padding(vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(26.dp))
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(uiText("应用原生提示词"), style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            uiText("由 Lyra Code 内置维护，适配当前工具和 Android 运行环境"),
+                            color = KimiMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    if (presets.none { it.id == selectedId }) {
+                        Icon(Icons.Default.Check, contentDescription = uiText("已选择"))
+                    }
+                }
+                if (presets.isNotEmpty()) KimiDivider()
                 presets.forEach { preset ->
                     Row(
                         Modifier

@@ -28,6 +28,14 @@ class UiTextBridgeMissingEnglishTest {
                 "Request failed. Retrying in 5 seconds (3/5)",
                 uiText("请求失败，5 秒后重试（3/5）"),
             )
+            assertEquals("Projects", uiText("项目"))
+            assertEquals("Create project", uiText("创建项目"))
+            assertEquals("3 chats", uiText("3 个对话"))
+            assertEquals("Created project “Lyra”", uiText("已创建项目“Lyra”"))
+            assertEquals(
+                "This will delete “Lyra” and every chat in the project. This action cannot be undone.",
+                uiText("将删除“Lyra”及项目内的所有对话。此操作无法撤销。"),
+            )
         } finally {
             UiTextBridge.languageMode = previous
         }

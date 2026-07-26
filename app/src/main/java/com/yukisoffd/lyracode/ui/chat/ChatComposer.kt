@@ -598,6 +598,21 @@ internal fun AttachmentActionBottomSheet(
                                     it.prompt.contains(search, ignoreCase = true)
                             }
                             Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                                if (
+                                    search.isBlank() ||
+                                    uiText("应用原生提示词").contains(search, ignoreCase = true)
+                                ) {
+                                    ActionSheetRow(
+                                        icon = Icons.Default.SmartToy,
+                                        title = uiText("应用原生提示词"),
+                                        subtitle = uiText("适配 Lyra Code 当前工具和 Android 运行环境"),
+                                        trailing = if (activePrompt == null) Icons.Default.Check else null,
+                                        onClick = {
+                                            controller.selectSystemPrompt(AppSettings.NATIVE_SYSTEM_PROMPT_ID)
+                                            onDismiss()
+                                        },
+                                    )
+                                }
                                 filteredPrompts.forEach { prompt ->
                                     ActionSheetRow(
                                         icon = Icons.Default.EditNote,

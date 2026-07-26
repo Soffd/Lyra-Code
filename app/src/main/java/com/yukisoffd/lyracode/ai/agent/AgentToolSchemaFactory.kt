@@ -19,12 +19,12 @@ internal class AgentToolSchemaFactory(
 ) {
     fun toolDefinitions(allowSubAgents: Boolean = false): JSONArray {
         val definitions = JSONArray()
-        .put(function("list_directory", "列出工作目录下的文件和子目录。path 必须是相对路径；根目录用 . 或空字符串。", "path" to "string"))
-        .put(function("read_file", "读取工作目录内 1MB 以下文本文件。path 必须是相对路径，不要传 Termux 私有目录。", "path" to "string"))
+        .put(function("list_directory", "List files and subdirectories in the workspace. Use a workspace-relative path; use \".\" or an empty string for the root.", "path" to "string"))
+        .put(function("read_file", "Read a workspace text file up to 1 MB. Use a workspace-relative path, never a Termux-private path.", "path" to "string"))
         .put(
             functionWithOptional(
                 "read_file_lines",
-                "按行读取工作目录内最大 16MB 文本文件的局部内容，并返回真实行号。适合大文件定位后配合 edit_file 使用。",
+                "Read a line range from a workspace text file up to 16 MB and return real line numbers. Use this for targeted inspection before edit_file.",
                 required = listOf("path" to "string"),
                 optional = listOf("start_line" to "integer", "line_count" to "integer"),
             ),
@@ -32,7 +32,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "write_file",
-                "创建或整体覆盖工作目录内文本文件。修改现有文件应优先使用 edit_file。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组，禁止把多个带引号的行拼成一个字符串。",
+                "Create or fully replace a workspace text file. Prefer edit_file for existing files. Supply exactly one of content or content_lines; content_lines must be a JSON array of strings, not a serialized array.",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
                 propertyDescriptions = FILE_WRITE_PROPERTY_DESCRIPTIONS,
@@ -42,7 +42,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "edit_file",
-                "精确修改工作目录内最大 16MB 的现有文本文件。调用前先读取相关上下文。两种模式二选一：提供唯一 old_content/old_content_lines 与 new_content/new_content_lines；或提供从 1 开始的 start_line/end_line 替换闭区间行。原文模式默认必须恰好匹配 1 处，匹配数量不符会拒绝写入，避免误改。",
+                "Precisely edit an existing workspace text file up to 16 MB. Read the relevant context first. Choose one mode: replace unique old_content/old_content_lines with new_content/new_content_lines, or replace the inclusive 1-based start_line..end_line range. Text mode defaults to exactly one match and rejects mismatches.",
                 required = listOf("path" to "string"),
                 optional = listOf(
                     "old_content" to "string",
@@ -61,22 +61,22 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "append_file",
-                "追加文本到工作目录内文件末尾。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组，每个元素是一行。",
+                "Append text to a workspace file. Supply exactly one of content or content_lines; content_lines must be a JSON string array with one element per line.",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
                 propertyDescriptions = FILE_WRITE_PROPERTY_DESCRIPTIONS,
                 disallowAdditionalProperties = true,
             ),
         )
-        .put(function("create_folder", "在工作目录内创建目录。path 必须是相对路径。", "path" to "string"))
-        .put(function("delete_file_or_folder", "删除工作目录内文件或空目录。path 必须是相对路径。", "path" to "string"))
-        .put(function("rename_move", "同目录重命名", "from" to "string", "to" to "string"))
-        .put(function("global_list_directory", "列出 Android 共享存储中的文件和子目录。用于非工作区文件，path 可填 Download、Downloads、相对共享存储路径或 /storage/emulated/0 下路径。禁止访问 Android/data、Android/obb 和 /data。", "path" to "string"))
-        .put(function("global_read_file", "读取 Android 共享存储内 1MB 以下文本文件。用于读取 Download 目录备份说明或非工作区文本文件。", "path" to "string"))
+        .put(function("create_folder", "Create a directory in the workspace. path must be workspace-relative.", "path" to "string"))
+        .put(function("delete_file_or_folder", "Delete a workspace file or empty directory. path must be workspace-relative.", "path" to "string"))
+        .put(function("rename_move", "Rename or move a file or directory within the workspace.", "from" to "string", "to" to "string"))
+        .put(function("global_list_directory", "List Android shared-storage files and directories outside the workspace. path may be Download, Downloads, a shared-storage-relative path, or a path under /storage/emulated/0. Android/data, Android/obb, and /data are blocked.", "path" to "string"))
+        .put(function("global_read_file", "Read an Android shared-storage text file up to 1 MB, including files outside the workspace.", "path" to "string"))
         .put(
             functionWithOptional(
                 "global_read_file_lines",
-                "按行读取 Android 共享存储内最大 16MB 文本文件的局部内容，并返回真实行号。适合大文件定位后配合 global_edit_file 使用。",
+                "Read a line range from an Android shared-storage text file up to 16 MB and return real line numbers. Use this before global_edit_file.",
                 required = listOf("path" to "string"),
                 optional = listOf("start_line" to "integer", "line_count" to "integer"),
             ),
@@ -84,7 +84,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "global_write_file",
-                "创建或整体覆盖 Android 共享存储内文本文件，执行前会请求确认。修改现有文件应优先使用 global_edit_file。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组。",
+                "Create or fully replace an Android shared-storage text file after user approval. Prefer global_edit_file for existing files. Supply exactly one of content or content_lines; content_lines must be a JSON string array.",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
                 propertyDescriptions = GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS,
@@ -94,7 +94,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "global_edit_file",
-                "精确修改 Android 共享存储内最大 16MB 的现有文本文件，执行前会请求用户确认。支持唯一 old_content/new_content 替换，或使用从 1 开始的 start_line/end_line 替换闭区间行；匹配数量不符合 expected_replacements 时拒绝写入。",
+                "Precisely edit an existing Android shared-storage text file up to 16 MB after user approval. Use unique old/new content or an inclusive 1-based line range. The write is rejected when the match count differs from expected_replacements.",
                 required = listOf("path" to "string"),
                 optional = listOf(
                     "old_content" to "string",
@@ -113,20 +113,20 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "global_append_file",
-                "追加文本到 Android 共享存储内文件末尾，执行前会请求确认。content 与 content_lines 二选一；content_lines 必须是实际 JSON 字符串数组。",
+                "Append text to an Android shared-storage file after user approval. Supply exactly one of content or content_lines; content_lines must be a JSON string array.",
                 required = listOf("path" to "string"),
                 optional = listOf("content" to "string", "content_lines" to "array:string", "ensure_trailing_newline" to "boolean"),
                 propertyDescriptions = GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS,
                 disallowAdditionalProperties = true,
             ),
         )
-        .put(function("global_create_folder", "在 Android 共享存储内创建目录。执行前会请求用户确认。", "path" to "string"))
-        .put(function("global_delete_file_or_folder", "删除 Android 共享存储内文件或目录。执行前会请求用户确认。", "path" to "string"))
-        .put(function("global_rename_move", "移动或重命名 Android 共享存储内文件或目录。执行前会请求用户确认。", "from" to "string", "to" to "string"))
+        .put(function("global_create_folder", "Create an Android shared-storage directory after user approval.", "path" to "string"))
+        .put(function("global_delete_file_or_folder", "Delete an Android shared-storage file or directory after user approval.", "path" to "string"))
+        .put(function("global_rename_move", "Move or rename an Android shared-storage file or directory after user approval.", "from" to "string", "to" to "string"))
         .put(
             functionWithOptional(
                 "download_file",
-                "使用应用原生 HTTP/HTTPS 客户端下载文件，不依赖 Termux。必须优先于 curl/wget 使用。destination=workspace 时 path 为工作区相对路径；若未选择工作区，应用会自动保存到 Android 共享存储 Download/LyraCode/<path>。destination=global 时 path 为 Android 共享存储路径，例如 Download/file.zip。执行前会请求用户确认。headers 每项使用 Name: Value 格式；sha256 可用于完整性校验。",
+                "Download an HTTP/HTTPS file with Lyra Code's native client after user approval; prefer this over curl/wget. For destination=workspace, path is workspace-relative; without a selected workspace it falls back to Download/LyraCode/<path>. For destination=global, path is in Android shared storage. headers entries use \"Name: Value\"; sha256 verifies integrity.",
                 required = listOf("url" to "string", "path" to "string"),
                 optional = listOf(
                     "destination" to "string",
@@ -139,7 +139,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "manage_scheduled_tasks",
-                "管理 Lyra Code 后台定时任务。action=list 可查看任务；create/update/delete/enable/disable 会先请求用户确认。schedule_type 支持 once、daily、weekly、monthly。once 使用 run_at；daily 使用 hour/minute；weekly 额外使用 day_of_week（1=周一，7=周日）；monthly 额外使用 day_of_month。每个任务可指定独立 profile_id 和 model，不会出现在普通历史会话中。",
+                "Manage Lyra Code background scheduled tasks. action=list is read-only; create/update/delete/enable/disable require approval. schedule_type is once, daily, weekly, or monthly. once uses run_at; daily uses hour/minute; weekly also uses day_of_week (1=Monday, 7=Sunday); monthly also uses day_of_month. A task may select its own profile_id and model and does not appear in normal chat history.",
                 required = listOf("action" to "string"),
                 optional = listOf(
                     "task_id" to "string",
@@ -157,11 +157,11 @@ internal class AgentToolSchemaFactory(
                 ),
             ),
         )
-        .put(function("get_mini_server_status", "读取 Lyra Code 微型服务器运行状态、当前工作区、监听地址、本机 URL 和局域网访问 URL。"))
+        .put(function("get_mini_server_status", "Get the Lyra Code mini server state, workspace root, bind address, local URL, and LAN URLs."))
         .put(
             functionWithOptional(
                 "read_mini_server_logs",
-                "读取 Lyra Code 微型服务器最近终端日志，包括连接、资源加载、404、认证失败和页面 JavaScript 报错。用于调试本地静态站点、Vue/Vite/VitePress/HTML/CSS/JS 页面问题。level 可选 debug/info/warn/error；limit 最大 500。",
+                "Read recent Lyra Code mini-server logs for connections, assets, 404s, authentication failures, and browser JavaScript errors. Use this to debug static, Vue, Vite, VitePress, HTML, CSS, or JS sites. level is debug/info/warn/error; limit is at most 500.",
                 required = emptyList(),
                 optional = listOf("limit" to "integer", "level" to "string"),
             ),
@@ -169,7 +169,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "manage_mini_server",
-                "启动、停止、重启或更新 Lyra Code 内置微型 HTTP/HTTPS 静态服务器。服务器以当前工作区作为站点根目录，可用于 Vue/Vite/VitePress/HTML/CSS/JS 静态站点调试。action=status/update/start/stop/restart/reset；host=127.0.0.1 仅本机，0.0.0.0 面向局域网/公网映射；username/password 用于 Basic 认证，password 为空表示不启用认证。HTTPS 支持 tls_key_store_base64/tls_key_store_password 或 tls_certificate_chain/tls_private_key；force_https 会把 HTTP 请求重定向到 HTTPS。",
+                "Start, stop, restart, reset, inspect, or update Lyra Code's HTTP/HTTPS static server rooted at the current workspace. action=status/update/start/stop/restart/reset. host=127.0.0.1 is device-only; 0.0.0.0 exposes it to the LAN or port mapping. username/password enable Basic auth; an empty password disables auth. HTTPS accepts a base64 keystore or PEM certificate chain/private key. force_https redirects HTTP to HTTPS.",
                 required = listOf("action" to "string"),
                 optional = listOf(
                     "protocol" to "string",
@@ -193,7 +193,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "search_conversation_history",
-                "跨普通会话搜索历史记录，可按关键词和时间段筛选。返回会话 id、标题、时间、消息数和简短预览；不会返回思维链或工具调用内容。start_time/end_time 可用时间戳、yyyy-MM-dd、yyyy-MM-dd HH:mm 或 ISO-8601。",
+                "Search normal conversation history by keyword and time range. Returns conversation IDs, titles, timestamps, message counts, and short previews, never hidden reasoning or tool calls. start_time/end_time accept epoch timestamps, yyyy-MM-dd, yyyy-MM-dd HH:mm, or ISO-8601.",
                 required = emptyList(),
                 optional = listOf("query" to "string", "start_time" to "string", "end_time" to "string", "limit" to "integer"),
             ),
@@ -201,7 +201,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "read_conversation_history",
-                "读取一个或多个普通历史会话的用户消息和 AI 最终可见回复。不会传入思维链、工具调用请求或工具返回，适合总结近期工作、生成周报。先用 search_conversation_history 获取 id。",
+                "Read user messages and visible assistant replies from one or more normal conversations. Hidden reasoning, tool calls, and tool results are excluded. Call search_conversation_history first to obtain IDs.",
                 required = emptyList(),
                 optional = listOf("conversation_id" to "string", "conversation_ids" to "array:string", "max_messages" to "integer"),
             ),
@@ -209,7 +209,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "read_memories",
-                "读取用户的跨对话个性化记忆及其 id。记忆已作为额外提示词自动提供；仅在需要查找 id、核对、修改或按关键词筛选时调用。默认只返回启用的记忆。",
+                "Read cross-conversation user memories and their IDs. Enabled memories are already injected into the prompt; call this only to look up IDs, verify, filter, update, disable, or delete entries. Disabled entries are excluded by default.",
                 required = emptyList(),
                 optional = listOf("query" to "string", "include_disabled" to "boolean"),
             ),
@@ -217,7 +217,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "save_memory",
-                "保存一条长期有用的用户个性化记忆。只保存用户明确表达或高度确定、未来跨对话仍有帮助的偏好、工作风格、沟通习惯等；不要保存密钥、密码、健康/政治等敏感推断、临时任务或一次性上下文。category 可用 preference、work_style、communication、personal、other。",
+                "Save one durable cross-conversation memory that the user explicitly stated and that will remain useful, such as a preference, work style, or communication habit. Never save secrets, inferred sensitive traits, temporary tasks, or one-off context. category is preference, work_style, communication, personal, or other.",
                 required = listOf("content" to "string"),
                 optional = listOf("category" to "string"),
             ),
@@ -225,35 +225,35 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "update_memory",
-                "修改已有记忆。先用 read_memories 获取 id；content、category、enabled 至少提供一个。可用于纠正过时偏好或临时停用记忆。",
+                "Update an existing memory. Call read_memories first to obtain its id, then provide at least one of content, category, or enabled.",
                 required = listOf("id" to "string"),
                 optional = listOf("content" to "string", "category" to "string", "enabled" to "boolean"),
             ),
         )
-        .put(function("delete_memory", "删除一条不再适用或用户要求忘记的记忆。先用 read_memories 获取 id。", "id" to "string"))
-        .put(function("search_files", "在工作目录内按文件名、扩展名或路径片段搜索文件。查找文件路径时必须优先使用此工具；query 填文件名或关键词，path 填 . 或相对子目录。", "query" to "string", "path" to "string"))
-        .put(function("global_search_files", "在 Android 共享存储 /storage/emulated/0 下按文件名或路径片段全局搜索文件。仅当 search_files 返回 SEARCH_EMPTY 且用户需要查找工作区外文件时调用一次；不要用它替代工作区内搜索。返回绝对路径。", "query" to "string"))
-        .put(function("get_file_info", "获取文件元数据", "path" to "string"))
-        .put(function("list_skill_files", "列出已启用 Skill 包内文件。先根据 LYRA_ACTIVE_SKILLS_V1 判断相关 Skill，再调用此工具。", "skill_id" to "string"))
-        .put(function("read_skill_file", "读取指定 Skill 包内文本文件。优先读取 SKILL.md；只读取和当前任务相关的文件。", "skill_id" to "string", "path" to "string"))
+        .put(function("delete_memory", "Delete a memory that no longer applies or that the user asked to forget. Call read_memories first to obtain its id.", "id" to "string"))
+        .put(function("search_files", "Search the workspace by file name, extension, or path fragment. Always use this before shell-based file discovery. query is a name or keyword; path is \".\" or a relative subdirectory.", "query" to "string", "path" to "string"))
+        .put(function("global_search_files", "Search /storage/emulated/0 by file name or path fragment. Use only after search_files returns SEARCH_EMPTY and the target may be outside the workspace. Returns absolute shared-storage paths that can be passed to global_* file tools.", "query" to "string"))
+        .put(function("get_file_info", "Get metadata for a workspace file or directory.", "path" to "string"))
+        .put(function("list_skill_files", "List files in an enabled Skill package. First determine relevance from LYRA_ACTIVE_SKILLS_V1, then inspect the package.", "skill_id" to "string"))
+        .put(function("read_skill_file", "Read a text file from a Skill package. Start with SKILL.md and read only files relevant to the current task.", "skill_id" to "string", "path" to "string"))
         if (termuxExecutor.hasRunCommandPermission()) {
             definitions.put(
                 functionWithOptional(
                     "run_command",
-                    "在 Termux 中执行 Shell 命令，并直接返回 exit_code、stdout、stderr；仅明显高风险命令会被拦截。下载文件必须优先使用 download_file；仅当原生下载明确失败、被禁用或不支持目标协议时，才把 curl/wget 作为最后备用手段。不要运行不会退出的长期驻留命令；多行脚本或缩进敏感命令优先用 command_lines，每个数组元素是一行，应用会用 \\n 原样拼接。默认等待 60 秒；确实需要更久时传 timeout_seconds，最大 600。",
+                    "Run a shell command in Termux and return exit_code, stdout, and stderr. High-risk commands may be blocked. Prefer download_file over curl/wget. Do not start persistent or interactive processes. For multiline or indentation-sensitive commands, use command_lines; Lyra Code joins its string elements with newlines. The default timeout is 60 seconds and the maximum is 600.",
                     required = emptyList(),
                     optional = listOf("command" to "string", "command_lines" to "array:string", "workDir" to "string", "timeout_seconds" to "integer"),
                 ),
             )
         }
         definitions
-        .put(function("web_search", "使用内嵌 WebView 搜索互联网，返回候选网页标题、URL 和摘要。会自动过滤用户设置的网站黑名单；需要最新信息或网页资料时先调用。", "query" to "string", "limit" to "integer"))
-        .put(function("read_web_page", "使用内嵌 WebView 打开并读取 http/https 网页正文。会拒绝读取用户设置的网站黑名单域名；应在 web_search 后读取可信候选网页，再基于网页内容回答。", "url" to "string"))
-        .put(function("mark_web_sources", "网页来源标注工具。只在回答依赖网页内容时调用；sources 为数组，每项包含 title、url、used_for。调用后最终回答必须在相应结论旁使用 Markdown 链接标注来源。", "sources" to "array"))
+        .put(function("web_search", "Search the web in the embedded WebView and return candidate titles, URLs, and snippets. User-blocked sites are filtered. Use for current or web-specific information, then verify candidates with read_web_page.", "query" to "string", "limit" to "integer"))
+        .put(function("read_web_page", "Open an HTTP/HTTPS page in the embedded WebView and extract its body. User-blocked domains are rejected. Read trustworthy candidates and base factual claims on page content, not search snippets.", "url" to "string"))
+        .put(function("mark_web_sources", "Declare the web pages actually used in the answer. Call only when the answer relies on web content. sources is an array of objects with title, url, and used_for. Then cite those pages with nearby Markdown links.", "sources" to "array:object"))
         .put(
             functionWithOptional(
                 "manage_app_config",
-                "配置管理工具。用户要求通过自然语言添加、修改、启用、禁用、删除 MCP 服务器、SSH 连接、WebDAV、FTP/FTPS/SFTP 文件传输服务器、Skills 或其他 Agent 工具时调用。若用户要启用已禁用配置或工具但名称不明确，先用 target=all action=list 查看 disabled_summary。支持从网页读取到的 MCP JSON/Skill zip URL 自动落库；需要额外 key/密码时先向用户索取。除 manage_app_config 自身外，agent 工具只能启用/禁用，不能删除。",
+                "Manage MCP, SSH, WebDAV, FTP/FTPS/SFTP, Skill, and Agent-tool configuration when the user asks to add, update, enable, disable, or delete it. If the target is ambiguous, call target=all action=list and inspect disabled_summary. MCP JSON and Skill zip URLs may come from a read web page. Ask the user for required keys or passwords; never invent them. Agent tools can only be enabled or disabled, and manage_app_config itself cannot be disabled.",
                 required = listOf("target" to "string", "action" to "string"),
                 optional = listOf(
                     "id" to "string",
@@ -290,13 +290,13 @@ internal class AgentToolSchemaFactory(
                 ),
             ),
         )
-        .put(function("get_current_time", "读取设备当前本地时间、时区和时间戳。需要判断今天、近期、搜索时间范围或个性化回答时调用。"))
-        .put(function("get_current_location", "读取设备最近一次系统定位。需要按用户所在地区个性化回答或联网搜索地区相关信息时调用；若未授权会返回权限状态。"))
-        .put(function("get_device_hardware_info", "硬件检查工具。读取当前 Android 设备的系统、CPU、内存、存储、ABI、分辨率、网络、蓝牙、电池等诊断信息。用于机型问题排查、判断设备硬件是否异常、山寨机线索分析、购机性价比比较等；不要把结果视为绝对鉴定结论。"))
+        .put(function("get_current_time", "Get the device's current local time, time zone, and epoch timestamp. Use when relative dates or time ranges matter."))
+        .put(function("get_current_location", "Get the device's last known system location for location-aware answers or searches. Returns permission/status details when unavailable."))
+        .put(function("get_device_hardware_info", "Collect Android OS, CPU, memory, storage, ABI, display, network, Bluetooth, and battery diagnostics. Use for device troubleshooting or hardware plausibility checks; do not present it as definitive authenticity proof."))
         .put(
             functionWithOptional(
                 "list_installed_apps",
-                "读取设备已安装应用列表，返回应用名、包名、版本、APK 大小、用户/系统应用分类及签名证书 SHA-256。scope 可用 all、user、system；应用很多时使用 offset 和 limit 分页。适合排查软件版本、包名、签名或可疑应用。",
+                "List installed apps with label, package, version, APK size, user/system classification, and signing-certificate SHA-256. scope is all, user, or system; use offset/limit for pagination.",
                 required = emptyList(),
                 optional = listOf("scope" to "string", "query" to "string", "offset" to "integer", "limit" to "integer"),
             ),
@@ -305,7 +305,7 @@ internal class AgentToolSchemaFactory(
             definitions.put(
                 functionWithOptional(
                     "execute_shell_command",
-                    "通过 Shizuku 以 Android shell 身份执行系统命令并返回 exit_code、stdout、stderr。每次执行都需要用户确认。可用于 pm list/enable/disable-user/install/uninstall、cmd、dumpsys 和受 shell 权限保护的 /data 路径；先用只读命令检查状态，再执行变更。禁止运行不会退出的交互程序。",
+                    "Run an Android shell command through Shizuku after user approval and return exit_code, stdout, and stderr. Supports pm, cmd, dumpsys, and shell-readable protected paths. Inspect state with read-only commands before changes. Do not run persistent or interactive programs.",
                     required = emptyList(),
                     optional = listOf("command" to "string", "command_lines" to "array:string", "timeout_seconds" to "integer"),
                 ),
@@ -315,27 +315,27 @@ internal class AgentToolSchemaFactory(
             definitions.put(
                 functionWithOptional(
                     "execute_root_command",
-                    "通过用户配置的 su 命令以 Root 身份执行系统命令并返回 exit_code、stdout、stderr。每次执行都需要用户确认。执行卸载系统组件、修改 /data 或系统文件前必须先检查目标和备份方案；Root 不可用时仅在 Shell 开关也开启且已授权时回退到 Shizuku Shell。",
+                    "Run a command as root with the user's configured su command after approval and return exit_code, stdout, and stderr. Inspect exact targets and a recovery plan before changing /data, system files, or system packages. It falls back to Shizuku only when Shell fallback is enabled and authorized.",
                     required = emptyList(),
                     optional = listOf("command" to "string", "command_lines" to "array:string", "timeout_seconds" to "integer"),
                 ),
             )
         }
         definitions
-        .put(function("list_ssh_servers", "列出用户已配置且启用的 SSH 服务器。调用 ssh_exec 前必须先调用本工具，使用返回的 id（通常是 host:port）作为 server_id。"))
+        .put(function("list_ssh_servers", "List enabled user-configured SSH servers. Call this before ssh_exec and use a returned id as server_id."))
         .put(
             functionWithOptional(
                 "ssh_exec",
-                "通过 SSH 登录用户配置的远程 Linux/Windows/Git 服务器执行命令并返回 exit_code/stdout/stderr。server_id 必须来自 list_ssh_servers。执行安装、修改配置、启动服务前必须先检查系统、CPU/GPU、内存、磁盘，例如 uname/systeminfo、free、df、lscpu/nvidia-smi。禁止直接读取 /var/log 或 *.log；需要先用 ls/stat/du/wc -l 查看属性，再读取很小片段。不要运行 vim/top/ssh 等复杂交互 shell；简单 Y/N 可用 input_lines。",
+                "Run a command on a configured remote SSH server after approval and return exit_code/stdout/stderr. server_id must come from list_ssh_servers. Before installs or service/config changes, inspect OS, CPU/GPU, memory, disk, and permissions. Before reading logs, inspect size and line count, then read only a small range. Avoid interactive programs such as vim, top, or nested ssh; input_lines supports simple stdin responses.",
                 required = listOf("server_id" to "string"),
                 optional = listOf("command" to "string", "command_lines" to "array:string", "cwd" to "string", "input_lines" to "array:string", "timeout_seconds" to "integer"),
             ),
         )
-        .put(function("list_webdav_servers", "列出用户已配置且启用的 WebDAV 服务器。调用 WebDAV 搜索、上传、下载或云备份前必须先调用本工具，使用返回的 id 作为 server_id。"))
+        .put(function("list_webdav_servers", "List enabled user-configured WebDAV servers. Call this first and use a returned id as server_id."))
         .put(
             functionWithOptional(
                 "webdav_list",
-                "使用 PROPFIND 列出指定 WebDAV 目录下的文件和子目录详情，返回路径、是否目录、大小、修改时间。需要浏览服务器目录、文件名未知、搜索不到文件或确认目录结构时优先调用；只读取元数据，不下载文件。",
+                "Use PROPFIND to list a WebDAV directory with paths, directory flags, sizes, and modification times. Prefer this when the name is unknown, search is empty, or directory structure must be confirmed. Reads metadata only.",
                 required = listOf("server_id" to "string"),
                 optional = listOf("path" to "string", "depth" to "integer"),
             ),
@@ -343,18 +343,18 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "webdav_search",
-                "在指定 WebDAV 服务器中按文件名或路径片段搜索文件。只返回路径和元数据，不会下载文件。文件名未知或需要列目录时不要搜索 . 取巧，应调用 webdav_list。",
+                "Search a WebDAV server by file name or path fragment and return metadata without downloading. If the name is unknown or you need a directory listing, call webdav_list instead of searching for \".\".",
                 required = listOf("server_id" to "string", "query" to "string"),
                 optional = listOf("path" to "string", "limit" to "integer"),
             ),
         )
-        .put(function("webdav_download_to_workspace", "从 WebDAV 下载文件到当前工作区。必须先获得用户确认；local_path 必须是工作区相对路径。", "server_id" to "string", "remote_path" to "string", "local_path" to "string"))
-        .put(function("webdav_upload_from_workspace", "把当前工作区文件上传到 WebDAV。必须先获得用户确认；local_path 必须是工作区相对路径。", "server_id" to "string", "local_path" to "string", "remote_path" to "string"))
-        .put(function("list_file_transfer_servers", "列出用户已配置且启用的 FTP/FTPS/SFTP 文件传输服务器。调用文件传输搜索、上传、下载前必须先调用本工具，使用返回的 id 作为 server_id。"))
+        .put(function("webdav_download_to_workspace", "Download a WebDAV file into the workspace after user approval. local_path must be workspace-relative.", "server_id" to "string", "remote_path" to "string", "local_path" to "string"))
+        .put(function("webdav_upload_from_workspace", "Upload a workspace file to WebDAV after user approval. local_path must be workspace-relative.", "server_id" to "string", "local_path" to "string", "remote_path" to "string"))
+        .put(function("list_file_transfer_servers", "List enabled user-configured FTP/FTPS/SFTP servers. Call this first and use a returned id as server_id."))
         .put(
             functionWithOptional(
                 "file_transfer_list",
-                "列出指定 FTP/FTPS/SFTP 目录下的文件和子目录详情，返回路径、是否目录、大小、修改时间。文件名未知、搜索不到文件或确认目录结构时优先调用；只读取元数据，不下载文件。",
+                "List an FTP/FTPS/SFTP directory with paths, directory flags, sizes, and modification times. Prefer this when a name is unknown, search is empty, or structure must be confirmed. Reads metadata only.",
                 required = listOf("server_id" to "string"),
                 optional = listOf("path" to "string"),
             ),
@@ -362,17 +362,17 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "file_transfer_search",
-                "在指定 FTP/FTPS/SFTP 服务器中按文件名或路径片段搜索文件。只返回路径和元数据，不会下载文件。",
+                "Search an FTP/FTPS/SFTP server by file name or path fragment and return metadata without downloading.",
                 required = listOf("server_id" to "string", "query" to "string"),
                 optional = listOf("path" to "string", "limit" to "integer"),
             ),
         )
-        .put(function("file_transfer_download_to_workspace", "从 FTP/FTPS/SFTP 下载文件到当前工作区。必须先获得用户确认；local_path 必须是工作区相对路径。", "server_id" to "string", "remote_path" to "string", "local_path" to "string"))
-        .put(function("file_transfer_upload_from_workspace", "把当前工作区文件上传到 FTP/FTPS/SFTP。必须先获得用户确认；local_path 必须是工作区相对路径。", "server_id" to "string", "local_path" to "string", "remote_path" to "string"))
+        .put(function("file_transfer_download_to_workspace", "Download an FTP/FTPS/SFTP file into the workspace after user approval. local_path must be workspace-relative.", "server_id" to "string", "remote_path" to "string", "local_path" to "string"))
+        .put(function("file_transfer_upload_from_workspace", "Upload a workspace file to FTP/FTPS/SFTP after user approval. local_path must be workspace-relative.", "server_id" to "string", "local_path" to "string", "remote_path" to "string"))
         .put(
             functionWithOptional(
                 "export_backup",
-                "导出 Lyra Code 备份到 Download/LyraCode 或 WebDAV。包含密钥时必须提醒用户妥善保管；destination 为 local 或 webdav。WebDAV 未指定 remote_path 时默认覆盖 /LyraCode/lyra_backup_latest.zip，便于下次直接导入。",
+                "Export a Lyra Code backup to Download/LyraCode or WebDAV after approval. destination is local or webdav. Warn the user when include_secrets=true. Without remote_path, WebDAV overwrites /LyraCode/lyra_backup_latest.zip for predictable later import.",
                 required = listOf("destination" to "string"),
                 optional = listOf(
                     "server_id" to "string",
@@ -394,7 +394,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "import_backup",
-                "从工作区本地 zip、Android Download/共享存储 zip 或 WebDAV zip 导入 Lyra Code 备份。Agent 固定使用补充模式导入并去重，不允许覆盖模式。source 可用 local、download、global、webdav；download/global 使用 global_path 或 local_path。WebDAV 的 remote_path 可留空，应用会优先导入 /LyraCode/lyra_backup_latest.zip，找不到则自动选择 /LyraCode 下最新的 Lyra backup zip。",
+                "Import a Lyra Code backup zip from the workspace, Android shared storage, or WebDAV after approval. Agent imports always use non-destructive supplement mode with deduplication. source is local, download, global, or webdav. download/global use global_path or local_path. With an empty WebDAV remote_path, Lyra Code tries /LyraCode/lyra_backup_latest.zip, then the newest matching backup.",
                 required = listOf("source" to "string"),
                 optional = listOf("server_id" to "string", "remote_path" to "string", "local_path" to "string", "global_path" to "string"),
             ),
@@ -403,14 +403,14 @@ internal class AgentToolSchemaFactory(
             definitions.put(
                 function(
                     "run_sub_agents",
-                    "子代理编排工具。仅在用户任务复杂、需要并行研究、独立代码审查、多方案验证或跨领域分工时调用。tasks 为数组，每项包含 task、capability_hint、expected_output，可选 sub_agent_id/agent/model 指定目标子代理；未指定时系统会按能力匹配并在无明显匹配时均衡分配到不同启用模型。子代理会独立调用可用工具并请求必要审批；完成后只返回最终结果，不返回 thinking。",
-                    "tasks" to "array",
+                    "Delegate independent subtasks only for complex work that benefits from parallel research, review, validation, alternatives, or specialized domains. tasks entries contain task, capability_hint, expected_output, and optional sub_agent_id/agent/model. Automatic selection matches capabilities and balances otherwise. Sub-agents may use tools and request approvals; they return final results without hidden reasoning.",
+                    "tasks" to "array:object",
                 ),
             )
         }
         definitions
-        .put(function("set_todo_list", "设置当前任务 TODO 列表。修改文件或执行命令前必须先调用。items 为数组，每项包含 id、text、status、note。", "items" to "array"))
-        .put(function("update_todo_item", "更新 TODO 项状态。status 可用 pending、running、completed、blocked。", "id" to "string", "status" to "string", "note" to "string"))
+        .put(function("set_todo_list", "Set the current task's TODO list before multistep work, file changes, or commands. items is an array of objects with id, text, status, and note.", "items" to "array:object"))
+        .put(function("update_todo_item", "Update one TODO item. status is pending, running, completed, or blocked.", "id" to "string", "status" to "string", "note" to "string"))
         settings.enabledMcpTools().forEach { (server, tool) ->
             runCatching { mcpFunction(server, tool) }
                 .onSuccess { definitions.put(it) }
@@ -661,37 +661,37 @@ internal class AgentToolSchemaFactory(
         const val AGENT_TAG = "LyraAgent"
         val JSON_SCHEMA_TYPES = setOf("string", "number", "integer", "boolean", "object", "array")
         const val CONTENT_TEXT_DESCRIPTION =
-            "完整文本字符串。与 content_lines 二选一；短内容优先使用此字段。允许空字符串表示创建空文件。"
+            "Complete text. Mutually exclusive with content_lines; prefer this for short content. An empty string creates an empty file."
         const val CONTENT_LINES_DESCRIPTION =
-            "必须是实际 JSON 字符串数组，每个元素代表一行且不包含行尾换行。正确：[\"line 1\",\"line 2\",\"\"]；错误：\"\\\"line 1\\\", \\\"line 2\\\"\"。不要给整个数组再加一层引号。"
+            "A real JSON array of strings, one element per line without newline characters. Correct: [\"line 1\",\"line 2\",\"\"]; wrong: \"\\\"line 1\\\", \\\"line 2\\\"\"."
         const val TRAILING_NEWLINE_DESCRIPTION =
-            "为 true 时在最终写入文本末尾补一个换行；默认 false。"
+            "When true, add one trailing newline to the final text. Defaults to false."
         const val OLD_CONTENT_DESCRIPTION =
-            "要替换的原文字符串，必须与文件内容精确匹配。与 old_content_lines 二选一。"
+            "Exact source text to replace. Mutually exclusive with old_content_lines."
         const val OLD_CONTENT_LINES_DESCRIPTION =
-            "要替换的原文行数组。必须是实际 JSON 字符串数组，不得序列化成一个字符串。与 old_content 二选一。"
+            "Source lines to replace as a real JSON string array, not a serialized string. Mutually exclusive with old_content."
         const val NEW_CONTENT_DESCRIPTION =
-            "替换后的文本字符串；空字符串表示删除匹配内容。与 new_content_lines 二选一。"
+            "Replacement text; an empty string deletes the matched text. Mutually exclusive with new_content_lines."
         const val NEW_CONTENT_LINES_DESCRIPTION =
-            "替换后的行数组。必须是实际 JSON 字符串数组；空数组表示删除匹配内容。与 new_content 二选一。"
+            "Replacement lines as a real JSON string array; an empty array deletes the matched text. Mutually exclusive with new_content."
         val FILE_WRITE_PROPERTY_DESCRIPTIONS = mapOf(
-            "path" to "工作目录内相对路径，例如 src/main.kt；禁止使用 Android 绝对路径。",
+            "path" to "Workspace-relative path, for example src/main.kt. Android absolute paths are invalid.",
             "content" to CONTENT_TEXT_DESCRIPTION,
             "content_lines" to CONTENT_LINES_DESCRIPTION,
             "ensure_trailing_newline" to TRAILING_NEWLINE_DESCRIPTION,
         )
         val GLOBAL_FILE_WRITE_PROPERTY_DESCRIPTIONS = FILE_WRITE_PROPERTY_DESCRIPTIONS +
-            ("path" to "Android 共享存储路径，例如 Download/file.txt 或 /storage/emulated/0/Download/file.txt。")
+            ("path" to "Android shared-storage path, for example Download/file.txt or /storage/emulated/0/Download/file.txt.")
         val FILE_EDIT_PROPERTY_DESCRIPTIONS = FILE_WRITE_PROPERTY_DESCRIPTIONS + mapOf(
             "old_content" to OLD_CONTENT_DESCRIPTION,
             "old_content_lines" to OLD_CONTENT_LINES_DESCRIPTION,
             "new_content" to NEW_CONTENT_DESCRIPTION,
             "new_content_lines" to NEW_CONTENT_LINES_DESCRIPTION,
-            "start_line" to "从 1 开始的起始行号；行范围模式必须提供。",
-            "end_line" to "从 1 开始且包含在替换范围内的结束行号；省略时等于 start_line。",
-            "expected_replacements" to "原文模式预期匹配次数，默认 1；实际数量不符时拒绝写入。",
+            "start_line" to "1-based first line; required in line-range mode.",
+            "end_line" to "1-based inclusive last line; defaults to start_line.",
+            "expected_replacements" to "Required match count in text mode. Defaults to 1; a mismatch rejects the write.",
         )
         val GLOBAL_FILE_EDIT_PROPERTY_DESCRIPTIONS = FILE_EDIT_PROPERTY_DESCRIPTIONS +
-            ("path" to "Android 共享存储路径，例如 Download/file.txt 或 /storage/emulated/0/Download/file.txt。")
+            ("path" to "Android shared-storage path, for example Download/file.txt or /storage/emulated/0/Download/file.txt.")
     }}
 

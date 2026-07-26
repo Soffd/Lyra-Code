@@ -66,16 +66,16 @@ class ScheduledTaskWorker(
             agent.approvalHandler = {
                 ToolApprovalDecision(
                     approved = false,
-                    feedback = "后台定时任务可以使用只读 Agent 工具；当前工具需要实时授权，后台无法弹窗确认。请把修改文件、执行命令、SSH、Root、MCP 写操作或上传下载步骤改为前台确认后执行。",
+                    feedback = "Background scheduled tasks may use read-only Agent tools. This call requires real-time approval, but the background worker cannot show an approval dialog. State which file mutation, command, SSH, Root, MCP mutation, upload, or download step the user must run from the foreground.",
                 )
             }
             agent.chat(
                 conversationId = conversationId,
                 userInput = buildString {
                     appendLine("LYRA_SCHEDULED_TASK_V1")
-                    appendLine("任务名称：${task.title}")
-                    appendLine("这是后台定时任务。你可以调用可用的只读 Agent 工具，例如搜索和读取普通历史对话、联网搜索、读取网页、查看配置、列出 WebDAV 文件等。")
-                    appendLine("需要实时确认的高风险工具会被拒绝；若因此无法完成，请在最终结果中说明需要用户回到前台确认哪些步骤。")
+                    appendLine("Task name: ${task.title}")
+                    appendLine("This is a background scheduled task. You may use available read-only Agent tools, including conversation search/read, web search/read, configuration inspection, and remote directory listing.")
+                    appendLine("Tools requiring real-time approval will be rejected. If that prevents completion, state exactly which steps the user must approve from the foreground.")
                     append(task.prompt)
                 },
                 profile = profile,

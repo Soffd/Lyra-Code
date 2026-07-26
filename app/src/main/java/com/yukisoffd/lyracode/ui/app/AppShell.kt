@@ -42,9 +42,13 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -84,7 +88,7 @@ private const val PAGE_TASKS = 4
 private const val PAGE_ARCHIVE = 5
 private const val PAGE_SETTINGS = 6
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 internal fun LyraCodeApp(
     settings: AppSettings,
@@ -130,6 +134,19 @@ internal fun LyraCodeApp(
     val controllerStatus = controller.status.value
     val drawerState = rememberDrawerState(DrawerValue.Closed)
     val scope = rememberCoroutineScope()
+    val keyboardAvoidanceOffsetPx = rememberAnimatedKeyboardAvoidanceOffsetPx()
+    val drawerVisible =
+        drawerState.currentValue != DrawerValue.Closed ||
+            drawerState.targetValue != DrawerValue.Closed
+    val drawerKeyboardOffsetPx = if (drawerVisible) keyboardAvoidanceOffsetPx else 0
+    val chatKeyboardOffsetPx = if (drawerVisible) 0 else keyboardAvoidanceOffsetPx
+    val drawerKeyboardOffsetDp = with(LocalDensity.current) { drawerKeyboardOffsetPx.toDp() }
+    val focusManager = LocalFocusManager.current
+    val softwareKeyboardController = LocalSoftwareKeyboardController.current
+    LaunchedEffect(drawerVisible) {
+        focusManager.clearFocus(force = true)
+        softwareKeyboardController?.hide()
+    }
     val workspaceName = remember(controller.activeConversationId.value, controller.settingsRevision.intValue) { controller.workspaceDisplayName() }
     var nickname by remember { mutableStateOf(settings.userNickname) }
     var avatarPath by remember { mutableStateOf(settings.userAvatarPath) }
@@ -214,6 +231,15 @@ internal fun LyraCodeApp(
             appNotice = context.getString(R.string.notice_workspace_selected_current_chat, selectedName)
         }
     }
+    val projectTreeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri: Uri? ->
+        if (uri != null) {
+            controller.createProject(uri)?.let { project ->
+                selectedPage = PAGE_CHAT
+                appNotice = context.getString(R.string.notice_project_created, project.name)
+                scope.launch { drawerState.close() }
+            }
+        }
+    }
     fun updateSkillImportStatus(result: Result<SkillPack>) {
         result.fold(
             onSuccess = {
@@ -295,39 +321,57 @@ internal fun LyraCodeApp(
                 modifier = Modifier.fillMaxWidth(0.86f),
                 drawerContainerColor = MaterialTheme.colorScheme.background,
             ) {
-                KimiDrawerContent(
-                    settings = settings,
-                    pages = pages,
-                    selectedPage = safeSelectedPage,
-                    languageMode = languageMode,
-                    controller = controller,
-                    nickname = nickname,
-                    avatarPath = avatarPath,
-                    onProfileChanged = { newNickname, newAvatarPath ->
-                        nickname = newNickname
-                        avatarPath = newAvatarPath
-                    },
-                    onSelectPage = { index ->
-                        if (index == PAGE_FILES) {
-                            scope.launch {
-                                drawerState.close()
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = drawerKeyboardOffsetDp),
+                ) {
+                    KimiDrawerContent(
+                        settings = settings,
+                        pages = pages,
+                        selectedPage = safeSelectedPage,
+                        languageMode = languageMode,
+                        controller = controller,
+                        nickname = nickname,
+                        avatarPath = avatarPath,
+                        keyboardAvoidanceOffsetPx = drawerKeyboardOffsetPx,
+                        onProfileChanged = { newNickname, newAvatarPath ->
+                            nickname = newNickname
+                            avatarPath = newAvatarPath
+                        },
+                        onSelectPage = { index ->
+                            if (index == PAGE_FILES) {
+                                scope.launch {
+                                    drawerState.close()
+                                    selectedPage = index
+                                }
+                            } else {
                                 selectedPage = index
+                                scope.launch { drawerState.close() }
                             }
-                        } else {
-                            selectedPage = index
+                        },
+                        onNewConversation = {
+                            requestNewConversation()
                             scope.launch { drawerState.close() }
-                        }
-                    },
-                    onNewConversation = {
-                        requestNewConversation()
-                        scope.launch { drawerState.close() }
-                    },
-                    onSelectConversation = { id ->
-                        controller.selectConversation(id)
-                        selectedPage = PAGE_CHAT
-                        scope.launch { drawerState.close() }
-                    },
-                )
+                        },
+                        onCreateProject = {
+                            projectTreeLauncher.launch(null)
+                        },
+                        onNewProjectConversation = { projectId ->
+                            if (controller.startProjectConversation(projectId)) {
+                                selectedPage = PAGE_CHAT
+                                scope.launch { drawerState.close() }
+                            } else {
+                                appNotice = context.getString(R.string.notice_already_in_new_project_chat)
+                            }
+                        },
+                        onSelectConversation = { id ->
+                            controller.selectConversation(id)
+                            selectedPage = PAGE_CHAT
+                            scope.launch { drawerState.close() }
+                        },
+                    )
+                }
             }
         },
     ) {
@@ -433,7 +477,12 @@ internal fun LyraCodeApp(
                     label = "page-transition",
                 ) { page ->
                     when (page) {
-                        PAGE_CHAT -> ChatScreen(controller, settings, termuxExecutor)
+                        PAGE_CHAT -> ChatScreen(
+                            controller = controller,
+                            settings = settings,
+                            termuxExecutor = termuxExecutor,
+                            keyboardLiftPx = chatKeyboardOffsetPx,
+                        )
                         PAGE_FILES -> FileManagerScreen(
                             controller = controller,
                             settings = settings,
