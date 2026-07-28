@@ -21,10 +21,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Icon
+import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -32,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
@@ -51,6 +55,12 @@ import com.yukisoffd.lyracode.webdav.WebDavClient
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
 
 
+private data class SettingsMenuEntry(
+    val icon: ImageVector,
+    val title: String,
+    val description: String,
+    val target: String,
+)
 
 @Composable
 internal fun SettingsScreen(
@@ -94,9 +104,16 @@ internal fun SettingsScreen(
     onDeleteSkill: (String) -> Unit,
 ) {
     var detail by rememberSaveable { mutableStateOf<String?>(null) }
+    var modelNestedPageActive by rememberSaveable { mutableStateOf(false) }
+    var modelBackRequest by rememberSaveable { mutableIntStateOf(0) }
+    var settingsQuery by rememberSaveable { mutableStateOf("") }
     val settingsListScroll = rememberScrollState()
     val context = LocalContext.current
     fun navigateBackFromDetail() {
+        if (detail == "model" && modelNestedPageActive) {
+            modelBackRequest++
+            return
+        }
         detail = when (detail) {
             "device" -> "about"
             CompliancePageIds.INDEX -> "about"
@@ -107,6 +124,8 @@ internal fun SettingsScreen(
             CompliancePageIds.APP_PERMISSIONS -> CompliancePageIds.INDEX
             "custom_theme_color" -> "theme_mode"
             "font_library" -> "font"
+            "topic_summary_model_topic",
+            "topic_summary_model_compression" -> "topic_summary_model"
             "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
             "mini_server_logs" -> "mini_server"
             else -> null
@@ -114,15 +133,27 @@ internal fun SettingsScreen(
     }
     BackHandler(enabled = detail != null) { navigateBackFromDetail() }
     LaunchedEffect(detail, context) {
+        if (detail != "model") modelNestedPageActive = false
         onDetailTitleChange(detail?.let { settingsDetailTitle(context, it) })
     }
     LaunchedEffect(settingsBackRequest) {
         if (settingsBackRequest > 0 && detail != null) navigateBackFromDetail()
     }
-    AnimatedContent(
-        targetState = detail,
-        transitionSpec = {
-            val forward = when {
+    MaterialTheme(
+        colorScheme = MaterialTheme.colorScheme,
+        typography = MaterialTheme.typography,
+        shapes = Shapes(
+            extraSmall = RoundedCornerShape(14.dp),
+            small = RoundedCornerShape(18.dp),
+            medium = RoundedCornerShape(22.dp),
+            large = RoundedCornerShape(28.dp),
+            extraLarge = RoundedCornerShape(32.dp),
+        ),
+    ) {
+        AnimatedContent(
+            targetState = detail,
+            transitionSpec = {
+                val forward = when {
                 initialState == "device" && targetState == "about" -> false
                 initialState == "about" && targetState == "device" -> true
                 initialState == CompliancePageIds.INDEX && targetState == "about" -> false
@@ -133,26 +164,43 @@ internal fun SettingsScreen(
                 initialState == "font_library" && targetState == "font" -> false
                 initialState == "theme_mode" && targetState == "custom_theme_color" -> true
                 initialState == "font" && targetState == "font_library" -> true
+                initialState in setOf("topic_summary_model_topic", "topic_summary_model_compression") && targetState == "topic_summary_model" -> false
+                initialState == "topic_summary_model" && targetState in setOf("topic_summary_model_topic", "topic_summary_model_compression") -> true
                 initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
                 initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
                 initialState == "mini_server_logs" && targetState == "mini_server" -> false
                 initialState == "mini_server" && targetState == "mini_server_logs" -> true
                 targetState == null -> false
                 else -> true
-            }
-            slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth / 3 } togetherWith
-                slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth / 3 else fullWidth }
-        },
-        label = "settings-detail-transition",
-    ) { target ->
-        if (target != null) {
-            SettingsDetailPage(
-                scroll = target !in setOf("prompts", "memories", "licenses", "about", "device", "font_library"),
-            ) {
-                when (target) {
+                }
+                slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth / 3 } togetherWith
+                    slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth / 3 else fullWidth }
+            },
+            label = "settings-detail-transition",
+        ) { target ->
+            if (target != null) {
+                SettingsDetailPage(
+                    scroll = target !in setOf("model", "prompts", "memories", "licenses", "about", "device", "font_library"),
+                ) {
+                    when (target) {
                     "profile" -> ProfileSettingsSummary(settings)
-                    "model" -> ModelServiceSettings(settings, controller)
-                    "topic_summary_model" -> TopicSummaryModelSettings(settings, controller)
+                    "model" -> ModelServiceSettings(
+                        settings = settings,
+                        controller = controller,
+                        externalBackRequest = modelBackRequest,
+                        onNestedPageChanged = { active, title ->
+                            modelNestedPageActive = active
+                            onDetailTitleChange(
+                                if (active) title else settingsDetailTitle(context, "model"),
+                            )
+                        },
+                    )
+                    "topic_summary_model" -> TopicSummaryModelSettings(
+                        onOpenTopic = { detail = "topic_summary_model_topic" },
+                        onOpenCompression = { detail = "topic_summary_model_compression" },
+                    )
+                    "topic_summary_model_topic" -> TopicSummaryModelEditor(settings, controller)
+                    "topic_summary_model_compression" -> HistoryCompressionModelEditor(settings, controller)
                     "sub_agents" -> SubAgentSettings(settings, controller)
 
                     "theme" -> ThemeSettings(
@@ -257,74 +305,108 @@ internal fun SettingsScreen(
                     CompliancePageIds.THIRD_PARTY,
                     CompliancePageIds.APP_PERMISSIONS -> ComplianceDocumentScreen(target)
                     else -> Text(context.getString(R.string.settings_not_available), color = KimiMuted)
+                    }
+                }
+                return@AnimatedContent
+            }
+
+        val modelEntries = listOf(
+            SettingsMenuEntry(Icons.Default.AccountCircle, context.getString(R.string.menu_profile), context.getString(R.string.menu_profile_desc), "profile"),
+            SettingsMenuEntry(Icons.Default.SmartToy, context.getString(R.string.menu_model_service), context.getString(R.string.menu_model_service_desc), "model"),
+            SettingsMenuEntry(Icons.Default.Summarize, context.getString(R.string.menu_topic_summary_model), context.getString(R.string.menu_topic_summary_model_desc), "topic_summary_model"),
+            SettingsMenuEntry(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc), "sub_agents"),
+            SettingsMenuEntry(Icons.Default.TravelExplore, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc), "web_search"),
+            SettingsMenuEntry(Icons.Default.Terminal, context.getString(R.string.menu_termux), context.getString(R.string.menu_termux_desc), "termux"),
+            SettingsMenuEntry(ImageVector.vectorResource(R.drawable.ic_mcp), context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc), "mcp"),
+            SettingsMenuEntry(Icons.Default.Hub, context.getString(R.string.menu_local_mcp), context.getString(R.string.menu_local_mcp_desc), "local_mcp"),
+            SettingsMenuEntry(Icons.Default.Key, context.getString(R.string.menu_ssh), context.getString(R.string.menu_ssh_desc), "ssh"),
+            SettingsMenuEntry(Icons.Default.CloudSync, context.getString(R.string.menu_webdav), context.getString(R.string.menu_webdav_desc), "webdav"),
+            SettingsMenuEntry(Icons.Default.SyncAlt, context.getString(R.string.menu_file_transfer), context.getString(R.string.menu_file_transfer_desc), "file_transfer"),
+            SettingsMenuEntry(Icons.Default.Lan, context.getString(R.string.menu_mini_server), context.getString(R.string.menu_mini_server_desc), "mini_server"),
+        )
+        val personalizationEntries = listOf(
+            SettingsMenuEntry(
+                Icons.Default.Palette,
+                context.getString(R.string.menu_theme),
+                context.getString(
+                    R.string.menu_theme_current_full,
+                    if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode),
+                    languageName(languageMode),
+                    refreshRateName(refreshRateMode),
+                    fontScaleName(fontScaleMode, customFontScale),
+                ),
+                "theme",
+            ),
+            SettingsMenuEntry(Icons.Default.EditNote, context.getString(R.string.menu_system_prompt), context.getString(R.string.menu_system_prompt_desc), "prompts"),
+            SettingsMenuEntry(Icons.Default.Psychology, context.getString(R.string.menu_memory), context.getString(R.string.menu_memory_desc, settings.memories().count { it.enabled }), "memories"),
+            SettingsMenuEntry(Icons.Default.School, context.getString(R.string.menu_skills), context.getString(R.string.menu_skills_desc, skills.size), "skills"),
+        )
+        val generalEntries = listOf(
+            SettingsMenuEntry(Icons.Default.Construction, context.getString(R.string.menu_agent_tools), context.getString(R.string.menu_agent_tools_desc), "tools"),
+            SettingsMenuEntry(Icons.Default.Storage, context.getString(R.string.menu_storage), context.getString(R.string.menu_storage_desc), "storage"),
+            SettingsMenuEntry(Icons.Default.Backup, context.getString(R.string.menu_backup), context.getString(R.string.menu_backup_desc), "backup"),
+            SettingsMenuEntry(Icons.Default.AdminPanelSettings, context.getString(R.string.menu_system_permissions), context.getString(R.string.menu_system_permissions_desc), "system_permissions"),
+            SettingsMenuEntry(Icons.Default.Security, context.getString(R.string.menu_app_permissions), context.getString(R.string.menu_app_permissions_desc), "permissions"),
+            SettingsMenuEntry(Icons.Default.Description, context.getString(R.string.menu_licenses), context.getString(R.string.menu_licenses_desc), "licenses"),
+            SettingsMenuEntry(Icons.Default.Info, context.getString(R.string.menu_about), context.getString(R.string.menu_about_desc), "about"),
+        )
+        val normalizedQuery = settingsQuery.trim()
+        fun filtered(entries: List<SettingsMenuEntry>): List<SettingsMenuEntry> {
+            if (normalizedQuery.isBlank()) return entries
+            return entries.filter {
+                it.title.contains(normalizedQuery, ignoreCase = true) ||
+                    it.description.contains(normalizedQuery, ignoreCase = true)
+            }
+        }
+        val visibleGroups = listOf(
+            context.getString(R.string.section_model_service) to filtered(modelEntries),
+            context.getString(R.string.section_personalization) to filtered(personalizationEntries),
+            context.getString(R.string.section_general) to filtered(generalEntries),
+        )
+
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+                    .verticalScroll(settingsListScroll)
+                    .padding(horizontal = 18.dp, vertical = 18.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+            CapsuleTextField(
+                value = settingsQuery,
+                onValueChange = { settingsQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = context.getString(R.string.settings_search_hint),
+                leadingIcon = {
+                    Icon(
+                        Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.size(21.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                },
+            )
+            visibleGroups.forEach { (label, entries) ->
+                if (entries.isNotEmpty()) {
+                    KimiSectionLabel(label)
+                    KimiCardBox {
+                        entries.forEachIndexed { index, entry ->
+                            KimiMenuRow(entry.icon, entry.title, entry.description) {
+                                detail = entry.target
+                            }
+                            if (index != entries.lastIndex) KimiDivider()
+                        }
+                    }
                 }
             }
-            return@AnimatedContent
-        }
-
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(MaterialTheme.colorScheme.background)
-                .verticalScroll(settingsListScroll)
-                .padding(horizontal = 18.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
-        ) {
-            KimiSectionLabel(context.getString(R.string.section_model_service))
-            KimiCardBox {
-                KimiMenuRow(Icons.Default.AccountCircle, context.getString(R.string.menu_profile), context.getString(R.string.menu_profile_desc)) { detail = "profile" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Cloud, context.getString(R.string.menu_model_service), context.getString(R.string.menu_model_service_desc)) { detail = "model" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Topic, context.getString(R.string.menu_topic_summary_model), context.getString(R.string.menu_topic_summary_model_desc)) { detail = "topic_summary_model" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc)) { detail = "sub_agents" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Search, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc)) { detail = "web_search" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Terminal, context.getString(R.string.menu_termux), context.getString(R.string.menu_termux_desc)) { detail = "termux" }
-                KimiDivider()
-                KimiMenuRow(ImageVector.vectorResource(R.drawable.ic_mcp), context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc)) { detail = "mcp" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Hub, context.getString(R.string.menu_local_mcp), context.getString(R.string.menu_local_mcp_desc)) { detail = "local_mcp" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Dns, context.getString(R.string.menu_ssh), context.getString(R.string.menu_ssh_desc)) { detail = "ssh" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Cloud, context.getString(R.string.menu_webdav), context.getString(R.string.menu_webdav_desc)) { detail = "webdav" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.SyncAlt, context.getString(R.string.menu_file_transfer), context.getString(R.string.menu_file_transfer_desc)) { detail = "file_transfer" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Language, context.getString(R.string.menu_mini_server), context.getString(R.string.menu_mini_server_desc)) { detail = "mini_server" }
+            if (visibleGroups.all { it.second.isEmpty() }) {
+                Text(
+                    context.getString(R.string.settings_search_no_results),
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
             }
-            KimiSectionLabel(context.getString(R.string.section_personalization))
-            KimiCardBox {
-                KimiMenuRow(
-                    Icons.Default.Palette,
-                    context.getString(R.string.menu_theme),
-                    context.getString(R.string.menu_theme_current_full, if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode), languageName(languageMode), refreshRateName(refreshRateMode), fontScaleName(fontScaleMode, customFontScale)),
-                ) { detail = "theme" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.EditNote, context.getString(R.string.menu_system_prompt), context.getString(R.string.menu_system_prompt_desc)) { detail = "prompts" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Psychology, context.getString(R.string.menu_memory), context.getString(R.string.menu_memory_desc, settings.memories().count { it.enabled })) { detail = "memories" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.School, context.getString(R.string.menu_skills), context.getString(R.string.menu_skills_desc, skills.size)) { detail = "skills" }
-            }
-            KimiSectionLabel(context.getString(R.string.section_general))
-            KimiCardBox {
-                KimiMenuRow(Icons.Default.Build, context.getString(R.string.menu_agent_tools), context.getString(R.string.menu_agent_tools_desc)) { detail = "tools" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Storage, context.getString(R.string.menu_storage), context.getString(R.string.menu_storage_desc)) { detail = "storage" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.ImportExport, context.getString(R.string.menu_backup), context.getString(R.string.menu_backup_desc)) { detail = "backup" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.AdminPanelSettings, context.getString(R.string.menu_system_permissions), context.getString(R.string.menu_system_permissions_desc)) { detail = "system_permissions" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Security, context.getString(R.string.menu_app_permissions), context.getString(R.string.menu_app_permissions_desc)) { detail = "permissions" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Description, context.getString(R.string.menu_licenses), context.getString(R.string.menu_licenses_desc)) { detail = "licenses" }
-                KimiDivider()
-                KimiMenuRow(Icons.Default.Info, context.getString(R.string.menu_about), context.getString(R.string.menu_about_desc)) { detail = "about" }
             }
         }
     }
@@ -340,8 +422,8 @@ internal fun SettingsDetailPage(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .imePadding()
-            .padding(horizontal = 18.dp, vertical = 14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
+            .padding(horizontal = 18.dp, vertical = 18.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         val bodyModifier = if (scroll) {
             Modifier
@@ -353,7 +435,7 @@ internal fun SettingsDetailPage(
                 .weight(1f)
                 .fillMaxWidth()
         }
-        Column(bodyModifier, verticalArrangement = Arrangement.spacedBy(14.dp), content = content)
+        Column(bodyModifier, verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
     }
 }
 
@@ -361,6 +443,8 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "profile" -> context.getString(R.string.detail_profile)
     "model" -> context.getString(R.string.detail_model)
     "topic_summary_model" -> context.getString(R.string.detail_topic_summary_model)
+    "topic_summary_model_topic" -> uiText("话题总结模型")
+    "topic_summary_model_compression" -> uiText("会话历史压缩模型")
     "sub_agents" -> context.getString(R.string.detail_sub_agents)
     "web_search" -> context.getString(R.string.detail_web_search)
     "workspace" -> context.getString(R.string.detail_workspace)

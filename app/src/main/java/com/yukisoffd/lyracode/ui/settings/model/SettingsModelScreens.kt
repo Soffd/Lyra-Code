@@ -9,8 +9,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -68,6 +71,7 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
@@ -107,56 +111,29 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
 }
 
 @Composable
-internal fun TopicSummaryModelSettings(settings: AppSettings, controller: ChatController) {
-    var page by rememberSaveable { mutableStateOf("root") }
-    BackHandler(enabled = page != "root") { page = "root" }
-    AnimatedContent(
-        targetState = page,
-        modifier = Modifier.fillMaxWidth(),
-        transitionSpec = {
-            val forward = initialState == "root" && targetState != "root"
-            slideInHorizontally(animationSpec = tween(260)) { fullWidth ->
-                if (forward) fullWidth else -fullWidth / 3
-            } togetherWith slideOutHorizontally(animationSpec = tween(260)) { fullWidth ->
-                if (forward) -fullWidth / 3 else fullWidth
-            }
-        },
-        label = "feature-model-page-transition",
-    ) { targetPage ->
-        when (targetPage) {
-            "topic" -> TopicSummaryModelEditor(settings, controller, onBack = { page = "root" })
-            "compression" -> HistoryCompressionModelEditor(settings, controller, onBack = { page = "root" })
-            else -> KimiCardBox {
-                KimiMenuRow(
-                    icon = Icons.Default.Topic,
-                    title = uiText("话题总结模型"),
-                    value = uiText("为新对话生成简短标题"),
-                    onClick = { page = "topic" },
-                )
-                KimiDivider()
-                KimiMenuRow(
-                    icon = Icons.Default.Compress,
-                    title = uiText("会话历史压缩模型"),
-                    value = uiText("设置手动与自动压缩使用的模型"),
-                    onClick = { page = "compression" },
-                )
-            }
-        }
+internal fun TopicSummaryModelSettings(
+    onOpenTopic: () -> Unit,
+    onOpenCompression: () -> Unit,
+) {
+    KimiCardBox {
+        KimiMenuRow(
+            icon = Icons.Default.Topic,
+            title = uiText("话题总结模型"),
+            value = uiText("为新对话生成简短标题"),
+            onClick = onOpenTopic,
+        )
+        KimiDivider()
+        KimiMenuRow(
+            icon = Icons.Default.Compress,
+            title = uiText("会话历史压缩模型"),
+            value = uiText("设置手动与自动压缩使用的模型"),
+            onClick = onOpenCompression,
+        )
     }
 }
 
 @Composable
-private fun FeatureModelPageHeader(title: String, onBack: () -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        IconButton(onClick = onBack) {
-            Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回"))
-        }
-        Text(title, style = MaterialTheme.typography.titleLarge)
-    }
-}
-
-@Composable
-private fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatController, onBack: () -> Unit) {
+internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatController) {
     val profiles = controller.profiles.toList()
     var profileId by remember { mutableStateOf(settings.topicSummaryProfile().id) }
     val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
@@ -167,7 +144,6 @@ private fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatContr
         )
     }
     var notice by remember { mutableStateOf("") }
-    FeatureModelPageHeader(uiText("话题总结模型"), onBack)
     KimiCardBox {
         Text(uiText("独立话题总结模型"), style = MaterialTheme.typography.titleMedium)
         Text(
@@ -218,7 +194,7 @@ private fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatContr
 }
 
 @Composable
-private fun HistoryCompressionModelEditor(settings: AppSettings, controller: ChatController, onBack: () -> Unit) {
+internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: ChatController) {
     val profiles = controller.profiles.toList()
     var compressionNotice by remember { mutableStateOf("") }
     var compressionEnabled by remember {
@@ -235,7 +211,6 @@ private fun HistoryCompressionModelEditor(settings: AppSettings, controller: Cha
             } ?: compressionProfile?.selectedModel.orEmpty(),
         )
     }
-    FeatureModelPageHeader(uiText("会话历史压缩模型"), onBack)
     KimiCardBox {
         Text(uiText("会话历史压缩模型"), style = MaterialTheme.typography.titleMedium)
         Text(
@@ -303,12 +278,20 @@ private fun HistoryCompressionModelEditor(settings: AppSettings, controller: Cha
 internal fun ModelServiceSettings(
     settings: AppSettings,
     controller: ChatController,
+    externalBackRequest: Int = 0,
+    onNestedPageChanged: (Boolean, String) -> Unit = { _, _ -> },
 ) {
     var profiles by remember { mutableStateOf(controller.profiles.toList()) }
     var editingProfileId by rememberSaveable { mutableStateOf<String?>(null) }
     var draftNewProfile by remember { mutableStateOf<ApiProfile?>(null) }
+    var draftPresetId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showProviderPicker by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var showReachabilityPage by rememberSaveable { mutableStateOf(false) }
+    val serviceListScrollState = rememberScrollState()
+    val providerPickerScrollState = rememberScrollState()
+    val editorScrollState = rememberScrollState()
+    val reachabilityScrollState = rememberScrollState()
     LaunchedEffect(controller.activeProfileId.value, controller.profiles.size, controller.settingsRevision.intValue) {
         val refreshed = controller.profiles.toList()
         profiles = refreshed
@@ -317,18 +300,40 @@ internal fun ModelServiceSettings(
             showReachabilityPage = false
         }
     }
-    BackHandler(enabled = editingProfileId != null) {
+    fun navigateBackWithinModel() {
         if (showReachabilityPage) {
             showReachabilityPage = false
-        } else {
-            if (draftNewProfile?.id == editingProfileId) draftNewProfile = null
+        } else if (editingProfileId != null) {
+            val isUnsavedNewProfile = draftNewProfile?.id == editingProfileId
+            draftNewProfile = null
+            draftPresetId = null
             editingProfileId = null
+            showProviderPicker = isUnsavedNewProfile
+        } else if (showProviderPicker) {
+            showProviderPicker = false
+        } else {
+            draftNewProfile = null
+            draftPresetId = null
+        }
+    }
+    BackHandler(enabled = editingProfileId != null || showProviderPicker) {
+        navigateBackWithinModel()
+    }
+    LaunchedEffect(externalBackRequest) {
+        if (externalBackRequest > 0 && (editingProfileId != null || showProviderPicker)) {
+            navigateBackWithinModel()
         }
     }
     val editingIndex = profiles.indexOfFirst { it.id == editingProfileId }
     val current = if (draftNewProfile?.id == editingProfileId) draftNewProfile else profiles.getOrNull(editingIndex)
     var platformMenuExpanded by remember { mutableStateOf(false) }
     val editKey = editingProfileId ?: "none"
+    LaunchedEffect(editKey) {
+        if (editingProfileId != null) {
+            editorScrollState.scrollTo(0)
+            reachabilityScrollState.scrollTo(0)
+        }
+    }
     var name by remember(editKey) { mutableStateOf(current?.name.orEmpty()) }
     var key by remember(editKey) { mutableStateOf(current?.apiKey.orEmpty()) }
     var baseUrl by remember(editKey) { mutableStateOf(current?.baseUrl.orEmpty()) }
@@ -336,6 +341,7 @@ internal fun ModelServiceSettings(
     var chatPath by remember(editKey) { mutableStateOf(current?.chatPath ?: ApiProfile.defaultChatPath(apiFormat)) }
     var model by remember(editKey) { mutableStateOf(current?.selectedModel.orEmpty()) }
     var savedModels by remember(editKey) { mutableStateOf(current?.savedModels.orEmpty().joinToString("\n")) }
+    var advancedExpanded by remember(editKey) { mutableStateOf(draftNewProfile == null || draftPresetId == null) }
     var selectedReachabilityModels by remember(editKey) { mutableStateOf<Set<String>>(emptySet()) }
     var providerReachabilityResult by remember(editKey) { mutableStateOf<ProviderReachabilityResult?>(null) }
     var modelReachabilityResults by remember(editKey) { mutableStateOf<List<ModelReachabilityResult>>(emptyList()) }
@@ -344,6 +350,18 @@ internal fun ModelServiceSettings(
     var status by remember { mutableStateOf("") }
     var notice by remember { mutableStateOf("") }
     var deleteTarget by remember { mutableStateOf<ApiProfile?>(null) }
+    val uriHandler = LocalUriHandler.current
+    val matchedPreset = ProviderCatalog.byId(current?.presetId ?: draftPresetId)
+    val matchedPlan = matchedPreset?.resolvePlan(current?.presetPlanId, current?.baseUrl.orEmpty())
+    val nestedTitle = when {
+        showProviderPicker -> uiText("选择服务商")
+        showReachabilityPage -> uiText("可达性检测")
+        editingProfileId != null -> current?.name?.ifBlank { uiText("新模型服务") } ?: uiText("新模型服务")
+        else -> uiText("模型服务")
+    }
+    LaunchedEffect(editingProfileId, showProviderPicker, showReachabilityPage, nestedTitle) {
+        onNestedPageChanged(editingProfileId != null || showProviderPicker, nestedTitle)
+    }
     val reachabilityModels = remember(savedModels, model) {
         (savedModels.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList() + model.trim())
             .filter { it.isNotBlank() }
@@ -364,13 +382,15 @@ internal fun ModelServiceSettings(
         val selected = selectedModelOverride ?: model.ifBlank { models.firstOrNull().orEmpty() }
         return ApiProfile(
             id = current?.id ?: AppSettings.newId(),
+            presetId = current?.presetId.orEmpty(),
+            presetPlanId = current?.presetPlanId.orEmpty(),
             name = name.ifBlank { uiText("未命名平台") },
             apiKey = key,
             baseUrl = baseUrl.ifBlank { defaultBaseUrlForApiFormat(apiFormat) },
             chatPath = ApiProfile.normalizedChatPath(apiFormat, chatPath),
             apiFormat = apiFormat,
-            selectedModel = selected.ifBlank { "gpt-4o-mini" },
-            savedModels = models.ifEmpty { listOf(selected.ifBlank { "gpt-4o-mini" }) }.distinct(),
+            selectedModel = selected,
+            savedModels = (models + selected).filter { it.isNotBlank() }.distinct(),
         )
     }
     fun saveCurrentProfile() {
@@ -382,6 +402,7 @@ internal fun ModelServiceSettings(
         }
         profiles = updatedProfiles
         draftNewProfile = null
+        draftPresetId = null
         controller.saveProfiles(updatedProfiles, updated.id)
         editingProfileId = updated.id
         status = ""
@@ -443,14 +464,19 @@ internal fun ModelServiceSettings(
 
     Box(Modifier.fillMaxSize()) {
         AnimatedContent(
-            targetState = editingProfileId != null,
+            targetState = when {
+                editingProfileId != null -> 2
+                showProviderPicker -> 1
+                else -> 0
+            },
             transitionSpec = {
-                (fadeIn(animationSpec = tween(180)) + slideInHorizontally { if (targetState) it / 6 else -it / 6 })
-                    .togetherWith(fadeOut(animationSpec = tween(140)) + slideOutHorizontally { if (targetState) -it / 8 else it / 8 })
+                val forward = targetState > initialState
+                (fadeIn(animationSpec = tween(180)) + slideInHorizontally { if (forward) it / 6 else -it / 6 })
+                    .togetherWith(fadeOut(animationSpec = tween(140)) + slideOutHorizontally { if (forward) -it / 8 else it / 8 })
             },
             label = "model-service-page",
-        ) { editing ->
-        if (!editing) {
+        ) { page ->
+        if (page == 0) {
             val filtered = remember(profiles, query) {
                 val q = query.trim()
                 if (q.isBlank()) profiles else profiles.filter {
@@ -459,7 +485,12 @@ internal fun ModelServiceSettings(
                         it.selectedModel.contains(q, ignoreCase = true)
                 }
             }
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(serviceListScrollState),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
                     CapsuleTextField(
                         value = query,
@@ -470,18 +501,7 @@ internal fun ModelServiceSettings(
                     )
                     IconButton(
                         onClick = {
-                            val newProfile = ApiProfile(
-                                id = AppSettings.newId(),
-                                name = uiText("新平台"),
-                                apiKey = "",
-                                baseUrl = "https://api.openai.com/v1",
-                                chatPath = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
-                                apiFormat = ApiProfile.API_FORMAT_OPENAI,
-                                selectedModel = "gpt-4o-mini",
-                                savedModels = listOf("gpt-4o-mini"),
-                            )
-                            draftNewProfile = newProfile
-                            editingProfileId = newProfile.id
+                            showProviderPicker = true
                         },
                         modifier = Modifier
                             .clip(CircleShape)
@@ -502,94 +522,199 @@ internal fun ModelServiceSettings(
                     filtered.forEach { profile ->
                         ModelProviderRow(
                             profile = profile,
-                            selected = profile.id == controller.activeProfileId.value,
                             onClick = { editingProfileId = profile.id },
                             onDelete = { if (profiles.size > 1) deleteTarget = profile else notice = uiText("至少保留一个模型服务") },
                         )
                     }
                 }
             }
+        } else if (page == 1) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(providerPickerScrollState),
+            ) {
+                ProviderPresetPicker(
+                    onSelect = { preset, plan ->
+                        val newProfile = preset.createProfile(AppSettings.newId(), plan.id)
+                        draftPresetId = preset.id
+                        draftNewProfile = newProfile
+                        showProviderPicker = false
+                        editingProfileId = newProfile.id
+                    },
+                    onCustom = {
+                        val newProfile = ApiProfile(
+                            id = AppSettings.newId(),
+                            name = uiText("新平台"),
+                            apiKey = "",
+                            baseUrl = "https://api.openai.com/v1",
+                            chatPath = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
+                            apiFormat = ApiProfile.API_FORMAT_OPENAI,
+                            selectedModel = "gpt-4o-mini",
+                            savedModels = listOf("gpt-4o-mini"),
+                        )
+                        draftPresetId = null
+                        draftNewProfile = newProfile
+                        showProviderPicker = false
+                        editingProfileId = newProfile.id
+                    },
+                )
+            }
         } else if (showReachabilityPage) {
-            ReachabilitySelectionPage(
-                providerName = current?.name?.ifBlank { uiText("模型服务") } ?: uiText("模型服务"),
-                models = reachabilityModels,
-                selectedModels = selectedReachabilityModels,
-                checking = reachabilityChecking,
-                provider = providerReachabilityResult,
-                modelResults = modelReachabilityResults,
-                activeModel = activeReachabilityModel,
-                status = status,
-                onSelectedModelsChange = { selectedReachabilityModels = it },
-                onBack = { showReachabilityPage = false },
-                onStartCheck = { startReachabilityCheck(reachabilityModels.filter { it in selectedReachabilityModels }) },
-            )
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(reachabilityScrollState),
+            ) {
+                ReachabilitySelectionPage(
+                    providerName = current?.name?.ifBlank { uiText("模型服务") } ?: uiText("模型服务"),
+                    models = reachabilityModels,
+                    selectedModels = selectedReachabilityModels,
+                    checking = reachabilityChecking,
+                    provider = providerReachabilityResult,
+                    modelResults = modelReachabilityResults,
+                    activeModel = activeReachabilityModel,
+                    status = status,
+                    onSelectedModelsChange = { selectedReachabilityModels = it },
+                    onBack = { showReachabilityPage = false },
+                    onStartCheck = { startReachabilityCheck(reachabilityModels.filter { it in selectedReachabilityModels }) },
+                )
+            }
         } else {
-            Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(current?.name?.ifBlank { uiText("新模型服务") } ?: uiText("模型服务"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    IconButton(onClick = {
-                        showReachabilityPage = false
-                        if (draftNewProfile?.id == editingProfileId) draftNewProfile = null
-                        editingProfileId = null
-                    }) {
-                        Icon(Icons.Default.ViewList, contentDescription = uiText("返回列表"))
-                    }
-                }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(editorScrollState),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
                 KimiCardBox {
-                    Text(uiText("接口格式"), style = MaterialTheme.typography.titleSmall)
-                    Row(
-                        Modifier.horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        ApiFormatOption("OpenAI SDK", ApiProfile.API_FORMAT_OPENAI, apiFormat) {
-                            apiFormat = it
-                            if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
-                        }
-                        ApiFormatOption("Anthropic Messages", ApiProfile.API_FORMAT_ANTHROPIC, apiFormat) {
-                            apiFormat = it
-                            if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
-                        }
-                        ApiFormatOption("Gemini GenerateContent", ApiProfile.API_FORMAT_GEMINI, apiFormat) {
-                            apiFormat = it
-                            if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                            if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                    matchedPreset?.let { preset ->
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            AiLogoBadge(
+                                logoRes = preset.logoRes,
+                                fallback = preset.displayName(),
+                                modifier = Modifier.size(52.dp),
+                            )
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    preset.displayName(),
+                                    style = MaterialTheme.typography.titleMedium,
+                                )
+                                Text(
+                                    if (matchedPlan?.id != null && matchedPlan.id != ProviderPresetPlan.DEFAULT_ID) {
+                                        "${apiFormatShortName(apiFormat)} · ${matchedPlan.displayName()}"
+                                    } else {
+                                        apiFormatShortName(apiFormat)
+                                    },
+                                    color = KimiMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            IconButton(
+                                onClick = { runCatching { uriHandler.openUri(preset.websiteUrl) } },
+                            ) {
+                                Icon(
+                                    Icons.Default.OpenInNew,
+                                    contentDescription = uiText("打开服务商官网"),
+                                    tint = MaterialTheme.colorScheme.primary,
+                                )
+                            }
                         }
                     }
-                    Text(
-                        apiFormatDescription(apiFormat),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
                     OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("服务商名称")) }, singleLine = true)
                     OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), label = { Text(apiKeyLabel(apiFormat)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                    OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("基础 URL")) }, singleLine = true)
-                    OutlinedTextField(
-                        value = chatPath,
-                        onValueChange = { chatPath = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text(uiText("请求路径")) },
-                        placeholder = { Text(ApiProfile.defaultChatPath(apiFormat)) },
-                        singleLine = true,
-                    )
-                    Text(
-                        uiText("用于兼容非默认 OpenAI 路径的服务商。留空时使用当前接口格式的默认请求路径。"),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    if (baseUrl.trim().startsWith("http://", ignoreCase = true)) {
-                        Text(
-                            uiText("安全提示：当前基础 URL 使用 HTTP 明文传输，API Key 和对话内容可能被同一网络中的第三方截获。"),
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall,
-                        )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .clickable { advancedExpanded = !advancedExpanded },
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.62f),
+                        shape = RoundedCornerShape(16.dp),
+                    ) {
+                        Row(
+                            Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(19.dp))
+                            Spacer(Modifier.width(9.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text(uiText("高级配置"), style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    uiText("接口地址与格式可随时修改"),
+                                    color = KimiMuted,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            Icon(
+                                if (advancedExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = null,
+                            )
+                        }
                     }
-                    Text(
-                        endpointHint(apiFormat, baseUrl, chatPath),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    AnimatedVisibility(
+                        visible = advancedExpanded,
+                        enter = expandVertically(animationSpec = tween(220)) + fadeIn(animationSpec = tween(180)),
+                        exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(130)),
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(uiText("接口格式"), style = MaterialTheme.typography.titleSmall)
+                            Row(
+                                Modifier.horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                ApiFormatOption("OpenAI SDK", ApiProfile.API_FORMAT_OPENAI, apiFormat) {
+                                    apiFormat = it
+                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                }
+                                ApiFormatOption("Anthropic Messages", ApiProfile.API_FORMAT_ANTHROPIC, apiFormat) {
+                                    apiFormat = it
+                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                }
+                                ApiFormatOption("Gemini GenerateContent", ApiProfile.API_FORMAT_GEMINI, apiFormat) {
+                                    apiFormat = it
+                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                }
+                            }
+                            Text(
+                                apiFormatDescription(apiFormat),
+                                color = KimiMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("基础 URL")) }, singleLine = true)
+                            OutlinedTextField(
+                                value = chatPath,
+                                onValueChange = { chatPath = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text(uiText("请求路径")) },
+                                placeholder = { Text(ApiProfile.defaultChatPath(apiFormat)) },
+                                singleLine = true,
+                            )
+                            Text(
+                                uiText("用于兼容非默认请求路径的服务商。留空时使用当前接口格式的默认请求路径。"),
+                                color = KimiMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                            if (baseUrl.trim().startsWith("http://", ignoreCase = true)) {
+                                Text(
+                                    uiText("安全提示：当前基础 URL 使用 HTTP 明文传输，API Key 和对话内容可能被同一网络中的第三方截获。"),
+                                    color = MaterialTheme.colorScheme.error,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+                            Text(
+                                endpointHint(apiFormat, baseUrl, chatPath),
+                                color = KimiMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
                     OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("默认模型")) }, singleLine = true)
                     OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("预保存模型，每行一个")) }, minLines = 3)
                     OutlinedButton(
@@ -1146,11 +1271,8 @@ internal fun defaultBaseUrlForApiFormat(format: String): String = when (format) 
     else -> "https://api.openai.com/v1"
 }
 
-internal fun knownProviderBaseUrls(): Set<String> = setOf(
-    "https://api.openai.com/v1",
-    "https://api.anthropic.com/v1",
-    "https://generativelanguage.googleapis.com/v1beta",
-)
+internal fun knownProviderBaseUrls(): Set<String> =
+    ProviderCatalog.presets.flatMapTo(linkedSetOf()) { preset -> preset.plans().map { it.baseUrl } }
 
 internal fun knownProviderChatPaths(): Set<String> = setOf(
     ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
@@ -1173,7 +1295,7 @@ internal fun endpointHint(format: String, baseUrl: String, chatPath: String): St
     val root = baseUrl.trim().trimEnd('/').ifBlank { defaultBaseUrlForApiFormat(format) }
     val path = ApiProfile.normalizedChatPath(format, chatPath)
     return when (format) {
-        ApiProfile.API_FORMAT_GEMINI -> uiText("请求端点：$root/models/{model}:generateContent；模型列表：$root/models")
+        ApiProfile.API_FORMAT_GEMINI -> uiText("请求端点：$root$path；模型列表：$root/models")
         else -> uiText("请求端点：$root$path；模型列表：$root/models")
     }
 }

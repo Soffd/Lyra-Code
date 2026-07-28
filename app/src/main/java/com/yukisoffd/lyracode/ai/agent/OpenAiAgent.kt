@@ -165,6 +165,9 @@ class OpenAiAgent(
     var approvalHandler: suspend (ToolApprovalRequest) -> ToolApprovalDecision = { ToolApprovalDecision.Approved }
     var todoSetHandler: suspend (Long, List<TodoItem>) -> String = { _, _ -> "TODO list recorded." }
     var todoUpdateHandler: suspend (Long, String, String, String) -> String = { _, _, _, _ -> "TODO item updated." }
+    var userQuestionHandler: suspend (UserQuestionRequest) -> UserQuestionAnswer = {
+        UserQuestionAnswer(status = UserQuestionAnswer.STATUS_UNAVAILABLE)
+    }
     var configChangedHandler: suspend () -> Unit = {}
     var fileEditHandler: suspend (AgentFileMutation) -> AgentFileEditResult = { AgentFileEditResult.NotHandled }
     var fileMutationHandler: suspend (AgentFileMutation) -> Unit = {}
@@ -1488,6 +1491,9 @@ class OpenAiAgent(
                 "mark_web_sources" -> ToolExecution(webSourceMarkResult(args))
                 "manage_app_config" -> ToolExecution(manageAppConfig(args))
                 "run_sub_agents" -> ToolExecution(runSubAgents(conversationId, args, onStatus))
+                "ask_user" -> ToolExecution(
+                    userQuestionHandler(parseUserQuestionRequest(conversationId, args)).toAgentJson(),
+                )
                 "set_todo_list" -> ToolExecution(todoSetHandler(conversationId, parseTodoItems(args)))
                 "update_todo_item" -> ToolExecution(
                     todoUpdateHandler(
@@ -3774,6 +3780,10 @@ class OpenAiAgent(
             For multistep tasks, file changes, or command execution, call set_todo_list before acting and keep item states accurate with update_todo_item. Do not create a TODO list for a simple answer or single trivial action.
             At most one TODO item should be running at a time. Mark an item completed only after its intended outcome is verified; mark it blocked with a concrete reason when progress cannot continue.
 
+            # Follow-up questions
+            When ask_user is available, use it during a complex task only if a material ambiguity, user preference, or unexpected situation would meaningfully change the result. Give every question a concise title and one focused, self-contained question. Suggested options may be empty and are never exhaustive because the UI always includes a free-text field; users may select multiple options and add extra details.
+            Do not call ask_user for information already provided, a simple question you can answer directly, or facts you can safely discover with available read-only tools. If ask_user returns timed_out, do not ask the same question again unchanged; make a reasonable low-risk choice from the available context and continue. If it returns answered, honor both selected_options and free_text.
+
             # Tool availability and failures
             The current tool list is authoritative. A missing tool is unavailable, disabled, or not permitted; do not invent it or assume shell access.
             Tool results use lyra_tool_output_v2 JSON with schema, ok, tool, content, error, and file_changes. Trust file-change counts and diffs from the result rather than guessing.
@@ -3990,6 +4000,7 @@ class OpenAiAgent(
             "file_transfer_upload_from_workspace",
             "export_backup",
             "import_backup",
+            "ask_user",
             "set_todo_list",
             "update_todo_item",
         )

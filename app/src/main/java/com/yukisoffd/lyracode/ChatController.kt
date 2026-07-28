@@ -19,6 +19,8 @@ import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
 import com.yukisoffd.lyracode.ai.ToolApprovalDecision
 import com.yukisoffd.lyracode.ai.ToolApprovalRequest
 import com.yukisoffd.lyracode.ai.TodoItem
+import com.yukisoffd.lyracode.ai.UserQuestionAnswer
+import com.yukisoffd.lyracode.ai.UserQuestionRequest
 import com.yukisoffd.lyracode.ai.toRecord
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
@@ -33,6 +35,7 @@ import com.yukisoffd.lyracode.workspace.WorkspaceFileReference
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.CompletableDeferred
@@ -46,6 +49,11 @@ import java.io.File
 data class PendingToolApproval(
     val id: Long,
     val request: ToolApprovalRequest,
+)
+
+data class PendingUserQuestion(
+    val id: Long,
+    val request: UserQuestionRequest,
 )
 
 data class EditorFileMutation(
@@ -99,6 +107,7 @@ class ChatController(
     val uploadingStatus = mutableStateOf("")
     val pendingUploads = mutableStateListOf<UploadedFile>()
     val pendingToolApproval = mutableStateOf<PendingToolApproval?>(null)
+    val pendingUserQuestion = mutableStateOf<PendingUserQuestion?>(null)
     val editorFileMutations = mutableStateListOf<EditorFileMutation>()
     val editorFileActivity = mutableStateOf<EditorFileActivity?>(null)
     val editorFileFollowRequests = mutableStateListOf<EditorFileActivity>()
@@ -109,6 +118,9 @@ class ChatController(
     private var lastMessageReloadAt = 0L
     private var approvalId = 0L
     private val approvalWaiters = mutableMapOf<Long, CompletableDeferred<ToolApprovalDecision>>()
+    private var userQuestionId = 0L
+    private val userQuestionWaiters = mutableMapOf<Long, CompletableDeferred<UserQuestionAnswer>>()
+    private var userQuestionTimeoutJob: Job? = null
     private val editorMutationWaiters = mutableMapOf<Long, CompletableDeferred<AgentFileEditResult>>()
     private val autoApprovedConversations = mutableSetOf<Long>()
     private var transientWorkspaceUri = ""
@@ -121,6 +133,7 @@ class ChatController(
 
     init {
         agent.approvalHandler = ::requestToolApproval
+        agent.userQuestionHandler = ::requestUserQuestion
         agent.todoSetHandler = ::setTodos
         agent.todoUpdateHandler = ::updateTodo
         agent.configChangedHandler = ::handleConfigChanged
@@ -763,6 +776,14 @@ class ChatController(
             )
             pendingToolApproval.value = null
         }
+        pendingUserQuestion.value?.takeIf { it.request.conversationId == conversationId }?.let { pending ->
+            userQuestionWaiters.remove(pending.id)?.complete(
+                UserQuestionAnswer(status = UserQuestionAnswer.STATUS_INTERRUPTED),
+            )
+            pendingUserQuestion.value = null
+            userQuestionTimeoutJob?.cancel()
+            userQuestionTimeoutJob = null
+        }
         reloadConversations()
         reloadMessages()
         status.value = appContext.getString(R.string.status_interrupted)
@@ -920,6 +941,7 @@ class ChatController(
     }
 
     private companion object {
+        const val USER_QUESTION_IDLE_TIMEOUT_MS = 10L * 60L * 1000L
         const val ATTACHMENT_MARKER_START = "<lyra_attachment_v1>"
         const val ATTACHMENT_MARKER_END = "</lyra_attachment_v1>"
         const val WORKSPACE_REFERENCE_MARKER_START = "<lyra_workspace_refs_v1>"
@@ -1118,6 +1140,28 @@ class ChatController(
         status.value = if (approved) appContext.getString(R.string.status_approved_tool) else appContext.getString(R.string.status_rejected_tool)
     }
 
+    fun markUserQuestionInteraction(id: Long) {
+        if (pendingUserQuestion.value?.id == id) resetUserQuestionTimeout(id)
+    }
+
+    fun answerUserQuestion(selectedOptions: List<String>, freeText: String) {
+        val pending = pendingUserQuestion.value ?: return
+        val selected = pending.request.options.filter { it in selectedOptions }.distinct()
+        val detail = freeText.trim()
+        if (selected.isEmpty() && detail.isBlank()) return
+        userQuestionWaiters.remove(pending.id)?.complete(
+            UserQuestionAnswer(
+                status = UserQuestionAnswer.STATUS_ANSWERED,
+                selectedOptions = selected,
+                freeText = detail,
+            ),
+        )
+        pendingUserQuestion.value = null
+        userQuestionTimeoutJob?.cancel()
+        userQuestionTimeoutJob = null
+        status.value = appContext.getString(R.string.status_user_answer_submitted)
+    }
+
     private fun currentProfile(): ApiProfile {
         return profiles.firstOrNull { it.id == activeProfileId.value } ?: profiles.first()
     }
@@ -1162,6 +1206,48 @@ class ChatController(
             status.value = appContext.getString(R.string.status_waiting_confirm, request.toolName)
             waiter
         }.await()
+    }
+
+    private suspend fun requestUserQuestion(request: UserQuestionRequest): UserQuestionAnswer {
+        val registration = withContext(Dispatchers.Main) {
+            if (pendingUserQuestion.value != null) {
+                null
+            } else {
+                val id = ++userQuestionId
+                val waiter = CompletableDeferred<UserQuestionAnswer>()
+                userQuestionWaiters[id] = waiter
+                pendingUserQuestion.value = PendingUserQuestion(id, request)
+                status.value = appContext.getString(R.string.status_waiting_user_answer)
+                resetUserQuestionTimeout(id)
+                id to waiter
+            }
+        } ?: return UserQuestionAnswer(status = UserQuestionAnswer.STATUS_UNAVAILABLE)
+        return try {
+            registration.second.await()
+        } finally {
+            withContext(NonCancellable + Dispatchers.Main) {
+                userQuestionWaiters.remove(registration.first)
+                if (pendingUserQuestion.value?.id == registration.first) {
+                    pendingUserQuestion.value = null
+                    userQuestionTimeoutJob?.cancel()
+                    userQuestionTimeoutJob = null
+                }
+            }
+        }
+    }
+
+    private fun resetUserQuestionTimeout(id: Long) {
+        userQuestionTimeoutJob?.cancel()
+        userQuestionTimeoutJob = scope.launch {
+            delay(USER_QUESTION_IDLE_TIMEOUT_MS)
+            if (pendingUserQuestion.value?.id != id) return@launch
+            userQuestionWaiters.remove(id)?.complete(
+                UserQuestionAnswer(status = UserQuestionAnswer.STATUS_TIMED_OUT),
+            )
+            pendingUserQuestion.value = null
+            userQuestionTimeoutJob = null
+            status.value = appContext.getString(R.string.status_user_question_timed_out)
+        }
     }
 
     private suspend fun setTodos(conversationId: Long, items: List<TodoItem>): String = withContext(Dispatchers.Main) {

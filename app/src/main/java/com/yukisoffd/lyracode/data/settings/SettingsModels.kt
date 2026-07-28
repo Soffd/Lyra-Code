@@ -11,6 +11,8 @@ data class ApiProfile(
     val apiFormat: String = API_FORMAT_OPENAI,
     val selectedModel: String,
     val savedModels: List<String>,
+    val presetId: String = "",
+    val presetPlanId: String = "",
 ) {
     val chatEndpoint: String
         get() = "${baseUrl.trimEnd('/')}${normalizedChatPath(apiFormat, chatPath)}"
@@ -20,7 +22,8 @@ data class ApiProfile(
 
     fun geminiGenerateContentEndpoint(model: String): String {
         val encoded = model.trim().removePrefix("models/")
-        return "${baseUrl.trimEnd('/')}/models/$encoded:generateContent"
+        val path = normalizedChatPath(apiFormat, chatPath).replace("{model}", encoded)
+        return "${baseUrl.trimEnd('/')}$path"
     }
 
     companion object {

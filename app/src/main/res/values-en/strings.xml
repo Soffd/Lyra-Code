@@ -250,6 +250,19 @@
     <string name="status_approved_tool">Tool call approved</string>
     <string name="status_rejected_tool">Tool call rejected</string>
     <string name="status_waiting_confirm">Waiting for confirmation: %1$s</string>
+    <string name="status_waiting_user_answer">Waiting for your follow-up answer</string>
+    <string name="status_user_answer_submitted">Follow-up answer submitted</string>
+    <string name="status_user_question_timed_out">Follow-up withdrawn after 10 minutes of inactivity; AI will continue using its best judgment</string>
+    <string name="ask_user_multi_select_hint">You may select multiple options and add other details below.</string>
+    <string name="ask_user_free_text_label">Additional answer</string>
+    <string name="ask_user_free_text_support">Enter an answer not listed above, or add details to your selections.</string>
+    <string name="ask_user_idle_timeout_hint">This question is withdrawn after 10 minutes without a click, scroll, selection, or input.</string>
+    <string name="ask_user_submit">Submit answer</string>
+    <string name="ask_user_confirm_title">Submit this answer?</string>
+    <string name="ask_user_confirm_body">After submission, the AI will continue the current task using these details.</string>
+    <string name="ask_user_confirm_selected">Selected: %1$s</string>
+    <string name="ask_user_confirm_extra">Additional details: %1$s</string>
+    <string name="ask_user_confirm_submit">Confirm submission</string>
     <string name="status_request_retry">Request failed. Retrying in 5 seconds (%1$d/%2$d)</string>
     <string name="todo_list_set">TODO list set, %1$d items.</string>
     <string name="todo_item_default_name">Untitled step</string>
@@ -496,6 +509,8 @@
     <string name="notification_channel_name">Task completion notifications</string>
     <!-- SettingsScreens.kt -->
     <string name="settings_not_available">This setting is not available yet.</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_no_results">No matching settings</string>
     <string name="title_settings">Settings</string>
     <string name="section_model_service">Models and Services</string>
     <string name="menu_profile">Profile</string>
@@ -1223,6 +1238,19 @@
     <string name="stats_date_range_format">%1$s to %2$s</string>
     <string name="stats_month_format">%1$s-%2$s</string>
     <string name="stats_year_format">%1$s</string>
+    <string name="stats_total_tokens">Total tokens</string>
+    <string name="stats_quick_overview">Quick overview</string>
+    <string name="stats_token_usage">Token usage</string>
+    <string name="stats_request_breakdown">Request breakdown</string>
+    <string name="stats_top_models">Top models</string>
+    <string name="stats_no_model_data">No model usage in this period</string>
+    <string name="stats_unknown_model">Unknown model</string>
+    <string name="stats_show_all_models">View all models</string>
+    <string name="stats_show_less_models">Show fewer models</string>
+    <string name="stats_model_usage_format">%1$s tokens · %2$s requests</string>
+    <string name="stats_share_format">%1$d%%</string>
+    <string name="stats_about_title">About statistics</string>
+    <string name="stats_total_requests">Total requests</string>
     <!-- ChatController additional -->
     <string name="label_upload_file_header_format">Upload File Header Format %1$s %2$d</string>
     <string name="label_upload_media_header_format">Upload Media Header Format %1$s %2$s %3$s %4$s %5$d</string>

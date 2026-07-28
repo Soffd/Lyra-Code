@@ -34,6 +34,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material3.Card
@@ -43,18 +45,20 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -502,8 +506,14 @@ internal fun AttachmentActionBottomSheet(
     }
     val activePrompt = prompts.firstOrNull { it.id == settings.selectedSystemPromptId } ?: prompts.firstOrNull()
     val autoCompressionConfig = controller.settingsRevision.intValue.let { controller.autoCompressionConfig() }
+    val selectionPage by rememberUpdatedState(page == "providers" || page == "models")
+    val sheetState = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target -> target != SheetValue.Hidden || !selectionPage },
+    )
     ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
         containerColor = MaterialTheme.colorScheme.surface,
         dragHandle = {
             Box(
@@ -542,8 +552,8 @@ internal fun AttachmentActionBottomSheet(
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredProfiles = profiles.filter { search.isBlank() || it.name.contains(search, ignoreCase = true) }
-                            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                                filteredProfiles.forEach { profile ->
+                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                                items(filteredProfiles, key = { it.id }) { profile ->
                                     ActionSheetRow(
                                         icon = Icons.Default.Cloud,
                                         title = profile.name,
@@ -568,8 +578,8 @@ internal fun AttachmentActionBottomSheet(
                             )
                             val filteredModels = activeProfile?.savedModels.orEmpty()
                                 .filter { search.isBlank() || it.contains(search, ignoreCase = true) }
-                            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
-                                filteredModels.forEach { modelName ->
+                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                                items(filteredModels, key = { it }) { modelName ->
                                     ActionSheetRow(
                                         icon = Icons.Default.SmartToy,
                                         title = modelName,
@@ -597,23 +607,25 @@ internal fun AttachmentActionBottomSheet(
                                     it.name.contains(search, ignoreCase = true) ||
                                     it.prompt.contains(search, ignoreCase = true)
                             }
-                            Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                                 if (
                                     search.isBlank() ||
                                     uiText("应用原生提示词").contains(search, ignoreCase = true)
                                 ) {
-                                    ActionSheetRow(
-                                        icon = Icons.Default.SmartToy,
-                                        title = uiText("应用原生提示词"),
-                                        subtitle = uiText("适配 Lyra Code 当前工具和 Android 运行环境"),
-                                        trailing = if (activePrompt == null) Icons.Default.Check else null,
-                                        onClick = {
-                                            controller.selectSystemPrompt(AppSettings.NATIVE_SYSTEM_PROMPT_ID)
-                                            onDismiss()
-                                        },
-                                    )
+                                    item(key = "native-prompt") {
+                                        ActionSheetRow(
+                                            icon = Icons.Default.SmartToy,
+                                            title = uiText("应用原生提示词"),
+                                            subtitle = uiText("适配 Lyra Code 当前工具和 Android 运行环境"),
+                                            trailing = if (activePrompt == null) Icons.Default.Check else null,
+                                            onClick = {
+                                                controller.selectSystemPrompt(AppSettings.NATIVE_SYSTEM_PROMPT_ID)
+                                                onDismiss()
+                                            },
+                                        )
+                                    }
                                 }
-                                filteredPrompts.forEach { prompt ->
+                                items(filteredPrompts, key = { it.id }) { prompt ->
                                     ActionSheetRow(
                                         icon = Icons.Default.EditNote,
                                         title = prompt.name,
@@ -624,47 +636,6 @@ internal fun AttachmentActionBottomSheet(
                                             onDismiss()
                                         },
                                     )
-                                }
-                            }
-                        }
-                        "reasoning" -> {
-                            Text(
-                                uiText(stringResource(R.string.label_reasoning_depth)),
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                            )
-                            val values = AppSettings.reasoningDepthValues
-                            val current = settings.reasoningDepth.takeIf { it in values } ?: AppSettings.REASONING_AUTO
-                            var sliderPosition by remember(current) { mutableStateOf(values.indexOf(current).coerceAtLeast(0).toFloat()) }
-                            val selected = values.getOrElse(sliderPosition.toInt().coerceIn(0, values.lastIndex)) { AppSettings.REASONING_AUTO }
-                            Column(
-                                Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 8.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp),
-                            ) {
-                                Icon(Icons.Default.Lightbulb, contentDescription = null, modifier = Modifier.size(48.dp), tint = MaterialTheme.colorScheme.primary)
-                                Text(reasoningDepthLabel(selected), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                                Text(
-                                    uiText(stringResource(R.string.reasoning_depth_hint)),
-                                    color = KimiMuted,
-                                    style = MaterialTheme.typography.bodySmall,
-                                )
-                                Slider(
-                                    value = sliderPosition,
-                                    onValueChange = { sliderPosition = it },
-                                    onValueChangeFinished = {
-                                        controller.selectReasoningDepth(values.getOrElse(sliderPosition.toInt().coerceIn(0, values.lastIndex)) { AppSettings.REASONING_AUTO })
-                                    },
-                                    valueRange = 0f..(values.size - 1).toFloat(),
-                                    steps = values.size - 2,
-                                )
-                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    values.forEach { value ->
-                                        Text(reasoningDepthLabel(value), color = if (value == selected) MaterialTheme.colorScheme.primary else KimiMuted, style = MaterialTheme.typography.labelSmall)
-                                    }
                                 }
                             }
                         }
@@ -790,13 +761,6 @@ internal fun AttachmentActionBottomSheet(
                                 subtitle = activePrompt?.name ?: uiText(stringResource(R.string.label_default_assistant)),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("prompts") },
-                            )
-                            ActionSheetRow(
-                                icon = Icons.Default.Tune,
-                                title = uiText(stringResource(R.string.label_reasoning)),
-                                subtitle = reasoningDepthLabel(settings.reasoningDepth),
-                                trailing = Icons.Default.ChevronRight,
-                                onClick = { onPageChange("reasoning") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.Compress,

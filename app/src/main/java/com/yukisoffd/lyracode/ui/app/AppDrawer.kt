@@ -256,8 +256,8 @@ internal fun KimiDrawerContent(
         LazyColumn(
             Modifier
                 .fillMaxSize()
-                .padding(horizontal = 18.dp, vertical = 18.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp),
+                .padding(horizontal = 14.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
         item {
             KimiCardBox {
@@ -276,55 +276,71 @@ internal fun KimiDrawerContent(
             }
         }
         item {
-            KimiCardBox {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(context.getString(R.string.label_functions), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
-                }
-                BoxWithConstraints(Modifier.fillMaxWidth()) {
-                    val columnCount = when {
-                        maxWidth >= 292.dp -> 5
-                        maxWidth >= 232.dp -> 4
-                        maxWidth >= 172.dp -> 3
-                        else -> 2
-                    }
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        pages.indices.chunked(columnCount).forEach { rowIndices ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            ) {
-                                rowIndices.forEach { index ->
-                                    KimiFunctionTile(
-                                        icon = functionPageIcon(index),
-                                        title = pages[index],
-                                        selected = selectedPage == index,
-                                        onClick = { onSelectPage(index) },
-                                        modifier = Modifier.size(52.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            KimiCardBox {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(42.dp)
+                        .padding(horizontal = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        context.getString(R.string.label_functions),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Icon(
+                        Icons.Default.ExpandLess,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                pages.indices.forEach { index ->
+                    KimiFunctionRow(
+                        icon = functionPageIcon(index),
+                        title = pages[index],
+                        selected = selectedPage == index,
+                        onClick = { onSelectPage(index) },
+                    )
+                }
+                Spacer(Modifier.height(4.dp))
+                KimiDivider()
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(42.dp)
+                        .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
                         context.getString(R.string.label_history_sessions),
                         modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Icon(
+                        Icons.Default.ExpandLess,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(46.dp)
+                        .clip(KimiPillShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f))
+                        .border(
+                            width = 1.dp,
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.18f),
+                            shape = KimiPillShape,
+                        )
+                        .padding(3.dp),
                 ) {
                     HistoryModeButton(
                         selected = historyMode == "sessions",
@@ -376,8 +392,8 @@ internal fun KimiDrawerContent(
                                 Icon(
                                     Icons.Default.Search,
                                     contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(19.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 )
                             },
                         )
@@ -419,11 +435,18 @@ internal fun KimiDrawerContent(
                         }
                     }
                 }
-                KimiDivider()
                 if (historyMode == "sessions" && filteredConversations.isEmpty()) {
-                    Text(context.getString(R.string.notice_no_sessions), color = KimiMuted)
+                    Text(
+                        context.getString(R.string.notice_no_sessions),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 } else if (historyMode == "projects" && projectGroups.isEmpty()) {
-                    Text(context.getString(R.string.notice_no_projects), color = KimiMuted)
+                    Text(
+                        context.getString(R.string.notice_no_projects),
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 }
             }
         }
@@ -521,12 +544,12 @@ private fun HistoryModeButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(16.dp)
+    val shape = KimiPillShape
     val containerColor by animateColorAsState(
         targetValue = if (selected) {
             MaterialTheme.colorScheme.primaryContainer
         } else {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.48f)
+            Color.Transparent
         },
         animationSpec = tween(240),
         label = "history-mode-container",
@@ -540,20 +563,9 @@ private fun HistoryModeButton(
         animationSpec = tween(240),
         label = "history-mode-content",
     )
-    val borderColor by animateColorAsState(
-        targetValue = if (selected) {
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.52f)
-        } else {
-            MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)
-        },
-        animationSpec = tween(240),
-        label = "history-mode-border",
-    )
     Card(
         onClick = onClick,
-        modifier = modifier
-            .height(44.dp)
-            .border(BorderStroke(1.dp, borderColor), shape),
+        modifier = modifier.fillMaxSize(),
         shape = shape,
         colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
@@ -598,12 +610,12 @@ private fun NewProjectButton(onClick: () -> Unit) {
 }
 
 private fun functionPageIcon(index: Int): ImageVector = when (index) {
-    0 -> Icons.Default.Chat
-    1 -> Icons.Default.Folder
+    0 -> Icons.Default.ChatBubble
+    1 -> Icons.Default.FolderOpen
     2 -> Icons.Default.ReceiptLong
-    3 -> Icons.Default.Analytics
+    3 -> Icons.Default.BarChart
     4 -> Icons.Default.TaskAlt
-    5 -> Icons.Default.Archive
+    5 -> Icons.Default.Inventory2
     6 -> Icons.Default.Settings
     7 -> Icons.Default.School
     8 -> Icons.Default.Description
@@ -611,58 +623,67 @@ private fun functionPageIcon(index: Int): ImageVector = when (index) {
 }
 
 @Composable
-private fun KimiFunctionTile(
+private fun KimiFunctionRow(
     icon: ImageVector,
     title: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val shape = RoundedCornerShape(13.dp)
-    Card(
-        onClick = onClick,
+    val shape = RoundedCornerShape(18.dp)
+    val containerColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f)
+        } else {
+            Color.Transparent
+        },
+        animationSpec = tween(220),
+        label = "drawer-function-container",
+    )
+    val contentColor by animateColorAsState(
+        targetValue = if (selected) {
+            MaterialTheme.colorScheme.onPrimaryContainer
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        },
+        animationSpec = tween(220),
+        label = "drawer-function-content",
+    )
+    Row(
         modifier = modifier
-            .border(
-                width = if (selected) 2.dp else 1.dp,
-                color = if (selected) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
-                },
-                shape = shape,
-            ),
-        shape = shape,
-        colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.38f)
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.42f)
-            },
-        ),
+            .fillMaxWidth()
+            .height(50.dp)
+            .clip(shape)
+            .background(containerColor)
+            .clickable(onClick = onClick)
+            .padding(end = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(4.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+                .width(4.dp)
+                .height(28.dp)
+                .clip(RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp))
+                .background(if (selected) MaterialTheme.colorScheme.primary else Color.Transparent),
+        )
+        Box(
+            modifier = Modifier.width(50.dp),
+            contentAlignment = Alignment.Center,
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp),
+                modifier = Modifier.size(22.dp),
                 tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.size(2.dp))
-            Text(
-                text = title,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                style = MaterialTheme.typography.labelSmall,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
         }
+        Text(
+            text = title,
+            color = contentColor,
+            style = MaterialTheme.typography.titleMedium,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

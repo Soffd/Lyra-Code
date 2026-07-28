@@ -36,6 +36,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
@@ -61,7 +62,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
@@ -303,6 +306,151 @@ internal fun ToolApprovalDialog(
             }
         },
     )
+}
+
+@Composable
+internal fun UserQuestionDialog(
+    pending: PendingUserQuestion,
+    onActivity: () -> Unit,
+    onSubmit: (selectedOptions: List<String>, freeText: String) -> Unit,
+) {
+    var selectedOptions by remember(pending.id) { mutableStateOf(emptyList<String>()) }
+    var freeText by rememberSaveable(pending.id) { mutableStateOf("") }
+    var confirming by rememberSaveable(pending.id) { mutableStateOf(false) }
+    val canSubmit = selectedOptions.isNotEmpty() || freeText.isNotBlank()
+    AlertDialog(
+        onDismissRequest = { onActivity() },
+        title = { Text(pending.request.title) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState())
+                    .pointerInput(pending.id) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (event.changes.any { it.pressed }) onActivity()
+                            }
+                        }
+                    },
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(pending.request.question, style = MaterialTheme.typography.bodyLarge)
+                if (pending.request.options.isNotEmpty()) {
+                    Text(
+                        stringResource(R.string.ask_user_multi_select_hint),
+                        color = KimiMuted,
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    pending.request.options.forEach { option ->
+                        val selected = option in selectedOptions
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(
+                                    if (selected) MaterialTheme.colorScheme.secondaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.52f),
+                                )
+                                .clickable {
+                                    onActivity()
+                                    selectedOptions = if (selected) {
+                                        selectedOptions - option
+                                    } else {
+                                        selectedOptions + option
+                                    }
+                                }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(checked = selected, onCheckedChange = null)
+                            Spacer(Modifier.width(6.dp))
+                            Text(option, modifier = Modifier.weight(1f))
+                        }
+                    }
+                }
+                OutlinedTextField(
+                    value = freeText,
+                    onValueChange = {
+                        onActivity()
+                        freeText = it
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    minLines = 2,
+                    maxLines = 6,
+                    label = { Text(stringResource(R.string.ask_user_free_text_label)) },
+                    supportingText = { Text(stringResource(R.string.ask_user_free_text_support)) },
+                )
+                Text(
+                    stringResource(R.string.ask_user_idle_timeout_hint),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                enabled = canSubmit,
+                onClick = {
+                    onActivity()
+                    confirming = true
+                },
+            ) {
+                Text(stringResource(R.string.ask_user_submit))
+            }
+        },
+    )
+    if (confirming) {
+        AlertDialog(
+            onDismissRequest = {
+                onActivity()
+                confirming = false
+            },
+            title = { Text(stringResource(R.string.ask_user_confirm_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.ask_user_confirm_body))
+                    if (selectedOptions.isNotEmpty()) {
+                        Text(
+                            stringResource(
+                                R.string.ask_user_confirm_selected,
+                                selectedOptions.joinToString("、"),
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    if (freeText.isNotBlank()) {
+                        Text(
+                            stringResource(R.string.ask_user_confirm_extra, freeText.trim()),
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        onActivity()
+                        confirming = false
+                    },
+                ) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onActivity()
+                        onSubmit(selectedOptions, freeText)
+                    },
+                ) {
+                    Text(stringResource(R.string.ask_user_confirm_submit))
+                }
+            },
+        )
+    }
 }
 
 @Composable

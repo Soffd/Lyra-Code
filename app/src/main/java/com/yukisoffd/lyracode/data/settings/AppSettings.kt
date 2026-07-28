@@ -738,6 +738,8 @@ class AppSettings(context: Context) {
                     add(
                         ApiProfile(
                             id = item.optString("id").ifBlank { newId() },
+                            presetId = item.optString("presetId"),
+                            presetPlanId = item.optString("presetPlanId"),
                             name = item.optString("name").ifBlank { "OpenAI" },
                             apiKey = item.optString("apiKey"),
                             baseUrl = item.optString("baseUrl").ifBlank { DEFAULT_BASE_URL },
@@ -758,6 +760,8 @@ class AppSettings(context: Context) {
             array.put(
                 JSONObject()
                     .put("id", profile.id)
+                    .put("presetId", profile.presetId)
+                    .put("presetPlanId", profile.presetPlanId)
                     .put("name", profile.name)
                     .put("apiKey", profile.apiKey)
                     .put("baseUrl", profile.baseUrl)
@@ -1311,6 +1315,8 @@ class AppSettings(context: Context) {
                     array.put(
                         JSONObject()
                             .put("id", profile.id)
+                            .put("presetId", profile.presetId)
+                            .put("presetPlanId", profile.presetPlanId)
                             .put("name", profile.name)
                             .put("apiKey", if (includeSecrets) profile.apiKey else "")
                             .put("baseUrl", profile.baseUrl)
@@ -1494,6 +1500,8 @@ class AppSettings(context: Context) {
     private fun defaultProfile(): ApiProfile {
         return ApiProfile(
             id = "default",
+            presetId = "openai",
+            presetPlanId = "default",
             name = "OpenAI",
             apiKey = apiKey,
             baseUrl = apiEndpoint.removeSuffix("/chat/completions").ifBlank { DEFAULT_BASE_URL },
@@ -1681,6 +1689,8 @@ class AppSettings(context: Context) {
             add(
                 ApiProfile(
                     id = item.optString("id").ifBlank { newId() },
+                    presetId = item.optString("presetId"),
+                    presetPlanId = item.optString("presetPlanId"),
                     name = item.optString("name").ifBlank { "API" },
                     apiKey = item.optString("apiKey"),
                     baseUrl = item.optString("baseUrl").ifBlank { DEFAULT_BASE_URL },

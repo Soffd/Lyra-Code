@@ -65,6 +65,7 @@ data class UsageModelRequest(
     val createdAt: Long,
     val inputTokens: Long,
     val outputTokens: Long,
+    val model: String = "",
 )
 
 class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
@@ -869,18 +870,33 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     }
 
     fun usageModelRequests(startAt: Long, endAt: Long): List<UsageModelRequest> {
-        return readableDatabase.query(
-            "usage_model_requests",
-            arrayOf("assistant_message_id", "conversation_id", "created_at", "input_tokens", "output_tokens"),
-            "created_at>=? AND created_at<?",
+        return readableDatabase.rawQuery(
+            """
+            SELECT r.assistant_message_id,
+                   r.conversation_id,
+                   r.created_at,
+                   r.input_tokens,
+                   r.output_tokens,
+                   COALESCE(m.model, '')
+            FROM usage_model_requests AS r
+            LEFT JOIN messages AS m ON m.id = r.assistant_message_id
+            WHERE r.created_at >= ? AND r.created_at < ?
+            ORDER BY r.created_at ASC, r.assistant_message_id ASC
+            """.trimIndent(),
             arrayOf(startAt.toString(), endAt.toString()),
-            null,
-            null,
-            "created_at ASC, assistant_message_id ASC",
         ).use {
             buildList {
                 while (it.moveToNext()) {
-                    add(UsageModelRequest(it.getLong(0), it.getLong(1), it.getLong(2), it.getLong(3), it.getLong(4)))
+                    add(
+                        UsageModelRequest(
+                            assistantMessageId = it.getLong(0),
+                            conversationId = it.getLong(1),
+                            createdAt = it.getLong(2),
+                            inputTokens = it.getLong(3),
+                            outputTokens = it.getLong(4),
+                            model = it.getString(5).orEmpty(),
+                        ),
+                    )
                 }
             }
         }

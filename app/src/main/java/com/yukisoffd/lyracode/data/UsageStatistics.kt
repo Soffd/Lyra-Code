@@ -1,10 +1,12 @@
 package com.yukisoffd.lyracode.data
 
 import android.content.Context
+import com.yukisoffd.lyracode.canonicalModelName
 import com.yukisoffd.lyracode.R
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.Calendar
+import java.util.Locale
 
 enum class UsageStatsPeriod(val labelResId: Int) {
     DAY(R.string.stat_period_day),
@@ -25,7 +27,61 @@ data class UsageStatsSummary(
     val assistantMessageCount: Int,
     val toolMessageCount: Int,
     val modelRequestCount: Int,
+    val modelUsage: List<ModelUsageStat>,
 )
+
+data class ModelUsageStat(
+    val modelName: String,
+    val requestCount: Int,
+    val inputTokens: Long,
+    val outputTokens: Long,
+) {
+    val totalTokens: Long get() = inputTokens + outputTokens
+}
+
+internal data class ModelUsageSample(
+    val modelName: String,
+    val inputTokens: Long,
+    val outputTokens: Long,
+)
+
+internal fun aggregateModelUsage(samples: List<ModelUsageSample>): List<ModelUsageStat> {
+    data class MutableModelUsage(
+        var displayName: String,
+        var requestCount: Int = 0,
+        var inputTokens: Long = 0L,
+        var outputTokens: Long = 0L,
+    )
+
+    val grouped = linkedMapOf<String, MutableModelUsage>()
+    samples.forEach { sample ->
+        val displayName = canonicalModelName(sample.modelName)
+        val normalizedName = displayName.lowercase(Locale.ROOT)
+        val aggregate = grouped.getOrPut(normalizedName) {
+            MutableModelUsage(displayName = displayName)
+        }
+        if (aggregate.displayName.isBlank() && displayName.isNotBlank()) {
+            aggregate.displayName = displayName
+        }
+        aggregate.requestCount++
+        aggregate.inputTokens += sample.inputTokens.coerceAtLeast(0L)
+        aggregate.outputTokens += sample.outputTokens.coerceAtLeast(0L)
+    }
+    return grouped.values
+        .map {
+            ModelUsageStat(
+                modelName = it.displayName,
+                requestCount = it.requestCount,
+                inputTokens = it.inputTokens,
+                outputTokens = it.outputTokens,
+            )
+        }
+        .sortedWith(
+            compareByDescending<ModelUsageStat> { it.totalTokens }
+                .thenByDescending { it.requestCount }
+                .thenBy { it.modelName.lowercase(Locale.ROOT) },
+        )
+}
 
 class UsageStatisticsRepository(
     context: Context,
@@ -42,6 +98,7 @@ class UsageStatisticsRepository(
         var assistantMessageCount = 0
         var toolMessageCount = 0
         var modelRequestCount = 0
+        val modelUsageSamples = mutableListOf<ModelUsageSample>()
 
         conversationStore.usageMessageEvents(range.first, range.second).forEach { event ->
             when (event.role.lowercase()) {
@@ -58,6 +115,11 @@ class UsageStatisticsRepository(
             userInputTokens += request.inputTokens
             aiOutputTokens += request.outputTokens
             modelRequestCount++
+            modelUsageSamples += ModelUsageSample(
+                modelName = request.model,
+                inputTokens = request.inputTokens,
+                outputTokens = request.outputTokens,
+            )
         }
 
         val recordedAssistantIds = conversationStore.usageModelRequestMessageIds()
@@ -69,9 +131,16 @@ class UsageStatisticsRepository(
                     "assistant" -> {
                         val inRange = message.createdAt >= range.first && message.createdAt < range.second
                         if (inRange && message.id !in recordedAssistantIds) {
+                            val estimatedInputTokens = REQUEST_STATIC_INPUT_TOKENS + repeatedContextTokens
+                            val estimatedOutputTokens = message.assistantOutputCost()
                             modelRequestCount++
-                            userInputTokens += REQUEST_STATIC_INPUT_TOKENS + repeatedContextTokens
-                            aiOutputTokens += message.assistantOutputCost()
+                            userInputTokens += estimatedInputTokens
+                            aiOutputTokens += estimatedOutputTokens
+                            modelUsageSamples += ModelUsageSample(
+                                modelName = message.model,
+                                inputTokens = estimatedInputTokens,
+                                outputTokens = estimatedOutputTokens,
+                            )
                         }
                         repeatedContextTokens += message.promptInputCost()
                     }
@@ -90,6 +159,7 @@ class UsageStatisticsRepository(
             assistantMessageCount = assistantMessageCount,
             toolMessageCount = toolMessageCount,
             modelRequestCount = modelRequestCount,
+            modelUsage = aggregateModelUsage(modelUsageSamples),
         )
     }
     private fun ChatMessage.promptInputCost(): Long {

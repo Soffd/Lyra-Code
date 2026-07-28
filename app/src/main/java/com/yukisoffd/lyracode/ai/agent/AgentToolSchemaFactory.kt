@@ -409,6 +409,20 @@ internal class AgentToolSchemaFactory(
             )
         }
         definitions
+        .put(
+            functionWithOptional(
+                "ask_user",
+                "Pause and ask the user one focused follow-up question when a complex task has material ambiguity, depends on a preference, or encounters an unexpected situation that changes the correct next step. title must be a concise heading. question contains the full prompt. options is an optional list shown as multi-select choices; it may be omitted for open questions. The UI always provides an additional free-text field and requires a second confirmation before submission. After 10 minutes without any interaction the question is withdrawn and the tool returns timed_out so you can continue with your best judgment.",
+                required = listOf("title" to "string", "question" to "string"),
+                optional = listOf("options" to "array:string"),
+                propertyDescriptions = mapOf(
+                    "title" to "A concise heading that tells the user what decision or information is needed.",
+                    "question" to "One clear, self-contained question.",
+                    "options" to "Optional suggested answers. The user may select multiple options and can always add a different or supplementary free-text answer.",
+                ),
+                disallowAdditionalProperties = true,
+            ),
+        )
         .put(function("set_todo_list", "Set the current task's TODO list before multistep work, file changes, or commands. items is an array of objects with id, text, status, and note.", "items" to "array:object"))
         .put(function("update_todo_item", "Update one TODO item. status is pending, running, completed, or blocked.", "id" to "string", "status" to "string", "note" to "string"))
         settings.enabledMcpTools().forEach { (server, tool) ->

@@ -297,6 +297,15 @@ internal fun ChatScreen(
             },
         )
     }
+    controller.pendingUserQuestion.value?.let { pending ->
+        UserQuestionDialog(
+            pending = pending,
+            onActivity = { controller.markUserQuestionInteraction(pending.id) },
+            onSubmit = { selectedOptions, freeText ->
+                controller.answerUserQuestion(selectedOptions, freeText)
+            },
+        )
+    }
     cropUploadUri?.let { uri ->
         ImageCropUploadDialog(
             uri = uri,

@@ -404,6 +404,7 @@ internal data class AgentToolInfo(
 )
 
 internal fun agentToolCatalog(): List<AgentToolInfo> = listOf(
+    AgentToolInfo("ask_user", uiText("向用户追问"), uiText("在复杂任务存在关键歧义、偏好选择或意外情况时暂停并请求用户回答。")),
     AgentToolInfo("list_directory", uiText("列出目录"), uiText("浏览工作目录内文件和子目录。")),
     AgentToolInfo("read_file", uiText("读取文件"), uiText("读取工作目录内文本文件。")),
     AgentToolInfo("read_file_lines", uiText("分段读取文件"), uiText("按真实行号读取大文件的指定行范围。")),

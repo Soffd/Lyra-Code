@@ -252,6 +252,19 @@
     <string name="status_approved_tool">已批准工具调用</string>
     <string name="status_rejected_tool">已拒绝工具调用</string>
     <string name="status_waiting_confirm">等待确认：%1$s</string>
+    <string name="status_waiting_user_answer">等待用户回答追问</string>
+    <string name="status_user_answer_submitted">追问回答已提交</string>
+    <string name="status_user_question_timed_out">追问因 10 分钟无操作已撤回，AI 将自行继续</string>
+    <string name="ask_user_multi_select_hint">可选择多个选项，也可以在下方补充其他内容。</string>
+    <string name="ask_user_free_text_label">补充回答</string>
+    <string name="ask_user_free_text_support">可填写选项中没有的答案，或补充已选内容。</string>
+    <string name="ask_user_idle_timeout_hint">连续 10 分钟没有点击、滚动、选择或输入时，此追问会自动撤回。</string>
+    <string name="ask_user_submit">提交回答</string>
+    <string name="ask_user_confirm_title">确认提交回答？</string>
+    <string name="ask_user_confirm_body">提交后 AI 会依据这些内容继续当前任务。</string>
+    <string name="ask_user_confirm_selected">已选：%1$s</string>
+    <string name="ask_user_confirm_extra">补充：%1$s</string>
+    <string name="ask_user_confirm_submit">确认提交</string>
     <string name="status_request_retry">请求失败，5 秒后重试（%1$d/%2$d）</string>
     <string name="todo_list_set">TODO 列表已设置，共 %1$d 项。</string>
     <string name="todo_item_default_name">未命名步骤</string>
@@ -515,6 +528,8 @@
 
     <!-- ==================== SettingsScreens.kt ==================== -->
     <string name="settings_not_available">该设置项暂未开放。</string>
+    <string name="settings_search_hint">搜索设置</string>
+    <string name="settings_search_no_results">没有匹配的设置</string>
     <string name="title_settings">设置</string>
     <string name="section_model_service">模型与服务</string>
     <string name="menu_profile">个人资料</string>
@@ -1305,6 +1320,19 @@
     <string name="stats_date_range_format">%1$s 至 %2$s</string>
     <string name="stats_month_format">%1$s 年 %2$s 月</string>
     <string name="stats_year_format">%1$s 年</string>
+    <string name="stats_total_tokens">总 Tokens</string>
+    <string name="stats_quick_overview">快速概览</string>
+    <string name="stats_token_usage">Token 用量</string>
+    <string name="stats_request_breakdown">请求明细</string>
+    <string name="stats_top_models">常用模型</string>
+    <string name="stats_no_model_data">该时间段暂无模型使用数据</string>
+    <string name="stats_unknown_model">未知模型</string>
+    <string name="stats_show_all_models">查看全部模型</string>
+    <string name="stats_show_less_models">收起模型列表</string>
+    <string name="stats_model_usage_format">%1$s Tokens · %2$s 次请求</string>
+    <string name="stats_share_format">%1$d%%</string>
+    <string name="stats_about_title">关于统计</string>
+    <string name="stats_total_requests">总请求</string>
 
     <!-- ==================== ChatController additional ==================== -->
     <string name="label_upload_file_header_format">用户上传文件：%1$s\n大小：%2$d bytes\n\n</string>

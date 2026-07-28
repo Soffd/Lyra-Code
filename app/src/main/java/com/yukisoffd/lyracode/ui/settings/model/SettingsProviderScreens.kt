@@ -18,7 +18,6 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
@@ -33,6 +32,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,31 +50,126 @@ import java.net.URL
 
 @Composable
 internal fun ProviderLogoBadge(profile: ApiProfile, modifier: Modifier = Modifier) {
-    val name = profile.name.ifBlank { profile.baseUrl }.trim()
-    val icon = when {
-        name.contains("gemini", ignoreCase = true) || profile.apiFormat == ApiProfile.API_FORMAT_GEMINI -> Icons.Default.AutoAwesome
-        name.contains("anthropic", ignoreCase = true) || name.contains("claude", ignoreCase = true) || profile.apiFormat == ApiProfile.API_FORMAT_ANTHROPIC -> Icons.Default.Psychology
-        name.contains("deepseek", ignoreCase = true) -> Icons.Default.WaterDrop
-        name.contains("openrouter", ignoreCase = true) -> Icons.Default.Route
-        name.contains("vercel", ignoreCase = true) -> Icons.Default.ChangeCircle
-        name.contains("openai", ignoreCase = true) -> Icons.Default.Hub
-        else -> Icons.Default.Cloud
+    AiLogoBadge(
+        logoRes = ProviderCatalog.logoRes(profile),
+        fallback = profile.name.ifBlank { profile.baseUrl },
+        modifier = modifier,
+    )
+}
+
+@Composable
+internal fun ProviderPresetPicker(
+    onSelect: (ProviderPreset, ProviderPresetPlan) -> Unit,
+    onCustom: () -> Unit,
+) {
+    val uriHandler = LocalUriHandler.current
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            uiText("选择预设后只需填写 API Key，接口地址和格式会自动配置，并且仍可在高级配置中修改。"),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        CustomProviderPresetRow(onClick = onCustom)
+        ProviderCatalog.presets.forEach { preset ->
+            preset.plans().forEach { plan ->
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onSelect(preset, plan) },
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        AiLogoBadge(
+                            logoRes = preset.logoRes,
+                            fallback = preset.displayName(),
+                            modifier = Modifier,
+                        )
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                            Text(
+                                preset.displayName(),
+                                style = MaterialTheme.typography.titleMedium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                buildString {
+                                    append(apiFormatShortName(plan.apiFormat))
+                                    if (plan.id != ProviderPresetPlan.DEFAULT_ID) {
+                                        append(" · ")
+                                        append(plan.displayName())
+                                    }
+                                },
+                                color = KimiMuted,
+                                style = MaterialTheme.typography.bodySmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        IconButton(
+                            onClick = { runCatching { uriHandler.openUri(preset.websiteUrl) } },
+                        ) {
+                            Icon(
+                                Icons.Default.OpenInNew,
+                                contentDescription = uiText("打开服务商官网"),
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = KimiMuted)
+                    }
+                }
+            }
+        }
     }
-    Box(
-        modifier
-            .size(54.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.68f)),
-        contentAlignment = Alignment.Center,
+}
+
+@Composable
+private fun CustomProviderPresetRow(onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     ) {
-        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(30.dp))
+        Row(
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    Icons.Default.Tune,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                )
+            }
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(uiText("自定义服务商"), style = MaterialTheme.typography.titleMedium)
+                Text(
+                    uiText("自行设置接口格式、基础 URL 和请求路径"),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Icon(Icons.Default.ChevronRight, contentDescription = null, tint = KimiMuted)
+        }
     }
 }
 
 @Composable
 internal fun ModelProviderRow(
     profile: ApiProfile,
-    selected: Boolean,
     onClick: () -> Unit,
     onDelete: () -> Unit,
 ) {
@@ -84,49 +179,29 @@ internal fun ModelProviderRow(
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.42f) else MaterialTheme.colorScheme.surface,
+            containerColor = MaterialTheme.colorScheme.surface,
         ),
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.padding(horizontal = 14.dp, vertical = 13.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            ProviderLogoBadge(profile)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                 Text(profile.name.ifBlank { uiText("未命名平台") }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (profile.baseUrl.isNotBlank()) {
                     Text(profile.baseUrl, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        uiText("启用"),
-                        modifier = Modifier
-                            .clip(KimiPillShape)
-                            .background(KimiGreen.copy(alpha = 0.28f))
-                            .padding(horizontal = 9.dp, vertical = 3.dp),
-                        color = KimiGreen,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Text(
-                        uiText("${profile.savedModels.size} 个模型"),
-                        modifier = Modifier
-                            .clip(KimiPillShape)
-                            .background(MaterialTheme.colorScheme.secondary.copy(alpha = 0.18f))
-                            .padding(horizontal = 9.dp, vertical = 3.dp),
-                        color = MaterialTheme.colorScheme.secondary,
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                    Text(
-                        apiFormatShortName(profile.apiFormat),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-            }
-            if (selected) {
-                Icon(Icons.Default.CheckCircle, contentDescription = uiText("当前"), tint = MaterialTheme.colorScheme.primary)
+                Text(
+                    uiText("${profile.savedModels.size} 个模型"),
+                    modifier = Modifier
+                        .clip(KimiPillShape)
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(horizontal = 9.dp, vertical = 3.dp),
+                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    style = MaterialTheme.typography.labelMedium,
+                )
             }
             IconButton(onClick = onDelete) {
                 Icon(Icons.Default.DeleteOutline, contentDescription = uiText("删除"), tint = KimiMuted)

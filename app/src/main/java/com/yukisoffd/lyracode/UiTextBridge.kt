@@ -8,6 +8,17 @@ internal object UiTextBridge {
     var languageMode: String = AppSettings.LANGUAGE_SYSTEM
 
     private val translations: Map<String, String> = mapOf(
+        "向用户追问" to "Ask the user",
+        "在复杂任务存在关键歧义、偏好选择或意外情况时暂停并请求用户回答。" to "Pause and ask the user when a complex task has a material ambiguity, preference choice, or unexpected situation.",
+        "套餐" to "Plan",
+        "选择服务商" to "Choose provider",
+        "选择预设后只需填写 API Key，接口地址和格式会自动配置，并且仍可在高级配置中修改。" to "Choose a preset to configure its endpoint and API format automatically. You only need to enter an API key, and can still edit everything under Advanced.",
+        "打开服务商官网" to "Open provider website",
+        "自定义服务商" to "Custom provider",
+        "自行设置接口格式、基础 URL 和请求路径" to "Configure the API format, base URL, and request path",
+        "高级配置" to "Advanced",
+        "接口地址与格式可随时修改" to "Endpoint and API format can be changed at any time",
+        "用于兼容非默认请求路径的服务商。留空时使用当前接口格式的默认请求路径。" to "For providers that use a non-default request path. Leave blank to use the default path for the selected API format.",
         "未选择工作目录" to "No workspace selected",
         "请求端点：%1\$s；模型列表：%2\$s" to "Request endpoint: %1\$s; model list: %2\$s",
         "状态：%1\$s · %2\$s" to "Status: %1\$s · %2\$s",
@@ -64,6 +75,8 @@ internal object UiTextBridge {
         "该操作会删除服务商、API Key、基础 URL 和预保存模型配置。" to "This deletes the provider, API key, base URL, and saved model list.",
         "模型服务" to "Model service",
         "搜索模型服务" to "Search model services",
+        "搜索设置" to "Search settings",
+        "没有匹配的设置" to "No matching settings",
         "新平台" to "New provider",
         "添加模型服务" to "Add model service",
         "没有匹配的模型服务" to "No matching model services",

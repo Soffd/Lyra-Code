@@ -350,9 +350,20 @@ internal fun KimiCardBox(
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = KimiCardShape,
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.32f),
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outline.copy(alpha = 0.14f),
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
     ) {
-        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp), content = content)
+        Column(
+            Modifier.padding(horizontal = 18.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            content = content,
+        )
     }
 }
 
@@ -361,8 +372,9 @@ internal fun KimiDivider() {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(1.dp)
-            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.65f)),
+            .padding(start = 52.dp)
+            .height(0.5.dp)
+            .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.16f)),
     )
 }
 
@@ -370,10 +382,20 @@ internal fun KimiDivider() {
 internal fun KimiSectionLabel(text: String) {
     Text(
         text,
-        modifier = Modifier.padding(start = 22.dp, top = 8.dp, bottom = 4.dp),
+        modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 2.dp),
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         style = MaterialTheme.typography.titleSmall,
     )
+}
+
+@Composable
+private fun kimiMenuAccent(seed: String): Pair<Color, Color> {
+    val scheme = MaterialTheme.colorScheme
+    return when ((seed.hashCode() and Int.MAX_VALUE) % 3) {
+        0 -> scheme.primaryContainer.copy(alpha = 0.72f) to scheme.onPrimaryContainer
+        1 -> scheme.secondaryContainer.copy(alpha = 0.72f) to scheme.onSecondaryContainer
+        else -> scheme.tertiaryContainer.copy(alpha = 0.72f) to scheme.onTertiaryContainer
+    }
 }
 
 @Composable
@@ -383,59 +405,25 @@ internal fun KimiMenuRow(
     value: String = "",
     onClick: () -> Unit = {},
 ) {
+    val (iconContainer, iconContent) = kimiMenuAccent(title)
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(18.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(icon, modifier = Modifier.width(42.dp), style = MaterialTheme.typography.titleMedium)
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(
-                title,
-                style = MaterialTheme.typography.titleMedium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            if (value.isNotBlank()) {
-                Text(
-                    value,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
+        Box(
+            modifier = Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(iconContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(icon, color = iconContent, style = MaterialTheme.typography.titleMedium)
         }
-        Text("›", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.titleLarge)
-    }
-}
-
-@Composable
-internal fun KimiMenuRow(
-    icon: ImageVector,
-    title: String,
-    value: String = "",
-    onClick: () -> Unit = {},
-) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(Modifier.width(42.dp), contentAlignment = Alignment.CenterStart) {
-            Icon(
-                icon,
-                contentDescription = null,
-                modifier = Modifier.size(24.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-        }
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(
                 title,
@@ -456,7 +444,65 @@ internal fun KimiMenuRow(
         Icon(
             Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+internal fun KimiMenuRow(
+    icon: ImageVector,
+    title: String,
+    value: String = "",
+    onClick: () -> Unit = {},
+) {
+    val (iconContainer, iconContent) = kimiMenuAccent(title)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(iconContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(23.dp),
+                tint = iconContent,
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (value.isNotBlank()) {
+                Text(
+                    value,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
@@ -493,7 +539,7 @@ internal fun KimiChip(
             .clip(KimiPillShape)
             .clickable(onClick = onClick)
             .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.62f))
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 14.dp, vertical = 7.dp),
         color = MaterialTheme.colorScheme.onPrimaryContainer,
         style = MaterialTheme.typography.bodyMedium,
         maxLines = 1,
@@ -596,5 +642,4 @@ internal fun ConfirmDeleteDialog(
         },
     )
 }
-
 

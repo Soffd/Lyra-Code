@@ -30,6 +30,8 @@ class UiTextBridgeMissingEnglishTest {
             )
             assertEquals("Projects", uiText("项目"))
             assertEquals("Create project", uiText("创建项目"))
+            assertEquals("Search settings", uiText("搜索设置"))
+            assertEquals("No matching settings", uiText("没有匹配的设置"))
             assertEquals("3 chats", uiText("3 个对话"))
             assertEquals("Created project “Lyra”", uiText("已创建项目“Lyra”"))
             assertEquals(
