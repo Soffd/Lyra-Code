@@ -486,10 +486,10 @@ private fun ScheduledTaskEditorDialog(
                 item {
                     Column {
                         OutlinedTextField(model, { model = it }, label = { Text(uiText("执行模型")) }, modifier = Modifier.fillMaxWidth())
-                        if (selectedProfile.savedModels.isNotEmpty()) {
+                        if (selectedProfile.enabledModels.isNotEmpty()) {
                             TextButton(onClick = { modelMenu = true }) { Text(uiText("从预保存模型选择")) }
                             DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
-                                selectedProfile.savedModels.forEach { savedModel ->
+                                selectedProfile.enabledModels.forEach { savedModel ->
                                     DropdownMenuItem(
                                         text = { Text(savedModel) },
                                         onClick = {

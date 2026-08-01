@@ -11,6 +11,8 @@ data class ApiProfile(
     val apiFormat: String = API_FORMAT_OPENAI,
     val selectedModel: String,
     val savedModels: List<String>,
+    val enabledModels: List<String> = savedModels,
+    val useResponsesApi: Boolean = false,
     val presetId: String = "",
     val presetPlanId: String = "",
 ) {
@@ -19,6 +21,9 @@ data class ApiProfile(
 
     val modelsEndpoint: String
         get() = "${baseUrl.trimEnd('/')}/models"
+
+    val responsesEndpoint: String
+        get() = "${baseUrl.trimEnd('/')}/responses"
 
     fun geminiGenerateContentEndpoint(model: String): String {
         val encoded = model.trim().removePrefix("models/")

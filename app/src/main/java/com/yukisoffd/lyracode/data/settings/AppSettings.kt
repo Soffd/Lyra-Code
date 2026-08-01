@@ -108,6 +108,13 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getString(KEY_HISTORY_COMPRESSION_MODEL, "").orEmpty()
         set(value) = plainPrefs.edit().putString(KEY_HISTORY_COMPRESSION_MODEL, value.trim()).apply()
 
+    var historyCompressionChunkCount: Int
+        get() = plainPrefs.getInt(KEY_HISTORY_COMPRESSION_CHUNK_COUNT, DEFAULT_HISTORY_COMPRESSION_CHUNKS)
+            .coerceIn(MIN_HISTORY_COMPRESSION_CHUNKS, MAX_HISTORY_COMPRESSION_CHUNKS)
+        set(value) = plainPrefs.edit()
+            .putInt(KEY_HISTORY_COMPRESSION_CHUNK_COUNT, value.coerceIn(MIN_HISTORY_COMPRESSION_CHUNKS, MAX_HISTORY_COMPRESSION_CHUNKS))
+            .apply()
+
     fun historyCompressionProfileOrNull(): ApiProfile? {
         if (historyCompressionProfileId.isBlank() || historyCompressionModel.isBlank()) return null
         return profiles().firstOrNull { it.id == historyCompressionProfileId }
@@ -734,6 +741,14 @@ class AppSettings(context: Context) {
                     val savedModels = buildList {
                         for (modelIndex in 0 until models.length()) add(models.getString(modelIndex))
                     }.filter { it.isNotBlank() }.distinct()
+                    val enabledModels = if (item.has("enabledModels")) {
+                        val enabled = item.optJSONArray("enabledModels") ?: JSONArray()
+                        buildList {
+                            for (modelIndex in 0 until enabled.length()) add(enabled.optString(modelIndex))
+                        }.filter { it.isNotBlank() }.distinct()
+                    } else {
+                        savedModels
+                    }
                     val apiFormat = item.optString("apiFormat").ifBlank { ApiProfile.API_FORMAT_OPENAI }
                     add(
                         ApiProfile(
@@ -747,6 +762,8 @@ class AppSettings(context: Context) {
                             apiFormat = apiFormat,
                             selectedModel = item.optString("selectedModel").ifBlank { DEFAULT_MODEL },
                             savedModels = savedModels,
+                            enabledModels = enabledModels,
+                            useResponsesApi = apiFormat == ApiProfile.API_FORMAT_OPENAI && item.optBoolean("useResponsesApi", false),
                         ),
                     )
                 }
@@ -769,6 +786,8 @@ class AppSettings(context: Context) {
                     .put("apiFormat", profile.apiFormat)
                     .put("selectedModel", profile.selectedModel)
                     .put("savedModels", JSONArray(profile.savedModels.distinct()))
+                    .put("enabledModels", JSONArray(profile.enabledModels.distinct()))
+                    .put("useResponsesApi", profile.apiFormat == ApiProfile.API_FORMAT_OPENAI && profile.useResponsesApi)
             )
         }
         securePrefs.edit().putString(KEY_API_PROFILES, array.toString()).apply()
@@ -1310,6 +1329,7 @@ class AppSettings(context: Context) {
             .put("topicSummaryModel", topicSummaryModel)
             .put("historyCompressionProfileId", historyCompressionProfileId)
             .put("historyCompressionModel", historyCompressionModel)
+            .put("historyCompressionChunkCount", historyCompressionChunkCount)
             .put("profiles", JSONArray().also { array ->
                 profiles().forEach { profile ->
                     array.put(
@@ -1323,6 +1343,8 @@ class AppSettings(context: Context) {
                             .put("apiFormat", profile.apiFormat)
                             .put("selectedModel", profile.selectedModel)
                             .put("savedModels", JSONArray(profile.savedModels))
+                            .put("enabledModels", JSONArray(profile.enabledModels))
+                            .put("useResponsesApi", profile.apiFormat == ApiProfile.API_FORMAT_OPENAI && profile.useResponsesApi)
                     )
                 }
             })
@@ -1428,6 +1450,9 @@ class AppSettings(context: Context) {
         root.optString("topicSummaryModel").takeIf { it.isNotBlank() }?.let { topicSummaryModel = it }
         if (root.has("historyCompressionProfileId")) historyCompressionProfileId = root.optString("historyCompressionProfileId")
         if (root.has("historyCompressionModel")) historyCompressionModel = root.optString("historyCompressionModel")
+        if (root.has("historyCompressionChunkCount")) {
+            historyCompressionChunkCount = root.optInt("historyCompressionChunkCount", DEFAULT_HISTORY_COMPRESSION_CHUNKS)
+        }
         if (root.has("subAgentOrchestrationEnabled")) subAgentOrchestrationEnabled = root.optBoolean("subAgentOrchestrationEnabled")
         root.optJSONArray("subAgents")?.let { array ->
             val imported = parseSubAgents(array)
@@ -1685,6 +1710,12 @@ class AppSettings(context: Context) {
             val item = array.optJSONObject(index) ?: continue
             val models = item.optJSONArray("savedModels") ?: JSONArray()
             val savedModels = buildList { for (i in 0 until models.length()) add(models.optString(i)) }.filter { it.isNotBlank() }.distinct()
+            val enabledModels = if (item.has("enabledModels")) {
+                val enabled = item.optJSONArray("enabledModels") ?: JSONArray()
+                buildList { for (i in 0 until enabled.length()) add(enabled.optString(i)) }.filter { it.isNotBlank() }.distinct()
+            } else {
+                savedModels
+            }
             val apiFormat = item.optString("apiFormat").ifBlank { ApiProfile.API_FORMAT_OPENAI }
             add(
                 ApiProfile(
@@ -1698,6 +1729,8 @@ class AppSettings(context: Context) {
                     apiFormat = apiFormat,
                     selectedModel = item.optString("selectedModel").ifBlank { DEFAULT_MODEL },
                     savedModels = savedModels,
+                    enabledModels = enabledModels,
+                    useResponsesApi = apiFormat == ApiProfile.API_FORMAT_OPENAI && item.optBoolean("useResponsesApi", false),
                 ),
             )
         }
@@ -1865,6 +1898,7 @@ class AppSettings(context: Context) {
                     id = current.id,
                     apiKey = incoming.apiKey.ifBlank { current.apiKey },
                     savedModels = (incoming.savedModels + current.savedModels).filter { it.isNotBlank() }.distinct(),
+                    enabledModels = (incoming.enabledModels + current.enabledModels).filter { it.isNotBlank() }.distinct(),
                 )
             } else {
                 result += incoming
@@ -2001,6 +2035,10 @@ class AppSettings(context: Context) {
         private const val KEY_TOPIC_SUMMARY_MODEL = "topic_summary_model"
         private const val KEY_HISTORY_COMPRESSION_PROFILE_ID = "history_compression_profile_id"
         private const val KEY_HISTORY_COMPRESSION_MODEL = "history_compression_model"
+        private const val KEY_HISTORY_COMPRESSION_CHUNK_COUNT = "history_compression_chunk_count"
+        const val MIN_HISTORY_COMPRESSION_CHUNKS = 1
+        const val MAX_HISTORY_COMPRESSION_CHUNKS = 16
+        const val DEFAULT_HISTORY_COMPRESSION_CHUNKS = 4
         private const val KEY_API_PROFILES = "api_profiles"
         private const val KEY_SELECTED_API_PROFILE_ID = "selected_api_profile_id"
         private const val KEY_DARK_MODE = "dark_mode"

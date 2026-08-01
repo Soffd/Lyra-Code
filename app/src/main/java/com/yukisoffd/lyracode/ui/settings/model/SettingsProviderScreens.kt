@@ -194,7 +194,7 @@ internal fun ModelProviderRow(
                     Text(profile.baseUrl, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
-                    uiText("${profile.savedModels.size} 个模型"),
+                    uiText("${profile.enabledModels.size} 个模型"),
                     modifier = Modifier
                         .clip(KimiPillShape)
                         .background(MaterialTheme.colorScheme.secondaryContainer)

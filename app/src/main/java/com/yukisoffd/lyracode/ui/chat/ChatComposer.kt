@@ -37,7 +37,11 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.AlertDialog
@@ -69,12 +73,15 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -413,7 +420,13 @@ internal fun ContextWindowInfoDialog(
 ) {
     val usage = controller.contextWindowUsage.value
     var customInstruction by rememberSaveable(controller.activeConversationId.value) { mutableStateOf("") }
+    var chunkCountText by rememberSaveable(controller.activeConversationId.value) {
+        mutableStateOf(settings.historyCompressionChunkCount.toString())
+    }
     var resultMessage by rememberSaveable(controller.activeConversationId.value) { mutableStateOf("") }
+    val chunkCount = chunkCountText.toIntOrNull()
+    val chunkCountValid = chunkCount != null && chunkCount in
+        AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS..AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS
     AlertDialog(
         onDismissRequest = { if (!isRunning) onDismiss() },
         title = { Text(uiText(stringResource(R.string.title_context_window_usage))) },
@@ -446,6 +459,29 @@ internal fun ContextWindowInfoDialog(
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 OutlinedTextField(
+                    value = chunkCountText,
+                    onValueChange = { value ->
+                        chunkCountText = value.filter(Char::isDigit).take(2)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isRunning,
+                    label = { Text(uiText(stringResource(R.string.label_compression_chunk_count))) },
+                    supportingText = {
+                        Text(
+                            uiText(
+                                stringResource(
+                                    R.string.compression_chunk_count_hint,
+                                    AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS,
+                                    AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS,
+                                ),
+                            ),
+                        )
+                    },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    isError = !chunkCountValid,
+                    singleLine = true,
+                )
+                OutlinedTextField(
                     value = customInstruction,
                     onValueChange = { customInstruction = it },
                     modifier = Modifier.fillMaxWidth(),
@@ -464,10 +500,11 @@ internal fun ContextWindowInfoDialog(
         },
         confirmButton = {
             TextButton(
-                enabled = !isRunning && usage.contextMessageCount > 0 && !usage.updating,
+                enabled = !isRunning && usage.contextMessageCount > 0 && !usage.updating && chunkCountValid,
                 onClick = {
                     resultMessage = ""
-                    controller.compressActiveHistory(customInstruction) { result ->
+                    settings.historyCompressionChunkCount = chunkCount!!
+                    controller.compressActiveHistory(customInstruction, chunkCount) { result ->
                         resultMessage = result.fold(
                             onSuccess = { uiText("会话历史压缩完成") },
                             onFailure = { uiText(it.message.orEmpty()).ifBlank { uiText("会话历史压缩失败") } },
@@ -482,6 +519,24 @@ internal fun ContextWindowInfoDialog(
             }
         },
     )
+}
+
+private val SelectionListNestedScrollConnection = object : NestedScrollConnection {
+    override fun onPostScroll(
+        consumed: Offset,
+        available: Offset,
+        source: NestedScrollSource,
+    ): Offset {
+        return if (source == NestedScrollSource.UserInput) {
+            Offset(x = 0f, y = available.y)
+        } else {
+            Offset.Zero
+        }
+    }
+
+    override suspend fun onPostFling(consumed: Velocity, available: Velocity): Velocity {
+        return Velocity(x = 0f, y = available.y)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -552,10 +607,17 @@ internal fun AttachmentActionBottomSheet(
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredProfiles = profiles.filter { search.isBlank() || it.name.contains(search, ignoreCase = true) }
-                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                            LazyColumn(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 420.dp)
+                                    .nestedScroll(SelectionListNestedScrollConnection),
+                            ) {
                                 items(filteredProfiles, key = { it.id }) { profile ->
                                     ActionSheetRow(
                                         icon = Icons.Default.Cloud,
+                                        logoRes = ProviderCatalog.logoRes(profile),
+                                        logoFallback = profile.name.ifBlank { profile.baseUrl },
                                         title = profile.name,
                                         subtitle = "${profile.apiFormat} · ${profile.baseUrl}",
                                         trailing = if (profile.id == controller.activeProfileId.value) Icons.Default.Check else null,
@@ -576,12 +638,19 @@ internal fun AttachmentActionBottomSheet(
                                 placeholder = uiText(stringResource(R.string.search_model_placeholder)),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
-                            val filteredModels = activeProfile?.savedModels.orEmpty()
+                            val filteredModels = activeProfile?.enabledModels.orEmpty()
                                 .filter { search.isBlank() || it.contains(search, ignoreCase = true) }
-                            LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
+                            LazyColumn(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(max = 420.dp)
+                                    .nestedScroll(SelectionListNestedScrollConnection),
+                            ) {
                                 items(filteredModels, key = { it }) { modelName ->
                                     ActionSheetRow(
                                         icon = Icons.Default.SmartToy,
+                                        logoRes = modelLogoRes(modelName),
+                                        logoFallback = canonicalModelName(modelName).ifBlank { modelName },
                                         title = modelName,
                                         subtitle = activeProfile?.name.orEmpty(),
                                         trailing = if (modelName == controller.activeModel.value) Icons.Default.Check else null,
@@ -837,6 +906,8 @@ internal fun ActionSheetTile(icon: ImageVector, title: String, modifier: Modifie
 @Composable
 internal fun ActionSheetRow(
     icon: ImageVector,
+    logoRes: Int? = null,
+    logoFallback: String? = null,
     title: String,
     subtitle: String = "",
     trailing: ImageVector? = null,
@@ -851,7 +922,15 @@ internal fun ActionSheetRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
+        if (logoFallback != null) {
+            AiLogoBadge(
+                logoRes = logoRes,
+                fallback = logoFallback,
+                modifier = Modifier.size(34.dp),
+            )
+        } else {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(30.dp), tint = MaterialTheme.colorScheme.primary)
+        }
         Column(Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
             if (subtitle.isNotBlank()) {

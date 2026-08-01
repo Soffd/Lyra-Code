@@ -7,11 +7,17 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,7 +25,9 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalDrawerSheet
@@ -44,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -52,6 +61,7 @@ import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.zIndex
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import com.yukisoffd.lyracode.data.AppSettings
@@ -147,7 +157,22 @@ internal fun LyraCodeApp(
         focusManager.clearFocus(force = true)
         softwareKeyboardController?.hide()
     }
-    val workspaceName = remember(controller.activeConversationId.value, controller.settingsRevision.intValue) { controller.workspaceDisplayName() }
+    val activeConversationId = controller.activeConversationId.value
+    val workspaceName = remember(activeConversationId, controller.settingsRevision.intValue) { controller.workspaceDisplayName() }
+    val workspaceLabel = if (workspaceName == "未选择工作目录") {
+        uiText(context.getString(R.string.label_no_workspace))
+    } else {
+        workspaceName
+    }
+    val workspacePath = remember(activeConversationId, controller.settingsRevision.intValue) {
+        controller.workspaceDisplayPath()
+    }.orEmpty().ifBlank { workspaceLabel }
+    val activeConversation = controller.conversations.firstOrNull { it.id == activeConversationId }
+    val conversationTitle = activeConversation?.title.orEmpty().ifBlank { context.getString(R.string.title_new_chat) }
+    val activeProfile = controller.profiles.firstOrNull { it.id == controller.activeProfileId.value }
+    val activeModelName = controller.activeModel.value.ifBlank {
+        activeProfile?.selectedModel.orEmpty().ifBlank { context.getString(R.string.label_model) }
+    }
     var nickname by remember { mutableStateOf(settings.userNickname) }
     var avatarPath by remember { mutableStateOf(settings.userAvatarPath) }
     var skillsRevision by remember { mutableIntStateOf(0) }
@@ -166,6 +191,7 @@ internal fun LyraCodeApp(
     val skills = remember(skillsRevision, appSettingsRevision) { settings.installedSkills() }
     var settingsDetailTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var settingsBackRequest by remember { mutableIntStateOf(0) }
+    var conversationDetailsExpanded by rememberSaveable { mutableStateOf(false) }
     fun requestNewConversation() {
         if (controller.requestNewConversation()) {
             selectedPage = PAGE_CHAT
@@ -210,6 +236,11 @@ internal fun LyraCodeApp(
     LaunchedEffect(safeSelectedPage) {
         if (safeSelectedPage != PAGE_SETTINGS) settingsDetailTitle = null
     }
+    LaunchedEffect(safeSelectedPage, activeConversationId) {
+        if (safeSelectedPage != PAGE_CHAT || conversationDetailsExpanded) {
+            conversationDetailsExpanded = false
+        }
+    }
     BackHandler(enabled = safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null && !drawerState.isOpen) {
         settingsBackRequest++
     }
@@ -219,6 +250,9 @@ internal fun LyraCodeApp(
     BackHandler(enabled = drawerState.isOpen) {
         if (safeSelectedPage != PAGE_FILES) selectedPage = PAGE_CHAT
         scope.launch { drawerState.close() }
+    }
+    BackHandler(enabled = conversationDetailsExpanded && safeSelectedPage == PAGE_CHAT && !drawerState.isOpen) {
+        conversationDetailsExpanded = false
     }
     LaunchedEffect(safeSelectedPage, drawerState.currentValue) {
         if (safeSelectedPage == PAGE_FILES && drawerState.isOpen) {
@@ -379,6 +413,7 @@ internal fun LyraCodeApp(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 if (safeSelectedPage != PAGE_FILES) TopAppBar(
+                    expandedHeight = 56.dp,
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
                         titleContentColor = MaterialTheme.colorScheme.onBackground,
@@ -405,34 +440,39 @@ internal fun LyraCodeApp(
                     },
                     title = {
                         if (safeSelectedPage == PAGE_CHAT) {
-                            val activeConversation = controller.conversations.firstOrNull { it.id == controller.activeConversationId.value }
-                            val title = activeConversation?.title.orEmpty().ifBlank { context.getString(R.string.title_new_chat) }
-                                .let { if (it == context.getString(R.string.title_new_chat)) context.getString(R.string.title_new_chat) else it }
                             Column(
-                                modifier = Modifier.fillMaxWidth(),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { conversationDetailsExpanded = !conversationDetailsExpanded },
                                 verticalArrangement = Arrangement.Center,
                             ) {
                                 Text(
-                                    title,
-                                    style = MaterialTheme.typography.titleLarge,
+                                    conversationTitle,
+                                    style = MaterialTheme.typography.titleMedium,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                 )
-                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    val activeProfile = controller.profiles.firstOrNull { it.id == controller.activeProfileId.value }
-                                    val activeModelName = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { context.getString(R.string.label_model) } }
-                                    val workspaceLabel = if (workspaceName == "未选择工作目录") {
-                                        uiText(context.getString(R.string.label_no_workspace))
-                                    } else {
-                                        workspaceName
-                                    }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                ) {
                                     Text(
                                         "$activeModelName / $workspaceLabel",
+                                        modifier = Modifier.weight(1f),
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.labelMedium,
+                                        style = MaterialTheme.typography.labelSmall,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        modifier = Modifier.weight(1f, fill = false),
+                                    )
+                                    Icon(
+                                        if (conversationDetailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                        contentDescription = if (conversationDetailsExpanded) {
+                                            uiText("收起对话信息")
+                                        } else {
+                                            uiText("展开对话信息")
+                                        },
+                                        modifier = Modifier.size(14.dp),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                     )
                                 }
                             }
@@ -453,9 +493,7 @@ internal fun LyraCodeApp(
                                         baseIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
                                     )
                                 }
-                                IconButton(onClick = {
-                                    requestNewConversation()
-                                }) {
+                                IconButton(onClick = { requestNewConversation() }) {
                                     PlusBadgeIcon(
                                         baseIcon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
                                     )
@@ -552,6 +590,59 @@ internal fun LyraCodeApp(
                         )
                     }
                 }
+                AnimatedVisibility(
+                    visible = conversationDetailsExpanded && safeSelectedPage == PAGE_CHAT,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .widthIn(max = 600.dp)
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .zIndex(2f),
+                    enter = expandVertically(
+                        animationSpec = tween(240),
+                        expandFrom = Alignment.Top,
+                    ) + fadeIn(animationSpec = tween(180)),
+                    exit = shrinkVertically(
+                        animationSpec = tween(200),
+                        shrinkTowards = Alignment.Top,
+                    ) + fadeOut(animationSpec = tween(140)),
+                ) {
+                    KimiCardBox(
+                        modifier = Modifier
+                            .shadow(12.dp, KimiCardShape)
+                            .background(MaterialTheme.colorScheme.surface, KimiCardShape),
+                    ) {
+                        Row(
+                            Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                uiText("对话信息"),
+                                modifier = Modifier.weight(1f),
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                            IconButton(
+                                onClick = { conversationDetailsExpanded = false },
+                                modifier = Modifier.size(32.dp),
+                            ) {
+                                Icon(
+                                    Icons.Default.ExpandLess,
+                                    contentDescription = uiText("收起对话信息"),
+                                )
+                            }
+                        }
+                        ConversationDetailRow(uiText("对话标题"), conversationTitle)
+                        ConversationDetailRow(
+                            uiText("模型服务"),
+                            activeProfile?.name.orEmpty().ifBlank { uiText("未选择") },
+                        )
+                        ConversationDetailRow(uiText("当前模型"), activeModelName)
+                        ConversationDetailRow(uiText("当前工作区目录"), workspacePath)
+                        ConversationDetailRow(
+                            uiText("对话 ID"),
+                            activeConversation?.id?.toString() ?: uiText("尚未生成"),
+                        )
+                    }
+                }
                 TransientNotice(
                     message = appNotice,
                     modifier = Modifier
@@ -561,6 +652,21 @@ internal fun LyraCodeApp(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun ConversationDetailRow(label: String, value: String) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            label,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.labelSmall,
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodySmall,
+        )
     }
 }
 

@@ -21,8 +21,8 @@ class AiResponseCache(
     private val dir = File(rootDir, "ai_response_cache")
 
     @Synchronized
-    fun get(profile: ApiProfile, request: JSONObject): AiCachedResponse? {
-        val key = cacheKey(profile, request)
+    fun get(profile: ApiProfile, request: JSONObject, conversationScope: String): AiCachedResponse? {
+        val key = cacheKey(profile, request, conversationScope)
         val file = File(dir, "$key.json")
         if (!file.isFile) return null
         val now = System.currentTimeMillis()
@@ -44,10 +44,10 @@ class AiResponseCache(
     }
 
     @Synchronized
-    fun put(profile: ApiProfile, request: JSONObject, response: AiCachedResponse) {
+    fun put(profile: ApiProfile, request: JSONObject, conversationScope: String, response: AiCachedResponse) {
         if (response.rawMessage.isBlank()) return
         dir.mkdirs()
-        val key = cacheKey(profile, request)
+        val key = cacheKey(profile, request, conversationScope)
         val now = System.currentTimeMillis()
         val entry = JSONObject()
             .put("created_at", now)
@@ -66,9 +66,10 @@ class AiResponseCache(
         prune(now)
     }
 
-    fun cacheKey(profile: ApiProfile, request: JSONObject): String {
+    fun cacheKey(profile: ApiProfile, request: JSONObject, conversationScope: String = ""): String {
         val normalized = JSONObject()
             .put("cache_version", CACHE_VERSION)
+            .put("conversation_scope", conversationScope.trim())
             .put("endpoint", normalizeEndpoint(profile.chatEndpoint))
             .put("model", request.optString("model").trim())
             .put("temperature", request.opt("temperature") ?: JSONObject.NULL)
@@ -202,6 +203,6 @@ class AiResponseCache(
     }
 
     private companion object {
-        private const val CACHE_VERSION = 4
+        private const val CACHE_VERSION = 5
     }
 }

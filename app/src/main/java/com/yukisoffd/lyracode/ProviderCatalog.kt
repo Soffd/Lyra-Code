@@ -168,6 +168,15 @@ internal object ProviderCatalog {
             logoRes = R.drawable.ai_service_openrouter,
         ),
         ProviderPreset(
+            id = "sensenova",
+            nameZh = "商汤",
+            nameEn = "SenseNova",
+            websiteUrl = "https://platform.sensenova.cn/",
+            baseUrl = "https://token.sensenova.cn/v1",
+            logoRes = R.drawable.ai_service_sensenova,
+            aliases = setOf("sensenova", "sensetime", "商汤"),
+        ),
+        ProviderPreset(
             id = "siliconcloud",
             nameZh = "硅基流动",
             nameEn = "SiliconFlow",
@@ -304,9 +313,16 @@ internal fun modelLogoRes(modelName: String): Int? {
         "llama" in normalized -> R.drawable.ai_model_meta
         "mimo" in normalized -> R.drawable.ai_model_xiaomimimo
         "minimax" in normalized -> R.drawable.ai_model_minimax
+        "mistral" in normalized -> R.drawable.ai_model_mistral
         "gpt" in normalized -> R.drawable.ai_model_openai
         "qwen" in normalized -> R.drawable.ai_model_qwen
+        "sensenova" in normalized -> R.drawable.ai_model_sensenova
+        "step" in normalized -> R.drawable.ai_model_stepfun
         "ernie" in normalized -> R.drawable.ai_model_wenxin
+        normalized == "yi" ||
+            normalized.startsWith("yi-") ||
+            normalized.startsWith("yi_") ||
+            normalized.startsWith("yi.") -> R.drawable.ai_model_zeroone
         "glm" in normalized -> R.drawable.ai_model_zhipu
         else -> null
     }

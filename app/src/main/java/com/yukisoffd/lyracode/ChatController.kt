@@ -205,6 +205,7 @@ class ChatController(
             if (it.id == activeProfileId.value) it.copy(
                 selectedModel = model,
                 savedModels = (it.savedModels + model).filter { item -> item.isNotBlank() }.distinct(),
+                enabledModels = (it.enabledModels + model).filter { item -> item.isNotBlank() }.distinct(),
             ) else it
         }
         saveProfiles(updated, activeProfileId.value)
@@ -597,7 +598,11 @@ class ChatController(
         )
     }
 
-    fun compressActiveHistory(customInstruction: String, onDone: (Result<Unit>) -> Unit = {}) {
+    fun compressActiveHistory(
+        customInstruction: String,
+        chunkCount: Int = settings.historyCompressionChunkCount,
+        onDone: (Result<Unit>) -> Unit = {},
+    ) {
         val conversationId = activeConversationId.value.takeIf { it > 0L } ?: run {
             onDone(Result.failure(IllegalStateException(appContext.getString(R.string.error_no_history_to_compress))))
             return
@@ -608,12 +613,23 @@ class ChatController(
             return
         }
         val (profile, model) = historyCompressionTarget(conversationId)
+        val normalizedChunkCount = chunkCount.coerceIn(
+            AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS,
+            AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS,
+        )
+        settings.historyCompressionChunkCount = normalizedChunkCount
         conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_RUNNING)
         reloadConversations()
         jobs[conversationId] = scope.launch {
             status.value = appContext.getString(R.string.status_compressing_history)
             val result = runCatching {
-                val summary = agent.compressConversationHistory(conversationId, profile, model, customInstruction)
+                val summary = agent.compressConversationHistory(
+                    conversationId,
+                    profile,
+                    model,
+                    customInstruction,
+                    normalizedChunkCount,
+                )
                 conversationStore.setCompressedContext(conversationId, summary, throughMessageId)
             }
             conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE)
@@ -651,7 +667,15 @@ class ChatController(
         val throughMessageId = conversationStore.messages(conversationId).lastOrNull()?.id ?: return null
         val (profile, model) = historyCompressionTarget(conversationId)
         status.value = appContext.getString(R.string.status_auto_compressing_history)
-        return runCatching { agent.compressConversationHistory(conversationId, profile, model, "") }
+        return runCatching {
+            agent.compressConversationHistory(
+                conversationId,
+                profile,
+                model,
+                "",
+                settings.historyCompressionChunkCount,
+            )
+        }
             .onSuccess { summary -> conversationStore.setCompressedContext(conversationId, summary, throughMessageId) }
             .onFailure { error ->
                 status.value = uiText(error.message.orEmpty()).ifBlank { appContext.getString(R.string.error_history_compression_failed) }

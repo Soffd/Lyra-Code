@@ -4,6 +4,7 @@ import com.yukisoffd.lyracode.data.ApiProfile
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Test
 import java.io.File
@@ -51,17 +52,48 @@ class AiResponseCacheTest {
     }
 
     @Test
+    fun cacheKeySeparatesConversationScopes() {
+        val cache = AiResponseCache(tempDir())
+        val request = request()
+
+        assertNotEquals(
+            cache.cacheKey(profile, request, "conversation:100"),
+            cache.cacheKey(profile, request, "conversation:101"),
+        )
+    }
+
+    @Test
     fun diskCachePersistsResponse() {
         val root = tempDir()
         val writer = AiResponseCache(root)
         val request = request()
-        writer.put(profile, request, AiCachedResponse("ok", "think", JSONObject().put("role", "assistant").put("content", "ok").toString()))
+        writer.put(
+            profile,
+            request,
+            "conversation:100",
+            AiCachedResponse("ok", "think", JSONObject().put("role", "assistant").put("content", "ok").toString()),
+        )
 
         val reader = AiResponseCache(root)
-        val cached = reader.get(profile, request)
+        val cached = reader.get(profile, request, "conversation:100")
 
         assertNotNull(cached)
         assertEquals("ok", cached?.content)
+    }
+
+    @Test
+    fun diskCacheDoesNotCrossConversationScopes() {
+        val root = tempDir()
+        val cache = AiResponseCache(root)
+        val request = request()
+        cache.put(
+            profile,
+            request,
+            "conversation:100",
+            AiCachedResponse("old", "", JSONObject().put("role", "assistant").put("content", "old").toString()),
+        )
+
+        assertEquals(null, cache.get(profile, request, "conversation:101"))
     }
 
     private fun request(

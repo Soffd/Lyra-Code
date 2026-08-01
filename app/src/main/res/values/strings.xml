@@ -600,11 +600,13 @@
     <string name="context_estimate_warning">Token 数为本地估算值，不同模型与服务商的分词方式可能不同，请预留安全余量。</string>
     <string name="label_history_compression_model">会话历史压缩模型</string>
     <string name="current_conversation_model">当前会话模型：%1$s</string>
+    <string name="label_compression_chunk_count">分段块数</string>
+    <string name="compression_chunk_count_hint">范围 %1$d–%2$d。块数越多，单次输入越短，但请求次数和耗时越多；分段结果会逐级合并为结构化上下文。</string>
     <string name="label_custom_compression_instruction">自定义压缩指令（可选）</string>
-    <string name="custom_compression_instruction_hint">例如：重点保留代码改动与未完成事项，并将摘要控制在 2,000 tokens 内。</string>
+    <string name="custom_compression_instruction_hint">例如：重点保留代码改动与未完成事项。默认结果会按目标、事实、任务、注意事项等字段整理。</string>
     <string name="action_compress_history">压缩历史</string>
-    <string name="status_compressing_history">正在压缩会话历史，完成前暂时无法发送消息…</string>
-    <string name="status_auto_compressing_history">已达到自动压缩条件，正在压缩会话历史…</string>
+    <string name="status_compressing_history">正在分段压缩并合并会话历史，完成前暂时无法发送消息…</string>
+    <string name="status_auto_compressing_history">已达到自动压缩条件，正在分段压缩并合并会话历史…</string>
     <string name="status_history_compressed">会话历史压缩完成</string>
     <string name="error_history_compression_failed">会话历史压缩失败，原上下文已保留</string>
     <string name="error_no_history_to_compress">当前会话没有可压缩的历史</string>
@@ -1695,6 +1697,26 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="file_privileged_access_ready_prefix">Root</string>
     <string name="file_privileged_disable">停用</string>
     <string name="file_privileged_disabled">受限目录访问已停用</string>
+    <string name="responses_api_enabled">使用 Responses API</string>
+    <string name="conversation_details">对话信息</string>
+    <string name="conversation_title_label">对话标题</string>
+    <string name="current_model_label">当前模型</string>
+    <string name="current_workspace_directory_label">当前工作区目录</string>
+    <string name="conversation_id_label">对话 ID</string>
+    <string name="conversation_id_pending">尚未生成</string>
+    <string name="expand_conversation_details">展开对话信息</string>
+    <string name="collapse_conversation_details">收起对话信息</string>
+    <string name="detected_models_one_per_line">已探测模型，每行一个</string>
+    <string name="choose_enabled_models">选择启用模型</string>
+    <string name="enabled_models_description">对话和设置中的模型选择器只显示启用模型。刷新模型列表不会覆盖这里的选择。</string>
+    <string name="search_models">搜索模型</string>
+    <string name="no_matching_models">没有匹配的模型</string>
+    <string name="enable_at_least_one_model">请至少启用一个模型</string>
+    <string name="save_enabled_models">保存启用模型</string>
+    <string name="refresh_model_list">刷新模型列表</string>
+    <string name="manage_enabled_models_count">管理启用模型（%1$d）</string>
+    <string name="enabled_models_count">已启用 %1$d 个模型</string>
+    <string name="models_fetched_enabled_preserved">已获取 %1$d 个模型，原启用选择已保留</string>
 </resources>
 
 

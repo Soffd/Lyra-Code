@@ -17,7 +17,10 @@ internal class AgentToolSchemaFactory(
     private val termuxExecutor: TermuxExecutor,
     private val systemCommandExecutor: SystemCommandExecutor,
 ) {
-    fun toolDefinitions(allowSubAgents: Boolean = false): JSONArray {
+    fun toolDefinitions(
+        allowSubAgents: Boolean = false,
+        allowedToolNames: Set<String>? = null,
+    ): JSONArray {
         val definitions = JSONArray()
         .put(function("list_directory", "List files and subdirectories in the workspace. Use a workspace-relative path; use \".\" or an empty string for the root.", "path" to "string"))
         .put(function("read_file", "Read a workspace text file up to 1 MB. Use a workspace-relative path, never a Termux-private path.", "path" to "string"))
@@ -400,13 +403,7 @@ internal class AgentToolSchemaFactory(
             ),
         )
         if (allowSubAgents && settings.subAgentOrchestrationEnabled && settings.enabledSubAgents().isNotEmpty()) {
-            definitions.put(
-                function(
-                    "run_sub_agents",
-                    "Delegate independent subtasks only for complex work that benefits from parallel research, review, validation, alternatives, or specialized domains. tasks entries contain task, capability_hint, expected_output, and optional sub_agent_id/agent/model. Automatic selection matches capabilities and balances otherwise. Sub-agents may use tools and request approvals; they return final results without hidden reasoning.",
-                    "tasks" to "array:object",
-                ),
-            )
+            definitions.put(subAgentFunction())
         }
         definitions
         .put(
@@ -437,13 +434,18 @@ internal class AgentToolSchemaFactory(
             for (index in 0 until definitions.length()) {
                 val item = definitions.getJSONObject(index)
                 val name = item.optJSONObject("function")?.optString("name").orEmpty()
-                if (name == "manage_app_config" || name !in disabled) put(item)
+                if ((name == "manage_app_config" || name !in disabled) && (allowedToolNames == null || name in allowedToolNames)) {
+                    put(item)
+                }
             }
         }
     }
 
-    fun anthropicTools(allowSubAgents: Boolean = false): JSONArray {
-        val tools = toolDefinitions(allowSubAgents)
+    fun anthropicTools(
+        allowSubAgents: Boolean = false,
+        allowedToolNames: Set<String>? = null,
+    ): JSONArray {
+        val tools = toolDefinitions(allowSubAgents, allowedToolNames)
         return JSONArray().also { output ->
             for (index in 0 until tools.length()) {
                 val function = tools.optJSONObject(index)?.optJSONObject("function") ?: continue
@@ -457,8 +459,11 @@ internal class AgentToolSchemaFactory(
         }
     }
 
-    fun geminiFunctionDeclarations(allowSubAgents: Boolean = false): JSONArray {
-        val tools = toolDefinitions(allowSubAgents)
+    fun geminiFunctionDeclarations(
+        allowSubAgents: Boolean = false,
+        allowedToolNames: Set<String>? = null,
+    ): JSONArray {
+        val tools = toolDefinitions(allowSubAgents, allowedToolNames)
         return JSONArray().also { output ->
             for (index in 0 until tools.length()) {
                 val function = tools.optJSONObject(index)?.optJSONObject("function") ?: continue
@@ -492,6 +497,56 @@ internal class AgentToolSchemaFactory(
 
     private fun function(name: String, description: String, vararg properties: Pair<String, String>): JSONObject {
         return functionWithOptional(name, description, required = properties.toList(), optional = emptyList())
+    }
+
+    private fun subAgentFunction(): JSONObject {
+        val taskProperties = JSONObject()
+            .put("task", JSONObject().put("type", "string").put("description", "One independent, bounded subtask."))
+            .put("capability_hint", JSONObject().put("type", "string").put("description", "Optional specialization hint used for automatic agent selection."))
+            .put("expected_output", JSONObject().put("type", "string").put("description", "Evidence and result shape the parent needs for verification."))
+            .put("sub_agent_id", JSONObject().put("type", "string").put("description", "Optional exact enabled sub-agent id. Omit for automatic selection."))
+            .put("read_only", JSONObject().put("type", "boolean").put("description", "True when the task must not mutate workspace state."))
+            .put(
+                "write_paths",
+                JSONObject()
+                    .put("type", "array")
+                    .put("description", "Every exact workspace-relative file or directory this task may mutate. Empty for read-only tasks. Paths cannot overlap another task.")
+                    .put("items", JSONObject().put("type", "string")),
+            )
+        val taskSchema = JSONObject()
+            .put("type", "object")
+            .put("properties", taskProperties)
+            .put("required", JSONArray().put("task").put("read_only").put("write_paths"))
+            .put("additionalProperties", false)
+        return JSONObject()
+            .put("type", "function")
+            .put(
+                "function",
+                JSONObject()
+                    .put("name", "run_sub_agents")
+                    .put(
+                        "description",
+                        "Delegate independent subtasks only for complex work that benefits from separate research, review, validation, alternatives, or specialization. Mutating tasks must declare non-overlapping exact workspace paths. Sub-agents receive restricted tools, cannot delegate again, and return results for parent verification.",
+                    )
+                    .put(
+                        "parameters",
+                        JSONObject()
+                            .put("type", "object")
+                            .put(
+                                "properties",
+                                JSONObject().put(
+                                    "tasks",
+                                    JSONObject()
+                                        .put("type", "array")
+                                        .put("minItems", 1)
+                                        .put("maxItems", 6)
+                                        .put("items", taskSchema),
+                                ),
+                            )
+                            .put("required", JSONArray().put("tasks"))
+                            .put("additionalProperties", false),
+                    ),
+            )
     }
 
     private fun mcpFunction(server: McpServerConfig, tool: McpToolDefinition): JSONObject {

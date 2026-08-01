@@ -37,6 +37,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Button
@@ -167,7 +168,7 @@ internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatCont
         SubAgentDropdownPicker(
             label = uiText("话题总结模型"),
             value = model.ifBlank { uiText("未选择") },
-            items = selectedProfile?.savedModels.orEmpty(),
+            items = selectedProfile?.enabledModels.orEmpty(),
             itemTitle = { it },
             isSelected = { it == model },
             onSelect = { model = it },
@@ -214,7 +215,7 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
     KimiCardBox {
         Text(uiText("会话历史压缩模型"), style = MaterialTheme.typography.titleMedium)
         Text(
-            uiText("用于手动或自动压缩会话历史。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。"),
+            uiText("用于手动或自动分段压缩会话历史，并逐级合并为结构化上下文。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。"),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -246,7 +247,7 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
             SubAgentDropdownPicker(
                 label = uiText("历史压缩模型"),
                 value = compressionModel.ifBlank { uiText("未选择") },
-                items = compressionProfile?.savedModels.orEmpty(),
+                items = compressionProfile?.enabledModels.orEmpty(),
                 itemTitle = { it },
                 isSelected = { it == compressionModel },
                 onSelect = { compressionModel = it },
@@ -341,6 +342,9 @@ internal fun ModelServiceSettings(
     var chatPath by remember(editKey) { mutableStateOf(current?.chatPath ?: ApiProfile.defaultChatPath(apiFormat)) }
     var model by remember(editKey) { mutableStateOf(current?.selectedModel.orEmpty()) }
     var savedModels by remember(editKey) { mutableStateOf(current?.savedModels.orEmpty().joinToString("\n")) }
+    var enabledModels by remember(editKey) { mutableStateOf(current?.enabledModels.orEmpty().toSet()) }
+    var showEnabledModelsDialog by remember(editKey) { mutableStateOf(false) }
+    var useResponsesApi by remember(editKey) { mutableStateOf(current?.useResponsesApi == true) }
     var advancedExpanded by remember(editKey) { mutableStateOf(draftNewProfile == null || draftPresetId == null) }
     var selectedReachabilityModels by remember(editKey) { mutableStateOf<Set<String>>(emptySet()) }
     var providerReachabilityResult by remember(editKey) { mutableStateOf<ProviderReachabilityResult?>(null) }
@@ -379,7 +383,11 @@ internal fun ModelServiceSettings(
     }
     fun draftProfile(selectedModelOverride: String? = null, savedModelsOverride: List<String>? = null): ApiProfile {
         val models = savedModelsOverride ?: savedModels.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList().distinct()
-        val selected = selectedModelOverride ?: model.ifBlank { models.firstOrNull().orEmpty() }
+        val enabled = enabledModels.map { it.trim() }.filter { it.isNotBlank() }.distinct()
+        val selected = selectedModelOverride
+            ?.takeIf { it in enabled }
+            ?: model.takeIf { it in enabled }
+            ?: enabled.firstOrNull().orEmpty()
         return ApiProfile(
             id = current?.id ?: AppSettings.newId(),
             presetId = current?.presetId.orEmpty(),
@@ -390,7 +398,9 @@ internal fun ModelServiceSettings(
             chatPath = ApiProfile.normalizedChatPath(apiFormat, chatPath),
             apiFormat = apiFormat,
             selectedModel = selected,
-            savedModels = (models + selected).filter { it.isNotBlank() }.distinct(),
+            savedModels = models.filter { it.isNotBlank() }.distinct(),
+            enabledModels = enabled,
+            useResponsesApi = apiFormat == ApiProfile.API_FORMAT_OPENAI && useResponsesApi,
         )
     }
     fun saveCurrentProfile() {
@@ -461,10 +471,34 @@ internal fun ModelServiceSettings(
             },
         )
     }
+    if (showEnabledModelsDialog) {
+        val selectableModels = remember(savedModels, enabledModels, model) {
+            (savedModels.lineSequence().map { it.trim() }.filter { it.isNotBlank() }.toList() + enabledModels + model.trim())
+                .filter { it.isNotBlank() }
+                .distinct()
+                .sorted()
+        }
+        EnabledModelsDialog(
+            models = selectableModels,
+            enabledModels = enabledModels,
+            onEnabledModelsChange = { enabledModels = it },
+            onDismiss = { showEnabledModelsDialog = false },
+            onConfirm = {
+                if (enabledModels.isEmpty()) {
+                    status = uiText("请至少启用一个模型")
+                } else {
+                    showEnabledModelsDialog = false
+                    if (model !in enabledModels) model = enabledModels.first()
+                    saveCurrentProfile()
+                }
+            },
+        )
+    }
 
     Box(Modifier.fillMaxSize()) {
         AnimatedContent(
             targetState = when {
+                showReachabilityPage -> 3
                 editingProfileId != null -> 2
                 showProviderPicker -> 1
                 else -> 0
@@ -560,7 +594,7 @@ internal fun ModelServiceSettings(
                     },
                 )
             }
-        } else if (showReachabilityPage) {
+        } else if (page == 3) {
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -668,18 +702,26 @@ internal fun ModelServiceSettings(
                             ) {
                                 ApiFormatOption("OpenAI SDK", ApiProfile.API_FORMAT_OPENAI, apiFormat) {
                                     apiFormat = it
-                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    if (draftNewProfile?.id == editingProfileId) {
+                                        if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                        if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    }
                                 }
                                 ApiFormatOption("Anthropic Messages", ApiProfile.API_FORMAT_ANTHROPIC, apiFormat) {
                                     apiFormat = it
-                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    useResponsesApi = false
+                                    if (draftNewProfile?.id == editingProfileId) {
+                                        if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                        if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    }
                                 }
                                 ApiFormatOption("Gemini GenerateContent", ApiProfile.API_FORMAT_GEMINI, apiFormat) {
                                     apiFormat = it
-                                    if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
-                                    if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    useResponsesApi = false
+                                    if (draftNewProfile?.id == editingProfileId) {
+                                        if (baseUrl.isBlank() || baseUrl in knownProviderBaseUrls()) baseUrl = defaultBaseUrlForApiFormat(it)
+                                        if (chatPath.isBlank() || chatPath in knownProviderChatPaths()) chatPath = ApiProfile.defaultChatPath(it)
+                                    }
                                 }
                             }
                             Text(
@@ -687,6 +729,22 @@ internal fun ModelServiceSettings(
                                 color = KimiMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
+                            Row(
+                                Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            ) {
+                                Text(
+                                    uiText("使用 Responses API"),
+                                    modifier = Modifier.weight(1f),
+                                    style = MaterialTheme.typography.titleSmall,
+                                )
+                                Switch(
+                                    checked = useResponsesApi && apiFormat == ApiProfile.API_FORMAT_OPENAI,
+                                    enabled = apiFormat == ApiProfile.API_FORMAT_OPENAI,
+                                    onCheckedChange = { useResponsesApi = it },
+                                )
+                            }
                             OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("基础 URL")) }, singleLine = true)
                             OutlinedTextField(
                                 value = chatPath,
@@ -709,14 +767,24 @@ internal fun ModelServiceSettings(
                                 )
                             }
                             Text(
-                                endpointHint(apiFormat, baseUrl, chatPath),
+                                endpointHint(apiFormat, baseUrl, chatPath, useResponsesApi),
                                 color = KimiMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
                     OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("默认模型")) }, singleLine = true)
-                    OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("预保存模型，每行一个")) }, minLines = 3)
+                    OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("已探测模型，每行一个")) }, minLines = 3)
+                    OutlinedButton(
+                        enabled = savedModels.isNotBlank() || enabledModels.isNotEmpty(),
+                        onClick = { showEnabledModelsDialog = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = KimiPillShape,
+                    ) {
+                        Icon(Icons.Default.Checklist, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(uiText("管理启用模型（${enabledModels.size}）"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                     OutlinedButton(
                         enabled = reachabilityModels.isNotEmpty(),
                         onClick = { showReachabilityPage = true },
@@ -732,7 +800,7 @@ internal fun ModelServiceSettings(
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Button(onClick = { saveCurrentProfile() }, shape = KimiPillShape) { Text(uiText("保存")) }
+                        Button(enabled = enabledModels.isNotEmpty(), onClick = { saveCurrentProfile() }, shape = KimiPillShape) { Text(uiText("保存")) }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = {
@@ -745,9 +813,8 @@ internal fun ModelServiceSettings(
                                             if (distinct.isEmpty()) {
                                                 status = uiText("未获取到可用模型")
                                             } else {
-                                                model = distinct.first()
                                                 savedModels = distinct.joinToString("\n")
-                                                val updated = draftProfile(selectedModelOverride = distinct.first(), savedModelsOverride = distinct)
+                                                val updated = draftProfile(savedModelsOverride = distinct)
                                                 val updatedProfiles = if (editingIndex >= 0) {
                                                     profiles.mapIndexed { index, item -> if (index == editingIndex) updated else item }
                                                 } else {
@@ -757,7 +824,8 @@ internal fun ModelServiceSettings(
                                                 draftNewProfile = null
                                                 controller.saveProfiles(updatedProfiles, updated.id)
                                                 status = ""
-                                                notice = uiText("已获取 ${distinct.size} 个模型并保存")
+                                                notice = uiText("已获取 ${distinct.size} 个模型，原启用选择已保留")
+                                                showEnabledModelsDialog = true
                                             }
                                         },
                                         onFailure = { status = it.message.orEmpty().ifBlank { uiText("获取模型失败") } },
@@ -765,7 +833,7 @@ internal fun ModelServiceSettings(
                                 }
                             },
                             shape = KimiPillShape,
-                        ) { Text(uiText("获取并替换模型"), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        ) { Text(uiText("刷新模型列表"), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         IconButton(
                             enabled = profiles.size > 1,
                             onClick = { current?.let { deleteTarget = it } },
@@ -783,6 +851,88 @@ internal fun ModelServiceSettings(
             onDismiss = { notice = "" },
         )
     }
+}
+
+
+@Composable
+internal fun EnabledModelsDialog(
+    models: List<String>,
+    enabledModels: Set<String>,
+    onEnabledModelsChange: (Set<String>) -> Unit,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit,
+) {
+    var query by rememberSaveable { mutableStateOf("") }
+    val filtered = remember(models, query) {
+        val keyword = query.trim()
+        if (keyword.isBlank()) models else models.filter { it.contains(keyword, ignoreCase = true) }
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(uiText("选择启用模型")) },
+        text = {
+            Column(
+                Modifier.fillMaxWidth().heightIn(max = 520.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Text(
+                    uiText("对话和设置中的模型选择器只显示启用模型。刷新模型列表不会覆盖这里的选择。"),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(uiText("搜索模型")) },
+                    singleLine = true,
+                )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    TextButton(onClick = { onEnabledModelsChange(models.toSet()) }) { Text(uiText("全选")) }
+                    TextButton(onClick = { onEnabledModelsChange(emptySet()) }) { Text(uiText("清空选择")) }
+                }
+                if (filtered.isEmpty()) {
+                    Text(uiText("没有匹配的模型"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                } else {
+                    LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                        items(filtered, key = { it }) { modelName ->
+                            val checked = modelName in enabledModels
+                            Row(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(14.dp))
+                                    .clickable {
+                                        onEnabledModelsChange(if (checked) enabledModels - modelName else enabledModels + modelName)
+                                    }
+                                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                Checkbox(
+                                    checked = checked,
+                                    onCheckedChange = {
+                                        onEnabledModelsChange(if (checked) enabledModels - modelName else enabledModels + modelName)
+                                    },
+                                )
+                                Text(modelName, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+                Text(
+                    uiText("已启用 ${enabledModels.size} 个模型"),
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        },
+        confirmButton = {
+            Button(enabled = enabledModels.isNotEmpty(), onClick = onConfirm, shape = KimiPillShape) {
+                Text(uiText("保存启用模型"))
+            }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+    )
 }
 
 
@@ -1100,7 +1250,7 @@ internal fun SubAgentEditDialog(initial: SubAgentConfig, profiles: List<ApiProfi
                 SubAgentDropdownPicker(
                     label = uiText(stringResource(R.string.label_model)),
                     value = model.ifBlank { uiText(stringResource(R.string.label_not_selected)) },
-                    items = selectedProfile?.savedModels.orEmpty(),
+                    items = selectedProfile?.enabledModels.orEmpty(),
                     itemTitle = { it },
                     isSelected = { it == model },
                     onSelect = { model = it },
@@ -1291,11 +1441,12 @@ internal fun apiFormatDescription(format: String): String = when (format) {
     else -> uiText("适用于 OpenAI Chat Completions SDK 兼容平台。原有工具调用、流式输出和多模态 image_url 路径保持不变。")
 }
 
-internal fun endpointHint(format: String, baseUrl: String, chatPath: String): String {
+internal fun endpointHint(format: String, baseUrl: String, chatPath: String, useResponsesApi: Boolean = false): String {
     val root = baseUrl.trim().trimEnd('/').ifBlank { defaultBaseUrlForApiFormat(format) }
     val path = ApiProfile.normalizedChatPath(format, chatPath)
     return when (format) {
         ApiProfile.API_FORMAT_GEMINI -> uiText("请求端点：$root$path；模型列表：$root/models")
+        ApiProfile.API_FORMAT_OPENAI -> uiText("请求端点：$root${if (useResponsesApi) "/responses" else path}；模型列表：$root/models")
         else -> uiText("请求端点：$root$path；模型列表：$root/models")
     }
 }

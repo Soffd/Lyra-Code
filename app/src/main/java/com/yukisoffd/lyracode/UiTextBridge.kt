@@ -18,6 +18,24 @@ internal object UiTextBridge {
         "自行设置接口格式、基础 URL 和请求路径" to "Configure the API format, base URL, and request path",
         "高级配置" to "Advanced",
         "接口地址与格式可随时修改" to "Endpoint and API format can be changed at any time",
+        "使用 Responses API" to "Use Responses API",
+        "对话信息" to "Conversation details",
+        "对话标题" to "Conversation title",
+        "当前模型" to "Current model",
+        "当前工作区目录" to "Current workspace directory",
+        "对话 ID" to "Conversation ID",
+        "尚未生成" to "Not created yet",
+        "展开对话信息" to "Expand conversation details",
+        "收起对话信息" to "Collapse conversation details",
+        "已探测模型，每行一个" to "Detected models, one per line",
+        "选择启用模型" to "Choose enabled models",
+        "对话和设置中的模型选择器只显示启用模型。刷新模型列表不会覆盖这里的选择。" to "Model pickers in chats and settings show only enabled models. Refreshing the model list will not overwrite this selection.",
+        "搜索模型" to "Search models",
+        "没有匹配的模型" to "No matching models",
+        "请至少启用一个模型" to "Enable at least one model",
+        "保存启用模型" to "Save enabled models",
+        "刷新模型列表" to "Refresh model list",
+        "Responses API 请求失败" to "Responses API request failed",
         "用于兼容非默认请求路径的服务商。留空时使用当前接口格式的默认请求路径。" to "For providers that use a non-default request path. Leave blank to use the default path for the selected API format.",
         "未选择工作目录" to "No workspace selected",
         "请求端点：%1\$s；模型列表：%2\$s" to "Request endpoint: %1\$s; model list: %2\$s",
@@ -95,7 +113,7 @@ internal object UiTextBridge {
         "每次新对话首次发送消息后，由此模型单独生成会话标题，不再占用主对话模型的工具调用。可选择轻量模型以降低消耗。" to "After the first message in each new conversation, this model generates the title independently without using the main chat model's tool calls. Choose a lightweight model to reduce usage.",
         "话题总结模型已保存" to "Topic summary model saved",
         "会话历史压缩模型" to "Conversation history compression model",
-        "用于手动或自动压缩会话历史。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。" to "Used for manual or automatic conversation-history compression. If no separate model is configured, the current conversation model is used; a failed compression never replaces the original context.",
+        "用于手动或自动分段压缩会话历史，并逐级合并为结构化上下文。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。" to "Used to segment conversation history for manual or automatic compression, then progressively merge it into structured context. If no separate model is configured, the current conversation model is used; a failed compression never replaces the original context.",
         "使用独立压缩模型" to "Use a separate compression model",
         "跟随当前会话模型" to "Use current conversation model",
         "历史压缩模型" to "History compression model",
@@ -109,11 +127,13 @@ internal object UiTextBridge {
         "上下文窗口" to "Context window",
         "当前上下文已包含压缩历史摘要" to "The current context includes a compressed history summary",
         "Token 数为本地估算值，不同模型与服务商的分词方式可能不同，请预留安全余量。" to "The token count is estimated locally. Tokenization differs across models and providers, so leave a safety margin.",
+        "分段块数" to "Segment count",
+        "范围 1–16。块数越多，单次输入越短，但请求次数和耗时越多；分段结果会逐级合并为结构化上下文。" to "Range: 1–16. More segments shorten each request but increase request count and duration. Segment results are progressively merged into structured context.",
         "自定义压缩指令（可选）" to "Custom compression instructions (optional)",
-        "例如：重点保留代码改动与未完成事项，并将摘要控制在 2,000 tokens 内。" to "For example: prioritize code changes and unfinished work, and keep the summary under 2,000 tokens.",
+        "例如：重点保留代码改动与未完成事项。默认结果会按目标、事实、任务、注意事项等字段整理。" to "For example: prioritize code changes and unfinished work. By default, results are organized into goals, facts, tasks, attention items, and other structured fields.",
         "压缩历史" to "Compress history",
-        "正在压缩会话历史，完成前暂时无法发送消息…" to "Compressing conversation history. Messages cannot be sent until it finishes…",
-        "已达到自动压缩条件，正在压缩会话历史…" to "The automatic compression condition was reached. Compressing conversation history…",
+        "正在分段压缩并合并会话历史，完成前暂时无法发送消息…" to "Segmenting and merging conversation history. Messages cannot be sent until it finishes…",
+        "已达到自动压缩条件，正在分段压缩并合并会话历史…" to "The automatic compression condition was reached. Segmenting and merging conversation history…",
         "会话历史压缩失败，原上下文已保留" to "Conversation history compression failed. The original context was preserved.",
         "自动压缩" to "Automatic compression",
         "仅对当前会话生效" to "Applies only to the current conversation",
@@ -1240,8 +1260,8 @@ internal object UiTextBridge {
             t.startsWith("当前会话模型：") -> "Current conversation model: " + t.removePrefix("当前会话模型：")
             t.startsWith("每 ") && t.endsWith(" 轮") -> "Every " + t.removePrefix("每 ").removeSuffix(" 轮") + " turns"
             t.startsWith("达到 ") && t.endsWith(" tokens") -> "At " + t.removePrefix("达到 ")
-            t.startsWith("会话历史压缩失败：历史可能超过所选压缩模型的上下文窗口") ->
-                "Conversation history compression failed because the history may exceed the selected compression model's context window. The original context was preserved. " + t.substringAfter("原上下文已保留。", "")
+            t.startsWith("会话历史压缩失败：某个分段或合并输入可能仍超过所选压缩模型的上下文窗口") ->
+                "Conversation history compression failed because a segment or merge input may still exceed the selected model's context window. Increase the segment count and retry. The original context was preserved. " + t.substringAfter("原上下文已保留。", "")
             t.startsWith("会话历史压缩请求失败") ->
                 "Conversation history compression request failed. The original context was preserved. " + t.substringAfter("原上下文已保留。", "")
             t.startsWith("过程记录已收起 · thinking ") -> t.replace("过程记录已收起", "Process log collapsed").replace(" / 工具 ", " / tools ")
@@ -1261,6 +1281,12 @@ internal object UiTextBridge {
             t.startsWith("自定义 #") -> "Custom #" + t.removePrefix("自定义 #")
             t.startsWith("已导入 ") -> "Imported " + t.removePrefix("已导入 ")
             t.startsWith("已删除 ") -> "Deleted " + t.removePrefix("已删除 ")
+            t.startsWith("管理启用模型（") && t.endsWith("）") ->
+                "Manage enabled models (${t.removePrefix("管理启用模型（").removeSuffix("）")})"
+            t.startsWith("已启用 ") && t.endsWith(" 个模型") ->
+                "${t.removePrefix("已启用 ").removeSuffix(" 个模型")} models enabled"
+            t.startsWith("已获取 ") && t.endsWith(" 个模型，原启用选择已保留") ->
+                "Fetched ${t.removePrefix("已获取 ").removeSuffix(" 个模型，原启用选择已保留")} models; existing enabled selections were preserved"
             t.endsWith(" 个模型") -> t.replace(" 个模型", " models")
             t.startsWith("已获取 ") && t.endsWith(" 个模型") -> t.replace("已获取 ", "Fetched ").replace(" 个模型", " models")
             t.startsWith("当前将保存 ") && t.endsWith(" 个域名") -> t.replace("当前将保存 ", "Will save ").replace(" 个域名", " domains")

@@ -674,7 +674,7 @@ internal fun ModelToolbar(controller: ChatController) {
                 Text(controller.activeModel.value.ifBlank { uiText("模型") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
-                profile?.savedModels.orEmpty().forEach { model ->
+                profile?.enabledModels.orEmpty().forEach { model ->
                     DropdownMenuItem(text = { Text(model) }, onClick = {
                         modelExpanded = false
                         controller.selectModel(model)

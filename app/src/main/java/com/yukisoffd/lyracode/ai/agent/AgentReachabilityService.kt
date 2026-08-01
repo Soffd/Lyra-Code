@@ -128,20 +128,30 @@ internal class AgentReachabilityService(
                     .build()
             }
             else -> {
-                val requestJson = JSONObject()
-                    .put("model", model)
-                    .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "ping")))
-                    .put("stream", false)
-                if (modelLooksReasoningCapable(model)) {
-                    requestJson.put("max_completion_tokens", 1)
+                val requestJson = if (profile.useResponsesApi) {
+                    JSONObject()
+                        .put("model", model)
+                        .put("input", "ping")
+                        .put("max_output_tokens", 1)
+                        .put("stream", false)
                 } else {
-                    requestJson.put("max_tokens", 1)
+                    JSONObject()
+                        .put("model", model)
+                        .put("messages", JSONArray().put(JSONObject().put("role", "user").put("content", "ping")))
+                        .put("stream", false)
+                        .also { requestJson ->
+                            if (modelLooksReasoningCapable(model)) {
+                                requestJson.put("max_completion_tokens", 1)
+                            } else {
+                                requestJson.put("max_tokens", 1)
+                            }
+                        }
                 }
                 val body = requestJson
                     .toString()
                     .toRequestBody("application/json".toMediaType())
                 Request.Builder()
-                    .url(profile.chatEndpoint)
+                    .url(if (profile.useResponsesApi) profile.responsesEndpoint else profile.chatEndpoint)
                     .addHeader("Authorization", "Bearer ${profile.apiKey}")
                     .addHeader("Content-Type", "application/json")
                     .post(body)

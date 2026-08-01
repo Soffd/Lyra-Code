@@ -29,7 +29,21 @@ class ProviderCatalogTest {
         assertEquals(R.drawable.ai_model_doubao, modelLogoRes("volc/doubao-seed-2.0"))
         assertEquals(R.drawable.ai_model_meta, modelLogoRes("meta-llama/llama-4"))
         assertEquals(R.drawable.ai_model_wenxin, modelLogoRes("baidu/ernie-5.1"))
+        assertEquals(R.drawable.ai_model_mistral, modelLogoRes("mistralai/mistral-medium-3.5"))
+        assertEquals(R.drawable.ai_model_sensenova, modelLogoRes("sensetime/sensenova-6.7"))
+        assertEquals(R.drawable.ai_model_stepfun, modelLogoRes("stepfun-ai/step-3.7"))
+        assertEquals(R.drawable.ai_model_zeroone, modelLogoRes("01-ai/yi-lightning"))
         assertNull(modelLogoRes("vendor/unknown-model"))
+    }
+
+    @Test
+    fun senseNovaPresetMatchesOfficialEndpointAndLogo() {
+        val preset = requireNotNull(ProviderCatalog.byId("sensenova"))
+        val profile = preset.createProfile("sensenova-test")
+
+        assertEquals("https://token.sensenova.cn/v1/chat/completions", profile.chatEndpoint)
+        assertEquals("sensenova", ProviderCatalog.match(profile)?.id)
+        assertEquals(R.drawable.ai_service_sensenova, ProviderCatalog.logoRes(profile))
     }
 
     @Test
