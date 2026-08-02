@@ -140,7 +140,7 @@
     <string name="label_switch_prompt">Switch prompt</string>
     <string name="search_prompt_placeholder">Search prompts</string>
     <string name="label_reasoning_depth">Reasoning depth</string>
-    <string name="reasoning_depth_hint">Not every model supports depth control. Unsupported providers will keep their original request parameters.</string>
+    <string name="reasoning_depth_hint">Does not work with every model. Auto does not add an extra parameter.</string>
     <string name="action_album">Album</string>
     <string name="action_camera">Camera</string>
     <string name="action_file">File</string>
@@ -168,7 +168,8 @@
     <string name="reasoning_low">Low</string>
     <string name="reasoning_medium">Medium</string>
     <string name="reasoning_high">High</string>
-    <string name="reasoning_ultra">Ultra high</string>
+    <string name="reasoning_xhigh">XHigh</string>
+    <string name="reasoning_max">Max</string>
     <string name="reasoning_auto">Auto</string>
     <string name="cd_back">Back</string>
     <string name="cd_remove">Remove</string>
@@ -1183,10 +1184,6 @@
     <string name="label_app_id">App ID</string>
     <string name="section_repos">Repository</string>
     <string name="label_website">Website</string>
-    <string name="section_social">Section Social</string>
-    <string name="label_qq_group">QQ Group</string>
-    <string name="label_join_qq">Join QQ</string>
-    <string name="label_join_discord">Join Discord</string>
     <string name="section_privacy_security">Section Privacy Security</string>
     <string name="title_privacy_security">Privacy Security</string>
     <string name="privacy_desc">Privacy Desc</string>

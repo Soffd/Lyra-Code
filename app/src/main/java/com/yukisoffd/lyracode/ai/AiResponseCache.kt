@@ -74,6 +74,8 @@ class AiResponseCache(
             .put("model", request.optString("model").trim())
             .put("temperature", request.opt("temperature") ?: JSONObject.NULL)
             .put("reasoning_effort", request.opt("reasoning_effort") ?: JSONObject.NULL)
+            .put("reasoning", request.opt("reasoning") ?: JSONObject.NULL)
+            .put("output_config", request.opt("output_config") ?: JSONObject.NULL)
             .put("tool_choice", request.opt("tool_choice") ?: JSONObject.NULL)
             .put("messages", normalizeMessages(request.optJSONArray("messages") ?: JSONArray()))
             .put("tools", normalizeTools(request.optJSONArray("tools") ?: JSONArray()))
@@ -203,6 +205,6 @@ class AiResponseCache(
     }
 
     private companion object {
-        private const val CACHE_VERSION = 5
+        private const val CACHE_VERSION = 6
     }
 }

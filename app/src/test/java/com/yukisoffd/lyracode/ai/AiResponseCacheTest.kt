@@ -63,6 +63,21 @@ class AiResponseCacheTest {
     }
 
     @Test
+    fun cacheKeySeparatesReasoningEffortFormats() {
+        val cache = AiResponseCache(tempDir())
+        val low = request().put("reasoning_effort", "low")
+        val high = request().put("reasoning_effort", "high")
+        val responsesLow = request().put("reasoning", JSONObject().put("effort", "low"))
+        val responsesHigh = request().put("reasoning", JSONObject().put("effort", "high"))
+        val anthropicLow = request().put("output_config", JSONObject().put("effort", "low"))
+        val anthropicHigh = request().put("output_config", JSONObject().put("effort", "high"))
+
+        assertNotEquals(cache.cacheKey(profile, low), cache.cacheKey(profile, high))
+        assertNotEquals(cache.cacheKey(profile, responsesLow), cache.cacheKey(profile, responsesHigh))
+        assertNotEquals(cache.cacheKey(profile, anthropicLow), cache.cacheKey(profile, anthropicHigh))
+    }
+
+    @Test
     fun diskCachePersistsResponse() {
         val root = tempDir()
         val writer = AiResponseCache(root)

@@ -141,7 +141,7 @@
     <string name="label_switch_prompt">切换提示词</string>
     <string name="search_prompt_placeholder">搜索提示词</string>
     <string name="label_reasoning_depth">推理深度</string>
-    <string name="reasoning_depth_hint">并非所有模型都支持深度调整；不支持时会自动保持服务商原始参数，避免请求失败。</string>
+    <string name="reasoning_depth_hint">并非对所有模型生效。自动模式不会额外传入参数。</string>
     <string name="action_album">相册</string>
     <string name="action_camera">相机</string>
     <string name="action_file">文件</string>
@@ -169,7 +169,8 @@
     <string name="reasoning_low">低</string>
     <string name="reasoning_medium">中</string>
     <string name="reasoning_high">高</string>
-    <string name="reasoning_ultra">超高</string>
+    <string name="reasoning_xhigh">极高</string>
+    <string name="reasoning_max">最大档</string>
     <string name="reasoning_auto">自动</string>
     <string name="cd_back">返回</string>
     <string name="cd_remove">移除</string>
@@ -1260,10 +1261,6 @@
     <string name="label_app_id">应用 ID</string>
     <string name="section_repos">仓库</string>
     <string name="label_website">官网</string>
-    <string name="section_social">社交群聊</string>
-    <string name="label_qq_group">QQ 群</string>
-    <string name="label_join_qq">加入 Lyra Code QQ 群聊</string>
-    <string name="label_join_discord">加入 Lyra Code Discord 社区</string>
     <string name="section_privacy_security">隐私与安全</string>
     <string name="title_privacy_security">隐私与安全</string>
     <string name="privacy_desc">API Key 保存在本机配置中；对话、工具输出、缓存和审查日志默认留在本机。使用第三方模型接口、HTTP 明文 URL、联网搜索、MCP 或 Termux 命令时，数据会按用户配置发送到对应服务或本机执行环境。</string>

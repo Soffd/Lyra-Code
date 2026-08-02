@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -123,7 +124,7 @@ internal fun OpenSourceLicensesScreen() {
             LicenseNotice("JLatexMath fonts", "OFL / Knuth / Public Domain / GPL v2", uiText("数学公式渲染字体。完整字体许可随 third_party/jlatexmath/assets 分发。"), LicenseTexts.JLATEXMATH_FONT_LICENSES),
             LicenseNotice("JSON-java / org.json", "JSON License", uiText("JSON 解析与序列化。"), LicenseTexts.JSON_LICENSE),
             LicenseNotice("JUnit", "Eclipse Public License 1.0", uiText("单元测试框架，仅测试构建使用。"), LicenseTexts.EPL_1_0),
-            LicenseNotice("Simple Icons", "CC0 1.0 Universal", uiText("关于页面仓库与社交群聊 SVG 图标。"), LicenseTexts.CC0_1_0),
+            LicenseNotice("Simple Icons", "CC0 1.0 Universal", uiText("关于页面仓库 SVG 图标。"), LicenseTexts.CC0_1_0),
         )
     }
     selectedNotice?.let { notice ->
@@ -357,6 +358,8 @@ internal fun AboutSoftwareScreen(
                 }
                 KimiDivider()
                 Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    AboutIconBadge(Icons.Default.NotificationsOff)
+                    Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(uiText("不弹出更新提示"), style = MaterialTheme.typography.titleSmall)
                         Text(uiText("关闭进入软件时每日一次的新版本弹窗，不影响手动检测更新。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
@@ -375,40 +378,24 @@ internal fun AboutSoftwareScreen(
             KimiSectionLabel(uiText("仓库"))
             KimiCardBox {
                 SocialLinkRow(
-                    logo = { Icon(Icons.Default.Public, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                    logo = { AboutIconBadge(Icons.Default.Public) },
                     title = uiText("官网"),
                     value = "lyracode.app",
                     onClick = { uriHandler.openUri("https://lyracode.app") },
                 )
                 KimiDivider()
                 SocialLinkRow(
-                    logo = { SocialLogoBadge(R.drawable.ic_simple_github) },
+                    logo = { AboutIconBadge(R.drawable.ic_simple_github) },
                     title = "GitHub",
                     value = "Soffd/Lyra-Code",
                     onClick = { uriHandler.openUri("https://github.com/Soffd/Lyra-Code") },
                 )
                 KimiDivider()
                 SocialLinkRow(
-                    logo = { SocialLogoBadge(R.drawable.ic_simple_gitee) },
+                    logo = { AboutIconBadge(R.drawable.ic_simple_gitee) },
                     title = "Gitee",
                     value = "yukisoffd/lyra-code",
                     onClick = { uriHandler.openUri("https://gitee.com/yukisoffd/lyra-code") },
-                )
-            }
-            KimiSectionLabel(uiText("社交群聊"))
-            KimiCardBox {
-                SocialLinkRow(
-                    logo = { SocialLogoBadge(R.drawable.ic_simple_qq) },
-                    title = uiText("QQ 群"),
-                    value = uiText("加入 Lyra Code QQ 群聊"),
-                    onClick = { uriHandler.openUri("https://qm.qq.com/q/Ws8objzR84") },
-                )
-                KimiDivider()
-                SocialLinkRow(
-                    logo = { SocialLogoBadge(R.drawable.ic_simple_discord) },
-                    title = "Discord",
-                    value = uiText("加入 Lyra Code Discord 社区"),
-                    onClick = { uriHandler.openUri("https://discord.gg/3Mx3F4RTP9") },
                 )
             }
             KimiSectionLabel(uiText("隐私与安全"))
@@ -530,12 +517,11 @@ internal fun AboutVersionRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.width(42.dp), contentAlignment = Alignment.CenterStart) {
-            Icon(Icons.Default.SystemUpdate, contentDescription = null, modifier = Modifier.size(24.dp), tint = MaterialTheme.colorScheme.primary)
-        }
+        AboutIconBadge(Icons.Default.SystemUpdate)
+        Spacer(Modifier.width(14.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(versionText, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -556,7 +542,12 @@ internal fun AboutVersionRow(
                 overflow = TextOverflow.Ellipsis,
             )
         }
-        Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -572,15 +563,11 @@ internal fun SocialLinkRow(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 14.dp),
+            .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier.width(48.dp),
-            contentAlignment = Alignment.CenterStart,
-        ) {
-            logo()
-        }
+        logo()
+        Spacer(Modifier.width(14.dp))
         Column(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(3.dp),
@@ -603,25 +590,46 @@ internal fun SocialLinkRow(
         Icon(
             Icons.Default.ChevronRight,
             contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
 
 @Composable
-internal fun SocialLogoBadge(
+internal fun AboutIconBadge(icon: ImageVector) {
+    Box(
+        modifier = Modifier
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(23.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+        )
+    }
+}
+
+@Composable
+internal fun AboutIconBadge(
     iconRes: Int,
 ) {
     Box(
         modifier = Modifier
-            .size(36.dp),
+            .size(44.dp)
+            .clip(CircleShape)
+            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.72f)),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             painter = painterResource(iconRes),
             contentDescription = null,
-            modifier = Modifier.size(28.dp),
-            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(23.dp),
+            tint = MaterialTheme.colorScheme.onPrimaryContainer,
         )
     }
 }

@@ -228,9 +228,11 @@ internal fun ChatScreen(
     }
     val keyboardLiftDp = with(LocalDensity.current) { resolvedKeyboardLiftPx.toDp() }
     val messageSnapshot = controller.messages.value
-    val renderItems = remember(messageSnapshot) { chatRenderItems(messageSnapshot) }
     val pendingUploads = controller.pendingUploads
     val isRunning = controller.isActiveConversationRunning()
+    val renderItems = remember(messageSnapshot, isRunning) {
+        chatRenderItems(messageSnapshot, isStreaming = isRunning)
+    }
     val hasWorkspace = controller.hasWorkspace()
     var forcedSkillIds by rememberSaveable { mutableStateOf(emptyList<String>()) }
     val installedSkills = settings.installedSkills()

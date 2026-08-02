@@ -9,11 +9,14 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
@@ -486,11 +489,12 @@ internal fun KimiDrawerContent(
             }
         } else {
             projectGroups.forEach { (project, conversations) ->
+                val projectExpanded = project.id !in collapsedProjectIds
                 item(key = "project-${project.id}") {
                     ProjectHeaderRow(
                         project = project,
                         conversationCount = conversationSnapshot.count { it.projectId == project.id },
-                        expanded = project.id !in collapsedProjectIds,
+                        expanded = projectExpanded,
                         active = controller.activeProjectId() == project.id,
                         onToggle = {
                             collapsedProjectIds = if (project.id in collapsedProjectIds) {
@@ -504,9 +508,19 @@ internal fun KimiDrawerContent(
                         modifier = historyContentModifier,
                     )
                 }
-                if (project.id !in collapsedProjectIds) {
-                    if (conversations.isEmpty()) {
-                        item(key = "project-empty-${project.id}") {
+                if (conversations.isEmpty()) {
+                    item(key = "project-empty-${project.id}") {
+                        AnimatedVisibility(
+                            visible = projectExpanded,
+                            enter = fadeIn(tween(180)) + expandVertically(
+                                animationSpec = tween(240),
+                                expandFrom = Alignment.Top,
+                            ),
+                            exit = fadeOut(tween(140)) + shrinkVertically(
+                                animationSpec = tween(220),
+                                shrinkTowards = Alignment.Top,
+                            ),
+                        ) {
                             Text(
                                 context.getString(R.string.notice_no_project_sessions),
                                 color = KimiMuted,
@@ -515,8 +529,20 @@ internal fun KimiDrawerContent(
                                     .padding(start = 42.dp, end = 8.dp),
                             )
                         }
-                    } else {
-                        items(conversations, key = { "project-session-${it.id}" }) { conversation ->
+                    }
+                } else {
+                    items(conversations, key = { "project-session-${it.id}" }) { conversation ->
+                        AnimatedVisibility(
+                            visible = projectExpanded,
+                            enter = fadeIn(tween(180)) + expandVertically(
+                                animationSpec = tween(240),
+                                expandFrom = Alignment.Top,
+                            ),
+                            exit = fadeOut(tween(140)) + shrinkVertically(
+                                animationSpec = tween(220),
+                                shrinkTowards = Alignment.Top,
+                            ),
+                        ) {
                             KimiConversationRow(
                                 conversation = conversation,
                                 selected = controller.activeConversationId.value == conversation.id,
@@ -851,6 +877,11 @@ private fun ProjectHeaderRow(
 ) {
     val context = LocalContext.current
     val shape = RoundedCornerShape(18.dp)
+    val expandIconRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(220),
+        label = "projectExpandIconRotation",
+    )
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -913,13 +944,15 @@ private fun ProjectHeaderRow(
                 )
             }
             Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                Icons.Default.ExpandMore,
                 contentDescription = if (expanded) {
                     context.getString(R.string.action_collapse_project)
                 } else {
                     context.getString(R.string.action_expand_project)
                 },
-                modifier = Modifier.size(20.dp),
+                modifier = Modifier
+                    .size(20.dp)
+                    .graphicsLayer { rotationZ = expandIconRotation },
                 tint = KimiMuted,
             )
         }

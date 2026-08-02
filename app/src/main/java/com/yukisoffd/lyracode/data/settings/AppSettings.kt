@@ -562,6 +562,13 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getString(KEY_REASONING_DEPTH, REASONING_AUTO)
             .orEmpty()
             .ifBlank { REASONING_AUTO }
+            .let { value ->
+                when {
+                    value == "ultra" -> REASONING_MAX
+                    value in reasoningDepthValues -> value
+                    else -> REASONING_AUTO
+                }
+            }
         set(value) = plainPrefs.edit().putString(
             KEY_REASONING_DEPTH,
             value.takeIf { it in reasoningDepthValues } ?: REASONING_AUTO,
@@ -2142,8 +2149,16 @@ class AppSettings(context: Context) {
         const val REASONING_LOW = "low"
         const val REASONING_MEDIUM = "medium"
         const val REASONING_HIGH = "high"
-        const val REASONING_ULTRA = "ultra"
-        val reasoningDepthValues = listOf(REASONING_AUTO, REASONING_LOW, REASONING_MEDIUM, REASONING_HIGH, REASONING_ULTRA)
+        const val REASONING_XHIGH = "xhigh"
+        const val REASONING_MAX = "max"
+        val reasoningDepthValues = listOf(
+            REASONING_AUTO,
+            REASONING_LOW,
+            REASONING_MEDIUM,
+            REASONING_HIGH,
+            REASONING_XHIGH,
+            REASONING_MAX,
+        )
         const val MCP_TRANSPORT_STREAMABLE_HTTP = "streamable_http"
         const val MCP_TRANSPORT_SSE = "sse"
         const val DEFAULT_LOCAL_MCP_SERVER_HOST = "0.0.0.0"

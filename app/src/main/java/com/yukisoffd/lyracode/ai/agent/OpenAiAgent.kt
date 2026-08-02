@@ -957,24 +957,46 @@ class OpenAiAgent(
     private fun applyReasoningDepthHint(requestJson: JSONObject, profile: ApiProfile, model: String) {
         val depth = settings.reasoningDepth
         if (depth == AppSettings.REASONING_AUTO) return
-        if (profile.apiFormat != ApiProfile.API_FORMAT_OPENAI) return
-        if (!modelLooksReasoningCapable(model)) return
         val effort = when (depth) {
             AppSettings.REASONING_LOW -> "low"
             AppSettings.REASONING_MEDIUM -> "medium"
-            AppSettings.REASONING_HIGH, AppSettings.REASONING_ULTRA -> "high"
+            AppSettings.REASONING_HIGH -> "high"
+            AppSettings.REASONING_XHIGH -> "xhigh"
+            AppSettings.REASONING_MAX -> "max"
             else -> return
         }
-        if (profile.useResponsesApi) {
-            requestJson.put("reasoning", JSONObject().put("effort", effort).put("summary", "auto"))
-        } else {
-            requestJson.put("reasoning_effort", effort)
+        when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_OPENAI -> {
+                if (!modelLooksReasoningCapable(model)) return
+                if (profile.useResponsesApi) {
+                    requestJson.put("reasoning", JSONObject().put("effort", effort).put("summary", "auto"))
+                } else {
+                    requestJson.put("reasoning_effort", effort)
+                }
+            }
+            ApiProfile.API_FORMAT_ANTHROPIC -> {
+                if (!modelLooksAnthropicEffortCapable(model)) return
+                requestJson.put("output_config", JSONObject().put("effort", effort))
+            }
         }
     }
 
     private fun modelLooksReasoningCapable(model: String): Boolean {
         val clean = model.lowercase(Locale.US)
         return listOf("o1", "o3", "o4", "gpt-5", "reason", "reasoner", "r1", "qwen3", "glm-4.5", "glm-5")
+            .any { clean.contains(it) }
+    }
+
+    private fun modelLooksAnthropicEffortCapable(model: String): Boolean {
+        val clean = model.lowercase(Locale.US)
+        return clean.contains("claude") && listOf(
+            "opus-4-5", "opus-4.5",
+            "opus-4-6", "opus-4.6",
+            "opus-4-7", "opus-4.7",
+            "opus-4-8", "opus-4.8",
+            "sonnet-4-6", "sonnet-4.6",
+            "opus-5", "sonnet-5", "fable-5", "mythos-5", "mythos-preview",
+        )
             .any { clean.contains(it) }
     }
 
@@ -994,6 +1016,7 @@ class OpenAiAgent(
             .put("messages", anthropicMessages(conversationId, excludeMessageId))
             .put("tools", anthropicToolsFor(conversationId))
             .put("stream", true)
+        applyReasoningDepthHint(requestJson, profile, model)
         val request = Request.Builder()
             .url(profile.chatEndpoint)
             .addHeader("x-api-key", profile.apiKey)

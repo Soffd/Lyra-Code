@@ -40,4 +40,24 @@ class ChatRenderItemsTest {
         assertTrue(items.none { it.process.isNotEmpty() })
         assertEquals("hi", items.last().message?.content)
     }
+
+    @Test
+    fun `keeps process and intermediate output in arrival order while streaming`() {
+        val messages = listOf(
+            ChatRecord(id = 1L, role = "user", content = "start", createdAt = 1_000L),
+            ChatRecord(id = 2L, role = "assistant", content = "intermediate one", thinking = "plan one", createdAt = 2_000L),
+            ChatRecord(id = 3L, role = "tool", content = "tool result", createdAt = 3_000L),
+            ChatRecord(id = 4L, role = "assistant", content = "intermediate two", thinking = "plan two", createdAt = 4_000L),
+        )
+
+        val items = chatRenderItems(messages, isStreaming = true)
+
+        assertEquals(6, items.size)
+        assertEquals("user", items[0].message?.role)
+        assertEquals("plan one", items[1].process.single().thinking)
+        assertEquals("intermediate one", items[2].message?.content)
+        assertEquals("tool", items[3].process.single().role)
+        assertEquals("plan two", items[4].process.single().thinking)
+        assertEquals("intermediate two", items[5].message?.content)
+    }
 }

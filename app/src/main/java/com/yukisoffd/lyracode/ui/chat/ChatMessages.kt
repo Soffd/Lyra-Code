@@ -93,7 +93,10 @@ internal data class ChatRenderItem(
     val processFinishedAt: Long? = null,
 )
 
-internal fun chatRenderItems(messages: List<ChatRecord>): List<ChatRenderItem> {
+internal fun chatRenderItems(
+    messages: List<ChatRecord>,
+    isStreaming: Boolean = false,
+): List<ChatRenderItem> {
     val result = mutableListOf<ChatRenderItem>()
     val assistantTurn = mutableListOf<ChatRecord>()
 
@@ -101,6 +104,39 @@ internal fun chatRenderItems(messages: List<ChatRecord>): List<ChatRenderItem> {
         if (assistantTurn.isEmpty()) return
         val turn = assistantTurn.toList()
         assistantTurn.clear()
+        if (isStreaming) {
+            turn.forEach { message ->
+                if (message.role == "assistant") {
+                    if (message.thinking.isNotBlank() || message.content.isBlank()) {
+                        val processMessage = if (message.content.isNotBlank()) {
+                            message.copy(id = -message.id, content = "")
+                        } else {
+                            message
+                        }
+                        result += ChatRenderItem(
+                            key = "process-${message.id}",
+                            process = listOf(processMessage),
+                            processStartedAt = message.createdAt,
+                            processFinishedAt = message.createdAt,
+                        )
+                    }
+                    if (message.content.isNotBlank()) {
+                        result += ChatRenderItem(
+                            key = "message-${message.id}",
+                            message = message.copy(thinking = ""),
+                        )
+                    }
+                } else {
+                    result += ChatRenderItem(
+                        key = "process-${message.id}",
+                        process = listOf(message),
+                        processStartedAt = message.createdAt,
+                        processFinishedAt = message.createdAt,
+                    )
+                }
+            }
+            return
+        }
         val finalAnswerIndex = turn.indexOfLast {
             it.role == "assistant" && it.content.isNotBlank()
         }
@@ -596,7 +632,11 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
       ) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(uiText("文件变更 ${events.size}"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    "${uiText("文件变更")} ${events.size}",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleSmall,
+                )
                 Text("+$totalAdded", color = Color(0xFF188038), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.width(8.dp))
                 Text("-$totalRemoved", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
