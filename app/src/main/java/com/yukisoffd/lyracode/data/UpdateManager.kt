@@ -169,7 +169,7 @@ class UpdateManager(private val context: Context) {
             val body = response.body ?: error("下载安装包失败：响应为空")
             val total = body.contentLength()
             val contentType = body.contentType()?.toString().orEmpty()
-            val outputDir = File(appContext.externalCacheDir ?: appContext.cacheDir, "updates").also { it.mkdirs() }
+            val outputDir = updateDownloadDir().also { it.mkdirs() }
             val output = File(outputDir, "LyraCode-${info.versionName.ifBlank { info.versionCode.toString() }}.apk")
             val partial = File(outputDir, "${output.name}.part")
             if (partial.exists()) partial.delete()
@@ -214,6 +214,7 @@ class UpdateManager(private val context: Context) {
                 partial.delete()
                 "保存安装包失败"
             }
+            pruneCachedUpdateArtifacts(keepFile = output)
             savePendingApk(output, info)
             onProgress(UpdateDownloadProgress(total.coerceAtLeast(output.length()), total, "下载完成"))
             output
@@ -222,15 +223,20 @@ class UpdateManager(private val context: Context) {
 
     fun pendingDownloadedApk(): File? {
         val path = prefs.getString(KEY_PENDING_APK_PATH, null).orEmpty()
-        if (path.isBlank()) return null
+        if (path.isBlank()) {
+            pruneCachedUpdateArtifacts()
+            return null
+        }
         val pendingVersionCode = prefs.getLong(KEY_PENDING_VERSION_CODE, 0L)
         if (pendingVersionCode > 0L && currentVersionCode() >= pendingVersionCode) {
             clearPendingApk()
+            pruneCachedUpdateArtifacts()
             return null
         }
         val file = File(path)
         if (!file.exists() || file.length() <= 0L || !isZipApk(file)) {
             clearPendingApk()
+            pruneCachedUpdateArtifacts()
             return null
         }
         val expected = prefs.getString(KEY_PENDING_APK_SHA256, "").orEmpty()
@@ -238,9 +244,11 @@ class UpdateManager(private val context: Context) {
             val valid = runCatching { sha256(file).equals(expected, ignoreCase = true) }.getOrDefault(false)
             if (!valid) {
                 clearPendingApk()
+                pruneCachedUpdateArtifacts()
                 return null
             }
         }
+        pruneCachedUpdateArtifacts(keepFile = file)
         return file
     }
 
@@ -255,7 +263,12 @@ class UpdateManager(private val context: Context) {
                 ?.takeIf { it.isNotBlank() }
                 ?.let { runCatching { File(it).delete() } }
         }
-        prefs.edit().clear().apply()
+        prefs.edit()
+            .remove(KEY_PENDING_APK_PATH)
+            .remove(KEY_PENDING_APK_SHA256)
+            .remove(KEY_PENDING_VERSION_NAME)
+            .remove(KEY_PENDING_VERSION_CODE)
+            .apply()
     }
 
     fun needsInstallPermission(): Boolean {
@@ -360,6 +373,16 @@ class UpdateManager(private val context: Context) {
             .apply()
     }
 
+    private fun updateDownloadDir(): File = File(appContext.externalCacheDir ?: appContext.cacheDir, "updates")
+
+    private fun pruneCachedUpdateArtifacts(keepFile: File? = null) {
+        buildList {
+            add(File(appContext.cacheDir, "updates"))
+            appContext.externalCacheDir?.let { add(File(it, "updates")) }
+        }.distinctBy { it.safeCanonicalPath() }
+            .forEach { deleteCachedUpdateArtifacts(it, keepFile) }
+    }
+
     private companion object {
         const val KEY_PENDING_APK_PATH = "pending_apk_path"
         const val KEY_PENDING_APK_SHA256 = "pending_apk_sha256"
@@ -378,3 +401,20 @@ class UpdateManager(private val context: Context) {
         const val KEY_LAST_UPDATE_PROMPT_DATE = "last_update_prompt_date"
     }
 }
+
+internal fun deleteCachedUpdateArtifacts(directory: File, keepFile: File? = null): Int {
+    val keepPath = keepFile?.safeCanonicalPath()
+    return directory.listFiles().orEmpty().count { candidate ->
+        val isUpdateArtifact = candidate.isFile && (
+            candidate.name.endsWith(".apk", ignoreCase = true) ||
+                candidate.name.endsWith(".part", ignoreCase = true)
+            )
+        if (!isUpdateArtifact || candidate.safeCanonicalPath() == keepPath) {
+            false
+        } else {
+            runCatching { candidate.delete() }.getOrDefault(false)
+        }
+    }
+}
+
+private fun File.safeCanonicalPath(): String = runCatching { canonicalPath }.getOrDefault(absolutePath)

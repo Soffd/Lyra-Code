@@ -742,7 +742,7 @@
     <string name="menu_app_data">Menu App Data</string>
     <string name="menu_system_cache">Menu System Cache</string>
     <string name="menu_cleanable_cache">Menu Cleanable Cache</string>
-    <string name="storage_explanation">Storage Explanation</string>
+    <string name="storage_explanation">Total usage is estimated like Android Settings: APK + app data + cache. Cleanup only includes temporary uploads, image crops, camera previews, AI response disk cache, and old installer packages left after an in-app update. It will not delete chat history, model settings, API keys, MCP/SSH, Skills, avatars, or workspace files.</string>
     <string name="label_file_count_size">File Count Size %1$d</string>
     <string name="action_clean">Clean</string>
     <string name="status_cleaning">Cleaning %1$s</string>
@@ -1073,12 +1073,12 @@
     <string name="notice_import_from_path">Import From Path %1$s %2$s</string>
     <string name="action_import_from_cloud">Import From Cloud</string>
     <string name="label_unknown_size">UnknownSize</string>
-    <string name="ssh_desc">SSH Desc</string>
+    <string name="ssh_desc">Connect to Linux/Windows servers that support remote command execution. Confirmation is shown before a command runs.</string>
     <string name="notice_ssh_saved">SSH Saved</string>
     <string name="title_delete_ssh">Delete SSH</string>
     <string name="confirm_delete_ssh">Delete SSH</string>
     <string name="notice_no_ssh">No SSH</string>
-    <string name="ssh_empty_hint">SSH Empty Hint</string>
+    <string name="ssh_empty_hint">Connect to a VPS, cloud host, or LAN host with a password or private key. Settings are encrypted.</string>
     <string name="cd_edit_ssh">Edit SSH</string>
     <string name="cd_delete_ssh">Delete SSH</string>
     <string name="ssh_test_success">SSH Test Success %1$s</string>
@@ -1183,11 +1183,7 @@
     <string name="no_update_prompt_desc">No Update Prompt Desc</string>
     <string name="label_app_id">App ID</string>
     <string name="section_repos">Repository</string>
-    <string name="label_website">Website</string>
-    <string name="section_privacy_security">Section Privacy Security</string>
-    <string name="title_privacy_security">Privacy Security</string>
-    <string name="privacy_desc">Privacy Desc</string>
-    <string name="privacy_update_desc">Privacy Update Desc</string>
+    <string name="label_website">Official website and documentation</string>
     <string name="section_build_info">Section Build Info</string>
     <string name="menu_device_info">Device info</string>
     <string name="menu_update_manifest">Menu Update Manifest</string>

@@ -57,7 +57,7 @@ internal fun StorageCacheSettings() {
         KimiMenuRow(Icons.Default.Memory, uiText("系统缓存"), formatBytes(scan.cacheBytes))
         KimiDivider()
         KimiMenuRow(Icons.Default.CleaningServices, uiText("可安全清理缓存"), formatBytes(scan.cleanableBytes))
-        Text(uiText("总占用按 Android 设置页常见口径估算：安装包 + 应用数据 + 缓存。清理范围仅包含临时上传、图片裁剪、拍照预览和 AI 响应磁盘缓存；不会删除历史对话、模型配置、API Key、MCP/SSH、Skills、头像或工作目录文件。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(uiText("总占用按 Android 设置页常见口径估算：安装包 + 应用数据 + 缓存。清理范围仅包含临时上传、图片裁剪、拍照预览、AI 响应磁盘缓存，以及应用内更新后遗留的旧版本安装包；不会删除历史对话、模型配置、API Key、MCP/SSH、Skills、头像或工作目录文件。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
     scan.items.forEach { item ->
         KimiCardBox {

@@ -768,7 +768,7 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text(uiText("SSH 连接"), style = MaterialTheme.typography.titleMedium)
-                Text(uiText("用于连接 Git 服务器或公网 Linux/Windows 服务器。命令执行前会弹出确认。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText("用于连接可执行远程命令的 Linux/Windows 服务器。命令执行前会弹出确认。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
             Button(onClick = { editing = defaultSshServer() }, shape = KimiPillShape) { Text(uiText("添加")) }
         }
@@ -778,7 +778,7 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
     if (servers.isEmpty()) {
         KimiCardBox {
             Text(uiText("暂无 SSH 连接"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("可使用密码或私钥连接 GitHub/GitLab 服务器、VPS、云主机或局域网主机。配置会加密保存。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText("可使用密码或私钥连接 VPS、云主机或局域网主机。配置会加密保存。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 

@@ -379,7 +379,7 @@ internal fun AboutSoftwareScreen(
             KimiCardBox {
                 SocialLinkRow(
                     logo = { AboutIconBadge(Icons.Default.Public) },
-                    title = uiText("官网"),
+                    title = uiText("官网与使用文档"),
                     value = "lyracode.app",
                     onClick = { uriHandler.openUri("https://lyracode.app") },
                 )
@@ -398,22 +398,8 @@ internal fun AboutSoftwareScreen(
                     onClick = { uriHandler.openUri("https://gitee.com/yukisoffd/lyra-code") },
                 )
             }
-            KimiSectionLabel(uiText("隐私与安全"))
+            KimiSectionLabel(context.getString(R.string.compliance_service_agreements))
             KimiCardBox {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(uiText("隐私与安全"), style = MaterialTheme.typography.titleSmall)
-                    Text(
-                        uiText("API Key 保存在本机配置中；对话、工具输出、缓存和审查日志默认留在本机。使用第三方模型接口、HTTP 明文 URL、联网搜索、MCP 或 Termux 命令时，数据会按用户配置发送到对应服务或本机执行环境。"),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        uiText("应用内更新会下载 APK 二进制文件并校验 SHA-256。安装前 Android 会要求用户允许 Lyra Code 安装未知来源应用。"),
-                        color = KimiMuted,
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                }
-                KimiDivider()
                 KimiMenuRow(
                     Icons.Default.Policy,
                     context.getString(R.string.compliance_service_agreements),

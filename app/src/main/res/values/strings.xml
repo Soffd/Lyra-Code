@@ -780,7 +780,7 @@
     <string name="menu_app_data">应用数据</string>
     <string name="menu_system_cache">系统缓存</string>
     <string name="menu_cleanable_cache">可安全清理缓存</string>
-    <string name="storage_explanation">总占用按 Android 设置页常见口径估算：安装包 + 应用数据 + 缓存。清理范围仅包含临时上传、图片裁剪、拍照预览和 AI 响应磁盘缓存；不会删除历史对话、模型配置、API Key、MCP/SSH、Skills、头像或工作目录文件。</string>
+    <string name="storage_explanation">总占用按 Android 设置页常见口径估算：安装包 + 应用数据 + 缓存。清理范围仅包含临时上传、图片裁剪、拍照预览、AI 响应磁盘缓存，以及应用内更新后遗留的旧版本安装包；不会删除历史对话、模型配置、API Key、MCP/SSH、Skills、头像或工作目录文件。</string>
     <string name="label_file_count_size">%1$d 个文件</string>
     <string name="action_clean">清理</string>
     <string name="status_cleaning">正在清理 %1$s…</string>
@@ -1133,12 +1133,12 @@
     <string name="label_unknown_size">未知大小</string>
 
     <!-- SSH -->
-    <string name="ssh_desc">用于连接 Git 服务器或公网 Linux/Windows 服务器。命令执行前会弹出确认。</string>
+    <string name="ssh_desc">用于连接可执行远程命令的 Linux/Windows 服务器。命令执行前会弹出确认。</string>
     <string name="notice_ssh_saved">SSH 连接已保存</string>
     <string name="title_delete_ssh">删除 SSH 连接</string>
     <string name="confirm_delete_ssh">该操作会删除服务器地址、用户名、密码或私钥配置。</string>
     <string name="notice_no_ssh">暂无 SSH 连接</string>
-    <string name="ssh_empty_hint">可使用密码或私钥连接 GitHub/GitLab 服务器、VPS、云主机或局域网主机。配置会加密保存。</string>
+    <string name="ssh_empty_hint">可使用密码或私钥连接 VPS、云主机或局域网主机。配置会加密保存。</string>
     <string name="cd_edit_ssh">编辑 SSH</string>
     <string name="cd_delete_ssh">删除 SSH</string>
     <string name="ssh_test_success">SSH 测试成功：%1$s</string>
@@ -1260,11 +1260,7 @@
     <string name="no_update_prompt_desc">关闭进入软件时每日一次的新版本弹窗，不影响手动检测更新。</string>
     <string name="label_app_id">应用 ID</string>
     <string name="section_repos">仓库</string>
-    <string name="label_website">官网</string>
-    <string name="section_privacy_security">隐私与安全</string>
-    <string name="title_privacy_security">隐私与安全</string>
-    <string name="privacy_desc">API Key 保存在本机配置中；对话、工具输出、缓存和审查日志默认留在本机。使用第三方模型接口、HTTP 明文 URL、联网搜索、MCP 或 Termux 命令时，数据会按用户配置发送到对应服务或本机执行环境。</string>
-    <string name="privacy_update_desc">应用内更新会下载 APK 二进制文件并校验 SHA-256。安装前 Android 会要求用户允许 Lyra Code 安装未知来源应用。</string>
+    <string name="label_website">官网与使用文档</string>
     <string name="section_build_info">构建信息</string>
     <string name="menu_device_info">手机信息</string>
     <string name="menu_update_manifest">更新清单</string>

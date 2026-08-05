@@ -138,6 +138,91 @@ internal fun splitCompressionTranscript(transcript: String, requestedChunkCount:
     return chunks
 }
 
+internal fun extractModelResponseText(root: JSONObject, apiFormat: String, useResponsesApi: Boolean = false): String {
+    val primary = when (apiFormat) {
+        ApiProfile.API_FORMAT_ANTHROPIC -> extractAnthropicResponseText(root)
+        ApiProfile.API_FORMAT_GEMINI -> extractGeminiResponseText(root)
+        else -> if (useResponsesApi) extractResponsesApiText(root) else extractOpenAiChatText(root)
+    }
+    if (primary.isNotBlank()) return primary
+    val fallbacks = when (apiFormat) {
+        ApiProfile.API_FORMAT_ANTHROPIC -> listOf(extractOpenAiChatText(root), extractResponsesApiText(root))
+        ApiProfile.API_FORMAT_GEMINI -> listOf(extractOpenAiChatText(root), extractResponsesApiText(root))
+        else -> if (useResponsesApi) listOf(extractOpenAiChatText(root)) else listOf(extractResponsesApiText(root))
+    }
+    fallbacks.firstOrNull { it.isNotBlank() }?.let { return it }
+    root.optJSONObject("response")?.let { wrapped ->
+        extractModelResponseText(wrapped, apiFormat, useResponsesApi).takeIf { it.isNotBlank() }?.let { return it }
+    }
+    root.optJSONObject("data")?.let { wrapped ->
+        extractModelResponseText(wrapped, apiFormat, useResponsesApi).takeIf { it.isNotBlank() }?.let { return it }
+    }
+    return ""
+}
+
+private fun extractAnthropicResponseText(root: JSONObject): String {
+    return extractVisibleText(root.opt("content")).ifBlank { root.optString("completion") }
+}
+
+private fun extractGeminiResponseText(root: JSONObject): String {
+    val candidates = root.optJSONArray("candidates") ?: return ""
+    return buildList {
+        for (index in 0 until candidates.length()) {
+            val candidate = candidates.optJSONObject(index) ?: continue
+            val content = candidate.optJSONObject("content")
+            extractVisibleText(content?.opt("parts")).takeIf { it.isNotBlank() }?.let(::add)
+            candidate.optString("output").takeIf { it.isNotBlank() }?.let(::add)
+            candidate.optString("text").takeIf { it.isNotBlank() }?.let(::add)
+        }
+    }.distinct().joinToString("\n")
+}
+
+private fun extractOpenAiChatText(root: JSONObject): String {
+    val choices = root.optJSONArray("choices") ?: return ""
+    return buildList {
+        for (index in 0 until choices.length()) {
+            val choice = choices.optJSONObject(index) ?: continue
+            val message = choice.optJSONObject("message")
+            extractVisibleText(message?.opt("content")).takeIf { it.isNotBlank() }?.let(::add)
+            choice.optString("text").takeIf { it.isNotBlank() }?.let(::add)
+        }
+    }.distinct().joinToString("\n")
+}
+
+private fun extractResponsesApiText(root: JSONObject): String {
+    root.optString("output_text").takeIf { it.isNotBlank() }?.let { return it }
+    val output = root.optJSONArray("output") ?: return ""
+    return buildList {
+        for (index in 0 until output.length()) {
+            val item = output.optJSONObject(index) ?: continue
+            if (item.optString("type") == "reasoning") continue
+            extractVisibleText(item.opt("content")).takeIf { it.isNotBlank() }?.let(::add)
+            extractVisibleText(item.opt("text")).takeIf { it.isNotBlank() }?.let(::add)
+        }
+    }.distinct().joinToString("\n")
+}
+
+private fun extractVisibleText(value: Any?): String = when (value) {
+    null, JSONObject.NULL -> ""
+    is String -> value.takeUnless { it.equals("null", ignoreCase = true) }.orEmpty()
+    is JSONArray -> buildList {
+        for (index in 0 until value.length()) {
+            extractVisibleText(value.opt(index)).takeIf { it.isNotBlank() }?.let(::add)
+        }
+    }.joinToString("\n")
+    is JSONObject -> {
+        when (value.optString("type")) {
+            "reasoning", "thinking", "function_call", "tool_call" -> ""
+            else -> listOf("text", "output_text", "content", "value")
+                .asSequence()
+                .map { extractVisibleText(value.opt(it)) }
+                .firstOrNull { it.isNotBlank() }
+                .orEmpty()
+        }
+    }
+    else -> ""
+}
+
 
 private data class ToolCall(
     val id: String,
@@ -510,12 +595,7 @@ class OpenAiAgent(
                 client.newCall(request).execute().use { response ->
                     val body = response.body?.string().orEmpty()
                     if (!response.isSuccessful) error(historyCompressionHttpError(response.code, body))
-                    val blocks = JSONObject(body).optJSONArray("content") ?: JSONArray()
-                    buildString {
-                        for (index in 0 until blocks.length()) {
-                            blocks.optJSONObject(index)?.takeIf { it.optString("type") == "text" }?.optString("text")?.let(::append)
-                        }
-                    }
+                    extractModelResponseText(JSONObject(body), ApiProfile.API_FORMAT_ANTHROPIC)
                 }
             }
             ApiProfile.API_FORMAT_GEMINI -> {
@@ -528,8 +608,7 @@ class OpenAiAgent(
                 client.newCall(request).execute().use { response ->
                     val body = response.body?.string().orEmpty()
                     if (!response.isSuccessful) error(historyCompressionHttpError(response.code, body))
-                    val parts = JSONObject(body).optJSONArray("candidates")?.optJSONObject(0)?.optJSONObject("content")?.optJSONArray("parts") ?: JSONArray()
-                    buildString { for (index in 0 until parts.length()) parts.optJSONObject(index)?.optString("text")?.let(::append) }
+                    extractModelResponseText(JSONObject(body), ApiProfile.API_FORMAT_GEMINI)
                 }
             }
             else -> requestOpenAiText(
@@ -580,6 +659,13 @@ class OpenAiAgent(
                 .put("max_tokens", maxOutputTokens)
                 .put("stream", false)
         }
+        if (modelLooksReasoningCapable(model)) {
+            if (profile.useResponsesApi) {
+                payload.put("reasoning", JSONObject().put("effort", "low"))
+            } else if (modelLooksOpenAiReasoningEffortCapable(model)) {
+                payload.put("reasoning_effort", "low")
+            }
+        }
         val request = Request.Builder()
             .url(if (profile.useResponsesApi) profile.responsesEndpoint else profile.chatEndpoint)
             .addHeader("Authorization", "Bearer ${profile.apiKey}")
@@ -589,26 +675,7 @@ class OpenAiAgent(
         return client.newCall(request).execute().use { response ->
             val body = response.body?.string().orEmpty()
             if (!response.isSuccessful) error(errorMessage(response.code, body))
-            val root = JSONObject(body)
-            if (profile.useResponsesApi) responsesOutputText(root) else {
-                root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("message")?.optString("content").orEmpty()
-            }
-        }
-    }
-
-    private fun responsesOutputText(root: JSONObject): String = buildString {
-        val output = root.optJSONArray("output") ?: JSONArray()
-        for (index in 0 until output.length()) {
-            val parts = output.optJSONObject(index)
-                ?.takeIf { it.optString("type") == "message" }
-                ?.optJSONArray("content")
-                ?: continue
-            for (partIndex in 0 until parts.length()) {
-                parts.optJSONObject(partIndex)
-                    ?.takeIf { it.optString("type") == "output_text" }
-                    ?.optString("text")
-                    ?.let(::append)
-            }
+            extractModelResponseText(JSONObject(body), profile.apiFormat, profile.useResponsesApi)
         }
     }
 
@@ -985,6 +1052,11 @@ class OpenAiAgent(
         val clean = model.lowercase(Locale.US)
         return listOf("o1", "o3", "o4", "gpt-5", "reason", "reasoner", "r1", "qwen3", "glm-4.5", "glm-5")
             .any { clean.contains(it) }
+    }
+
+    private fun modelLooksOpenAiReasoningEffortCapable(model: String): Boolean {
+        val clean = model.lowercase(Locale.US)
+        return listOf("o1", "o3", "o4", "gpt-5").any { clean.contains(it) }
     }
 
     private fun modelLooksAnthropicEffortCapable(model: String): Boolean {
@@ -4616,8 +4688,8 @@ class OpenAiAgent(
         private const val MIN_HISTORY_COMPRESSION_CHUNKS = 1
         private const val MAX_HISTORY_COMPRESSION_CHUNKS = 16
         private const val HISTORY_COMPRESSION_MERGE_BATCH_SIZE = 4
-        private const val HISTORY_COMPRESSION_SEGMENT_MAX_OUTPUT_TOKENS = 1536
-        private const val HISTORY_COMPRESSION_INTERMEDIATE_MAX_OUTPUT_TOKENS = 2048
+        private const val HISTORY_COMPRESSION_SEGMENT_MAX_OUTPUT_TOKENS = 4096
+        private const val HISTORY_COMPRESSION_INTERMEDIATE_MAX_OUTPUT_TOKENS = 4096
         private const val HISTORY_COMPRESSION_FINAL_MAX_OUTPUT_TOKENS = 4096
         private const val PROMPT_CACHE_KEY_HASH_CHARS = 32
         private const val REQUEST_STATIC_INPUT_TOKENS = 1024L
