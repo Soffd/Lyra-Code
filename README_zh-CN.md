@@ -23,7 +23,7 @@
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
 
-Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对话、独立双栏文件管理器与代码编辑器、原生文件下载、命令执行、联网搜索、MCP 客户端/服务端、SSH、WebDAV、FTP/FTPS/SFTP、内置微型服务器、数据备份、Skills、设备诊断和用量统计整合到移动端。
+Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对话、独立双栏文件管理器与代码编辑器、原生文件下载、命令执行、联网搜索、MCP 客户端/服务端、SSH、SMTP/IMAP 邮件、WebDAV、FTP/FTPS/SFTP、内置微型服务器、数据备份、Skills、设备诊断和用量统计整合到移动端。
 
 ## 界面预览
 
@@ -70,9 +70,10 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 - MCP 客户端：支持连接 Streamable HTTP / SSE 远程 MCP Server。
 - MCP 服务端：可将 Lyra Code 当前启用的本地工具和已连接 MCP 工具，通过本机/局域网 HTTP 暴露给其他 MCP 客户端调用，支持自定义端口和可选认证 Key。
 - SSH：支持密码或密钥登录 Linux、Windows、Git 服务器，并执行经用户确认的命令。
+- 邮件（SMTP / IMAP）：可添加邮件服务器，让 AI 通过 IMAP 读取、搜索和管理邮件。
 - WebDAV：支持列出文件、PROPFIND、搜索、上传、下载和云备份。
 - FTP / FTPS / SFTP：可添加存储服务器，支持列目录、搜索文件、上传和下载，可手动配置或由 AI 管理。
-- 支持通过自然语言管理 MCP、SSH、WebDAV、FTP/FTPS/SFTP、Skills 和 Agent 工具配置。
+- 支持通过自然语言管理 MCP、SSH、邮件（IMAP/SMTP）、WebDAV、FTP/FTPS/SFTP、Skills 和 Agent 工具配置。
 
 ### 微型服务器
 
@@ -104,7 +105,7 @@ Lyra Code 是一个面向 Android 的本地 AI Agent 应用。它把大模型对
 
 ### 数据与备份
 
-- 支持导出/导入个人资料、对话历史、模型配置、MCP、SSH、WebDAV、FTP/FTPS/SFTP、系统提示词、Skills 等。
+- 支持导出/导入个人资料、对话历史、模型配置、MCP、SSH、邮件（IMAP/SMTP）、WebDAV、FTP/FTPS/SFTP、系统提示词、Skills 等。
 - 支持本地 zip 备份和 WebDAV 云备份，补充模式会尽量去重并降低密钥被覆盖的风险。
 - 支持不包含 API Key 的安全导出，也支持包含密钥的完整迁移备份。
 
@@ -159,8 +160,9 @@ mkdir -p ~/.termux && (grep -qxF 'allow-external-apps=true' ~/.termux/termux.pro
 
 ## 安全说明
 
-Lyra Code 会处理 API Key、SSH 密码/私钥、MCP Token、WebDAV/FTP 凭据、对话内容、本地文件和远程服务器输出。请注意：
+Lyra Code 会处理 API Key、SSH 密码/私钥、MCP Token、邮箱密码/应用专用密码、WebDAV/FTP 凭据、对话内容、本地文件和远程服务器输出。请注意：
 
+- 邮箱密码/应用专用密码在本机加密保存。读取正文不会改变已读状态；每次 SMTP 发送都必须由用户单独确认。附件只下载到隔离目录，AI 不会读取。
 - 使用 HTTP 明文 API、MCP、WebDAV、FTP 或微型服务器服务时，数据可能被中间人读取。
 - 将微型服务器暴露到局域网、内网穿透或公网时，如果目录、密码或 HTTPS 配置不当，可能泄露本地文件。启用外部访问前应检查工作区和认证配置。
 - 让 AI 执行命令、修改文件、上传/下载文件或操作远程服务器前，应审查工具调用内容。

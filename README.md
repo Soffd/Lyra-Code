@@ -23,7 +23,7 @@
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
 
-Lyra Code is an Android-first local AI Agent app. It brings model chat, an independent dual-pane file manager and code editor, native downloads, command execution, web search, MCP client/server support, SSH, WebDAV, FTP/FTPS/SFTP, a built-in mini server, backups, Skills, device diagnostics, and usage statistics into a mobile workflow.
+Lyra Code is an Android-first local AI Agent app. It brings model chat, an independent dual-pane file manager and code editor, native downloads, command execution, web search, MCP client/server support, SSH, SMTP/IMAP email, WebDAV, FTP/FTPS/SFTP, a built-in mini server, backups, Skills, device diagnostics, and usage statistics into a mobile workflow.
 
 ## Screenshots
 
@@ -70,9 +70,10 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, an indep
 - MCP Client: connect to remote MCP servers over Streamable HTTP or SSE.
 - MCP Server: expose Lyra Code's enabled local tools and connected MCP tools to other MCP clients over local/LAN HTTP, with configurable port and optional auth key.
 - SSH: password/key login for Linux, Windows, and Git servers, with user-approved command execution.
+- Email (SMTP / IMAP): add mail servers and let the Agent read, search, and manage emails.
 - WebDAV: file listing, PROPFIND, search, upload, download, and cloud backup.
 - FTP / FTPS / SFTP: add storage servers, list directories, search files, upload, and download through AI tools or manual configuration.
-- Natural-language configuration management for MCP, SSH, WebDAV, FTP/FTPS/SFTP, Skills, and Agent tools.
+- Natural-language configuration management for MCP, SSH, email (IMAP/SMTP), WebDAV, FTP/FTPS/SFTP, Skills, and Agent tools.
 
 ### Mini Server
 
@@ -104,7 +105,7 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, an indep
 
 ### Data and Backup
 
-- Export/import profile data, conversations, model providers, MCP, SSH, WebDAV, FTP/FTPS/SFTP, system prompts, and Skills.
+- Export/import profile data, conversations, model providers, MCP, SSH, email (IMAP/SMTP), WebDAV, FTP/FTPS/SFTP, system prompts, and Skills.
 - Local zip backup and WebDAV cloud backup, with supplement import mode and deduplication.
 - Safe export without API keys, or full migration export with secrets included.
 
@@ -159,8 +160,9 @@ Then grant the Termux communication permission in Lyra Code settings. If permiss
 
 ## Security Notes
 
-Lyra Code may handle API keys, SSH passwords/private keys, MCP tokens, WebDAV/FTP credentials, conversations, local files, and remote server output. Please note:
+Lyra Code may handle API keys, SSH passwords/private keys, MCP tokens, email passwords/app passwords, WebDAV/FTP credentials, conversations, local files, and remote server output. Please note:
 
+- Email passwords/app passwords are encrypted on this device. Reading message bodies does not change their read status; every SMTP send requires fresh, explicit user confirmation. Attachments are downloaded into a quarantine directory only and are never read by the AI.
 - HTTP API, MCP, WebDAV, FTP, and mini server endpoints are insecure unless protected by HTTPS/TLS or a trusted network.
 - Exposing the mini server to LAN, tunneling, or public networks may leak local files if the served directory, authentication, or HTTPS configuration is wrong. Review the workspace and password before enabling external access.
 - Review tool calls before allowing AI to execute commands, edit files, upload/download files, or operate remote servers.
