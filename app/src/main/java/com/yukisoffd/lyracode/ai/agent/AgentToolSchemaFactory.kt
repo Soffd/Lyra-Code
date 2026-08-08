@@ -256,7 +256,7 @@ internal class AgentToolSchemaFactory(
         .put(
             functionWithOptional(
                 "manage_app_config",
-                "Manage MCP, SSH, WebDAV, FTP/FTPS/SFTP, Skill, and Agent-tool configuration when the user asks to add, update, enable, disable, or delete it. If the target is ambiguous, call target=all action=list and inspect disabled_summary. MCP JSON and Skill zip URLs may come from a read web page. Ask the user for required keys or passwords; never invent them. Agent tools can only be enabled or disabled, and manage_app_config itself cannot be disabled.",
+                "Manage MCP, SSH, email (IMAP/SMTP), WebDAV, FTP/FTPS/SFTP, Skill, and Agent-tool configuration when the user asks to add, update, enable, disable, or delete it. If the target is ambiguous, call target=all action=list and inspect disabled_summary. Ask for missing account credentials; never invent them. Agent tools can only be enabled or disabled, and manage_app_config itself cannot be disabled.",
                 required = listOf("target" to "string", "action" to "string"),
                 optional = listOf(
                     "id" to "string",
@@ -270,11 +270,18 @@ internal class AgentToolSchemaFactory(
                     "host" to "string",
                     "port" to "integer",
                     "username" to "string",
+                    "email_address" to "string",
                     "password" to "string",
                     "private_key" to "string",
                     "passphrase" to "string",
                     "auth_type" to "string",
                     "protocol" to "string",
+                    "imap_host" to "string",
+                    "imap_port" to "integer",
+                    "imap_security" to "string",
+                    "smtp_host" to "string",
+                    "smtp_port" to "integer",
+                    "smtp_security" to "string",
                     "use_private_key" to "boolean",
                     "encoding" to "string",
                     "passive_mode" to "boolean",
@@ -325,6 +332,43 @@ internal class AgentToolSchemaFactory(
             )
         }
         definitions
+        .put(function("list_email_accounts", "List enabled user-configured IMAP/SMTP accounts without revealing passwords. Call this before other email tools and use a returned id as account_id."))
+        .put(function("list_email_folders", "List IMAP folders and identify likely drafts folders without opening message content.", "account_id" to "string"))
+        .put(
+            functionWithOptional(
+                "list_emails",
+                "List bounded email metadata and exact IMAP flags. This opens the folder read-only and never downloads bodies or attachments.",
+                required = listOf("account_id" to "string"),
+                optional = listOf("folder" to "string", "unread_only" to "boolean", "limit" to "integer"),
+            ),
+        )
+        .put(function("read_email", "Read one bounded email body by IMAP UID without marking it read. HTML is converted to plain text; inline media and attachment bytes are omitted.", "account_id" to "string", "folder" to "string", "uid" to "integer"))
+        .put(
+            functionWithOptional(
+                "set_email_flags",
+                "Change the seen/unseen or flagged state of one email after user approval. Draft, answered, and deleted state are reported but cannot be forged with this tool.",
+                required = listOf("account_id" to "string", "folder" to "string", "uid" to "integer"),
+                optional = listOf("seen" to "boolean", "flagged" to "boolean"),
+            ),
+        )
+        .put(function("download_email_attachment", "Download one attachment into Lyra Code's isolated temporary quarantine after user approval. The result is never readable by AI; ask the user to scan it before opening.", "account_id" to "string", "folder" to "string", "uid" to "integer", "attachment_id" to "integer"))
+        .put(function("record_email_attachment_scan", "Record the user's explicit antivirus scan result for a quarantined attachment. This does not make its contents readable by AI.", "attachment_token" to "string", "safe" to "boolean"))
+        .put(
+            functionWithOptional(
+                "save_email_draft",
+                "Build a MIME email and append it to the provider's discovered IMAP drafts folder after approval, so the user can review and send manually. Supports text, HTML, standards-compliant reply headers, and workspace attachments up to 20 MB total.",
+                required = listOf("account_id" to "string", "to" to "array:string", "subject" to "string"),
+                optional = listOf("cc" to "array:string", "bcc" to "array:string", "text_body" to "string", "html_body" to "string", "attachments" to "array:string", "reply_folder" to "string", "reply_uid" to "integer", "allow_reply_to_answered" to "boolean"),
+            ),
+        )
+        .put(
+            functionWithOptional(
+                "send_email",
+                "Send a MIME email through SMTP. Every invocation requires explicit user confirmation. Supports text/HTML, attachments up to 20 MB total, and threaded replies using Message-ID/In-Reply-To/References. Duplicate or uncertain deliveries are blocked from automatic retry.",
+                required = listOf("account_id" to "string", "to" to "array:string", "subject" to "string"),
+                optional = listOf("cc" to "array:string", "bcc" to "array:string", "text_body" to "string", "html_body" to "string", "attachments" to "array:string", "reply_folder" to "string", "reply_uid" to "integer", "allow_reply_to_answered" to "boolean"),
+            ),
+        )
         .put(function("list_ssh_servers", "List enabled user-configured SSH servers. Call this before ssh_exec and use a returned id as server_id."))
         .put(
             functionWithOptional(
@@ -385,6 +429,7 @@ internal class AgentToolSchemaFactory(
                     "include_model_profiles" to "boolean",
                     "include_mcp" to "boolean",
                     "include_ssh" to "boolean",
+                    "include_email" to "boolean",
                     "include_prompts" to "boolean",
                     "include_memories" to "boolean",
                     "include_skills" to "boolean",

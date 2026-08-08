@@ -120,6 +120,8 @@ internal fun LyraCodeApp(
     onThemeModeChange: (String) -> Unit,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    predictiveBackEnabled: Boolean,
+    onPredictiveBackChange: (Boolean) -> Unit,
     languageMode: String,
     onLanguageModeChange: (String) -> Unit,
     refreshRateMode: String,
@@ -241,10 +243,19 @@ internal fun LyraCodeApp(
             conversationDetailsExpanded = false
         }
     }
-    BackHandler(enabled = safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null && !drawerState.isOpen) {
+    val pagePredictiveBackState = rememberPredictiveBackGestureState(
+        enabled = predictiveBackEnabled &&
+            safeSelectedPage != PAGE_CHAT &&
+            safeSelectedPage != PAGE_FILES &&
+            !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) &&
+            !drawerState.isOpen,
+    ) {
+        selectedPage = PAGE_CHAT
+    }
+    BackHandler(enabled = !predictiveBackEnabled && safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null && !drawerState.isOpen) {
         settingsBackRequest++
     }
-    BackHandler(enabled = safeSelectedPage != PAGE_CHAT && safeSelectedPage != PAGE_FILES && !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) && !drawerState.isOpen) {
+    BackHandler(enabled = !predictiveBackEnabled && safeSelectedPage != PAGE_CHAT && safeSelectedPage != PAGE_FILES && !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) && !drawerState.isOpen) {
         selectedPage = PAGE_CHAT
     }
     BackHandler(enabled = drawerState.isOpen) {
@@ -412,7 +423,7 @@ internal fun LyraCodeApp(
         Scaffold(
             containerColor = MaterialTheme.colorScheme.background,
             topBar = {
-                if (safeSelectedPage != PAGE_FILES) TopAppBar(
+                if (safeSelectedPage != PAGE_FILES && safeSelectedPage != PAGE_SETTINGS) TopAppBar(
                     expandedHeight = 56.dp,
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = MaterialTheme.colorScheme.background,
@@ -504,7 +515,12 @@ internal fun LyraCodeApp(
                 )
             },
         ) { padding ->
-            Box(Modifier.padding(padding).fillMaxSize()) {
+            Box(
+                Modifier
+                    .padding(padding)
+                    .fillMaxSize()
+                    .predictiveBackTransform(pagePredictiveBackState),
+            ) {
                 AnimatedContent(
                     targetState = safeSelectedPage,
                     transitionSpec = {
@@ -551,6 +567,8 @@ internal fun LyraCodeApp(
                             onThemeModeChange = onThemeModeChange,
                             dynamicColorEnabled = dynamicColorEnabled,
                             onDynamicColorChange = onDynamicColorChange,
+                            predictiveBackEnabled = predictiveBackEnabled,
+                            onPredictiveBackChange = onPredictiveBackChange,
                             languageMode = languageMode,
                             onLanguageModeChange = onLanguageModeChange,
                             refreshRateMode = refreshRateMode,
@@ -579,6 +597,7 @@ internal fun LyraCodeApp(
                             onUpdateAvailabilityChange = { aboutUpdateAvailable = it },
                             settingsBackRequest = settingsBackRequest,
                             onDetailTitleChange = { settingsDetailTitle = it },
+                            onOpenDrawer = { scope.launch { drawerState.open() } },
                             onToggleSkill = { id, enabled ->
                                 settings.setSkillEnabled(id, enabled)
                                 skillsRevision++

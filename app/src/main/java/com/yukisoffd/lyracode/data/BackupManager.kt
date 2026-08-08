@@ -21,6 +21,7 @@ data class BackupOptions(
     val includeModelProfiles: Boolean = true,
     val includeMcp: Boolean = true,
     val includeSsh: Boolean = true,
+    val includeEmail: Boolean = true,
     val includePrompts: Boolean = true,
     val includeMemories: Boolean = true,
     val includeSkills: Boolean = true,
@@ -46,6 +47,7 @@ class BackupManager(
             }
             if (!options.includeMcp) remove("mcpServers")
             if (!options.includeSsh) remove("sshServers")
+            if (!options.includeEmail) remove("emailServers")
             if (!options.includePrompts) {
                 remove("selectedSystemPromptId")
                 remove("customSystemPrompts")

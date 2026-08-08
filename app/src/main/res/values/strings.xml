@@ -722,6 +722,7 @@
 
     <!-- Theme -->
     <string name="label_dynamic_color">Material You 动态配色</string>
+    <string name="predictive_back_title">预测性返回手势</string>
     <string name="menu_theme_mode">主题模式</string>
     <string name="menu_font_size">字体大小</string>
     <string name="menu_refresh_rate">刷新率</string>
@@ -1710,6 +1711,9 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="manage_enabled_models_count">管理启用模型（%1$d）</string>
     <string name="enabled_models_count">已启用 %1$d 个模型</string>
     <string name="models_fetched_enabled_preserved">已获取 %1$d 个模型，原启用选择已保留</string>
+    <string name="menu_email">SMTP / IMAP 邮件</string>
+    <string name="menu_email_desc">添加邮箱服务器，让 AI 安全读取、写草稿、发送与回复邮件</string>
+    <string name="detail_email">邮件服务器</string>
 </resources>
 
 

@@ -17,6 +17,7 @@ import com.yukisoffd.lyracode.data.BackupOptions
 import com.yukisoffd.lyracode.data.ChatMessage
 import com.yukisoffd.lyracode.data.ConversationStore
 import com.yukisoffd.lyracode.data.DeepSeekV3Tokenizer
+import com.yukisoffd.lyracode.data.EmailServerConfig
 import com.yukisoffd.lyracode.data.FileTransferServerConfig
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
@@ -27,6 +28,9 @@ import com.yukisoffd.lyracode.data.SubAgentConfig
 import com.yukisoffd.lyracode.data.SshServerConfig
 import com.yukisoffd.lyracode.data.WebDavServerConfig
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
+import com.yukisoffd.lyracode.email.EmailClient
+import com.yukisoffd.lyracode.email.EmailComposeRequest
+import com.yukisoffd.lyracode.email.OutgoingAttachment
 import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
 import com.yukisoffd.lyracode.ssh.SshExecutor
@@ -358,6 +362,7 @@ class OpenAiAgent(
     private val forcedSkillsByConversation = ConcurrentHashMap<Long, List<String>>()
     private val subAgentContexts = ConcurrentHashMap<Long, SubAgentExecutionContext>()
     private val subAgentWriteCoordinator = SubAgentWriteCoordinator()
+    private val emailClient = EmailClient(context)
 
     suspend fun chat(
         conversationId: Long,
@@ -732,13 +737,20 @@ class OpenAiAgent(
                         onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
                     },
                     onRetry = { retryNumber, maxRetries, error ->
-                        conversationStore.updateMessage(assistantId, content = "", thinking = "")
                         val retryStatus = uiText(context.getString(R.string.status_request_retry, retryNumber, maxRetries))
                         Log.w(
                             AGENT_TAG,
                             "model_request_retry conversation=$conversationId model=$model retry=$retryNumber/$maxRetries error=${error.message}",
                         )
-                        onUpdate(ChatUpdate("", "", retryStatus, assistantId))
+                        val preserved = conversationStore.message(assistantId)
+                        onUpdate(
+                            ChatUpdate(
+                                preserved?.content.orEmpty(),
+                                preserved?.thinking.orEmpty(),
+                                retryStatus,
+                                assistantId,
+                            ),
+                        )
                     },
                 )
                 conversationStore.updateMessage(
@@ -779,7 +791,15 @@ class OpenAiAgent(
             throw error
         } catch (error: Throwable) {
             conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_INTERRUPTED, profileId = profile.id, model = model)
-            val finalError = uiText("请求中断：") + error.message.orEmpty()
+            val exhausted = generateSequence(error as Throwable?) { it.cause }
+                .filterIsInstance<ModelRequestRetriesExhaustedException>()
+                .firstOrNull()
+            val finalError = if (exhausted != null) {
+                uiText("请求中断：已自动重试 ${exhausted.retryCount} 次，仍无法继续。已保留本轮已输出的思维链和正文；可切换模型，或待 API 恢复后继续任务。") +
+                    error.message.orEmpty().takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
+            } else {
+                uiText("请求中断：") + error.message.orEmpty()
+            }
             conversationStore.addMessage(conversationId, "assistant", finalError, profileId = profile.id, model = model)
             onUpdate(ChatUpdate("", "", finalError))
             if (propagateErrors) throw error
@@ -794,16 +814,46 @@ class OpenAiAgent(
         onDelta: suspend (String, String) -> Unit,
         onRetry: suspend (retryNumber: Int, maxRetries: Int, error: Throwable) -> Unit,
     ): StreamingResult {
-        return executeModelRequestWithRetry(onRetry = onRetry) {
-            when (profile.apiFormat) {
-                ApiProfile.API_FORMAT_ANTHROPIC -> requestAnthropicModel(conversationId, excludeMessageId, profile, model, onDelta)
-                ApiProfile.API_FORMAT_GEMINI -> requestGeminiModel(conversationId, excludeMessageId, profile, model, onDelta)
+        var preservedContent = ""
+        var preservedThinking = ""
+        var attemptContent = ""
+        var attemptThinking = ""
+        return executeModelRequestWithRetry(
+            onRetry = { retryNumber, maxRetries, error ->
+                preservedContent = mergeRetriedStreamText(preservedContent, attemptContent)
+                preservedThinking = mergeRetriedStreamText(preservedThinking, attemptThinking)
+                attemptContent = ""
+                attemptThinking = ""
+                onDelta(preservedContent, preservedThinking)
+                onRetry(retryNumber, maxRetries, error)
+            },
+        ) {
+            attemptContent = ""
+            attemptThinking = ""
+            val preservingDelta: suspend (String, String) -> Unit = { content, thinking ->
+                attemptContent = content
+                attemptThinking = thinking
+                onDelta(
+                    mergeRetriedStreamText(preservedContent, content),
+                    mergeRetriedStreamText(preservedThinking, thinking),
+                )
+            }
+            val result = when (profile.apiFormat) {
+                ApiProfile.API_FORMAT_ANTHROPIC -> requestAnthropicModel(conversationId, excludeMessageId, profile, model, preservingDelta)
+                ApiProfile.API_FORMAT_GEMINI -> requestGeminiModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 else -> if (profile.useResponsesApi) {
-                    streamResponsesModel(conversationId, excludeMessageId, profile, model, onDelta)
+                    streamResponsesModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 } else {
-                    streamOpenAiModel(conversationId, excludeMessageId, profile, model, onDelta)
+                    streamOpenAiModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 }
             }
+            val mergedContent = mergeRetriedStreamText(preservedContent, result.content)
+            val mergedThinking = mergeRetriedStreamText(preservedThinking, result.thinking)
+            result.copy(
+                content = mergedContent,
+                thinking = mergedThinking,
+                rawMessage = assistantRawMessage(mergedContent, mergedThinking, result.toolCalls),
+            )
         }
     }
 
@@ -840,6 +890,7 @@ class OpenAiAgent(
         val thinking = StringBuilder()
         val startedAtNanos = System.nanoTime()
         var outputTokens = 0L
+        var streamCompleted = false
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         client.newCall(request).execute().use { response ->
             val source = response.body ?: throw IOException("响应为空")
@@ -848,7 +899,11 @@ class OpenAiAgent(
                 lines.forEach { line ->
                     if (!line.startsWith("data:")) return@forEach
                     val data = line.removePrefix("data:").trim()
-                    if (data.isBlank() || data == "[DONE]") return@forEach
+                    if (data.isBlank()) return@forEach
+                    if (data == "[DONE]") {
+                        streamCompleted = true
+                        return@forEach
+                    }
                     val event = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
                     val outputIndex = event.optInt("output_index", 0)
                     when (event.optString("type")) {
@@ -888,16 +943,18 @@ class OpenAiAgent(
                             }
                         }
                         "response.completed" -> {
+                            streamCompleted = true
                             event.optJSONObject("response")?.let { completed ->
                                 outputTokens = completed.optJSONObject("usage")?.optLong("output_tokens", outputTokens) ?: outputTokens
                                 collectCompletedResponseItems(completed, content, thinking, toolBuilders)
                             }
                         }
-                        "error" -> error(event.optJSONObject("error")?.optString("message").orEmpty().ifBlank { "Responses API 请求失败" })
+                        "error" -> throw IOException(event.optJSONObject("error")?.optString("message").orEmpty().ifBlank { "Responses API 请求失败" })
                     }
                 }
             }
         }
+        if (!streamCompleted) throw IOException("Responses API 流式连接在完成标志之前中断")
         val calls = toolBuilders.mapNotNull { (index, builder) -> builder.toToolCall(index) }
         val cleanContent = cleanGeneratedText(content.toString())
         val cleanThinking = cleanGeneratedText(thinking.toString())
@@ -951,6 +1008,7 @@ class OpenAiAgent(
         var promptTokens = 0L
         var completionTokens = 0L
         var cachedPromptTokens = 0L
+        var streamCompleted = false
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         client.newCall(request).execute().use { response ->
             val source = response.body ?: throw IOException("响应为空")
@@ -962,8 +1020,14 @@ class OpenAiAgent(
                 lines.forEach { line ->
                     if (!line.startsWith("data:")) return@forEach
                     val data = line.removePrefix("data:").trim()
-                    if (data == "[DONE]") return@forEach
+                    if (data == "[DONE]") {
+                        streamCompleted = true
+                        return@forEach
+                    }
                     val root = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
+                    root.optJSONObject("error")?.let { apiError ->
+                        throw IOException(apiError.optString("message").ifBlank { apiError.toString() })
+                    }
                     root.optJSONObject("usage")?.let { usage ->
                         promptTokens = usage.optLong("prompt_tokens", promptTokens)
                         completionTokens = usage.optLong("completion_tokens", completionTokens)
@@ -971,7 +1035,9 @@ class OpenAiAgent(
                             ?.optLong("cached_tokens", cachedPromptTokens)
                             ?: cachedPromptTokens
                     }
-                    val delta = root.optJSONArray("choices")?.optJSONObject(0)?.optJSONObject("delta") ?: return@forEach
+                    val choice = root.optJSONArray("choices")?.optJSONObject(0) ?: return@forEach
+                    if (!choice.isNull("finish_reason")) streamCompleted = true
+                    val delta = choice.optJSONObject("delta") ?: return@forEach
                     val thinkDelta = delta.stringFieldOrNull("reasoning_content")
                         ?: delta.stringFieldOrNull("thinking_content")
                         ?: delta.stringFieldOrNull("reasoning")
@@ -983,6 +1049,7 @@ class OpenAiAgent(
                 }
             }
         }
+        if (!streamCompleted) throw IOException("模型流式连接在完成标志之前中断")
         val calls = toolBuilders.mapNotNull { (index, builder) -> builder.toToolCall(index) }
         Log.d(
             AGENT_TAG,
@@ -1103,6 +1170,7 @@ class OpenAiAgent(
         val blockBuilders = linkedMapOf<Int, AnthropicBlockBuilder>()
         val nonStreamingBody = StringBuilder()
         var sawStreamingData = false
+        var streamCompleted = false
         client.newCall(request).execute().use { response ->
             val source = response.body ?: throw IOException("响应为空")
             if (!response.isSuccessful) {
@@ -1117,12 +1185,20 @@ class OpenAiAgent(
                     }
                     sawStreamingData = true
                     val data = line.removePrefix("data:").trim()
-                    if (data.isBlank() || data == "[DONE]") return@forEach
+                    if (data.isBlank()) return@forEach
+                    if (data == "[DONE]") {
+                        streamCompleted = true
+                        return@forEach
+                    }
                     val root = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
                     root.optJSONObject("usage")?.let { usage ->
                         outputTokens = usage.optLong("output_tokens", outputTokens)
                     }
                     when (root.optString("type")) {
+                        "message_stop" -> streamCompleted = true
+                        "error" -> throw IOException(
+                            root.optJSONObject("error")?.optString("message").orEmpty().ifBlank { "Anthropic 流式请求失败" },
+                        )
                         "content_block_start" -> {
                             val blockIndex = root.optInt("index")
                             val block = root.optJSONObject("content_block") ?: JSONObject()
@@ -1163,7 +1239,9 @@ class OpenAiAgent(
             }
         }
         if (!sawStreamingData && nonStreamingBody.isNotBlank()) {
-            val root = JSONObject(nonStreamingBody.toString())
+            val root = runCatching { JSONObject(nonStreamingBody.toString()) }.getOrElse { error ->
+                throw IOException("Anthropic 响应不完整或不是有效 JSON", error)
+            }
             outputTokens = root.optJSONObject("usage")?.optLong("output_tokens", outputTokens) ?: outputTokens
             val contentBlocks = root.optJSONArray("content") ?: JSONArray()
             for (index in 0 until contentBlocks.length()) {
@@ -1182,6 +1260,7 @@ class OpenAiAgent(
             }
             onDelta(content.toString(), thinking.toString())
         }
+        if (sawStreamingData && !streamCompleted) throw IOException("Anthropic 流式连接在完成标志之前中断")
         val calls = blockBuilders.mapNotNull { (index, builder) ->
             if (builder.type != "tool_use" || builder.name.isBlank()) {
                 null
@@ -1225,7 +1304,9 @@ class OpenAiAgent(
             val source = response.body ?: throw IOException("响应为空")
             val body = source.string()
             if (!response.isSuccessful) throwModelRequestHttpError(response.code, body)
-            val root = JSONObject(body)
+            val root = runCatching { JSONObject(body) }.getOrElse { error ->
+                throw IOException("Gemini 响应不完整或不是有效 JSON", error)
+            }
             val outputTokens = root.optJSONObject("usageMetadata")?.optLong("candidatesTokenCount", 0L) ?: 0L
             val parts = root.optJSONArray("candidates")
                 ?.optJSONObject(0)
@@ -1841,6 +1922,12 @@ class OpenAiAgent(
             return output
         }
         return runCatching {
+            if (skipApproval && call.name == "send_email") {
+                return@runCatching ToolExecution(
+                    "ERROR: FOREGROUND_CONFIRMATION_REQUIRED\nSMTP sending is unavailable through approval-bypassing entry points. Ask the user to send from a foreground chat and approve the exact message.",
+                    ok = false,
+                )
+            }
             val approval = if (skipApproval) null else approvalFor(conversationId, call)
             if (approval != null) {
                 val decision = approvalHandler(approval)
@@ -1920,6 +2007,45 @@ class OpenAiAgent(
                         allowShellFallback = true,
                     ).toJson(),
                 )
+                "list_email_accounts" -> ToolExecution(emailClient.accountsJson(settings.emailServers()))
+                "list_email_folders" -> ToolExecution(emailClient.listFolders(resolveEmailAccount(args)))
+                "list_emails" -> ToolExecution(
+                    emailClient.listMessages(
+                        account = resolveEmailAccount(args),
+                        folderName = args.optString("folder").ifBlank { "INBOX" },
+                        unreadOnly = args.optBoolean("unread_only", false),
+                        limit = args.optInt("limit", 30),
+                    ),
+                )
+                "read_email" -> ToolExecution(
+                    emailClient.readMessage(
+                        resolveEmailAccount(args),
+                        args.optString("folder").ifBlank { "INBOX" },
+                        args.getLong("uid"),
+                    ),
+                )
+                "set_email_flags" -> ToolExecution(
+                    emailClient.setFlags(
+                        resolveEmailAccount(args),
+                        args.optString("folder").ifBlank { "INBOX" },
+                        args.getLong("uid"),
+                        args.booleanOrNull("seen"),
+                        args.booleanOrNull("flagged"),
+                    ),
+                )
+                "download_email_attachment" -> ToolExecution(
+                    emailClient.downloadAttachment(
+                        resolveEmailAccount(args),
+                        args.optString("folder").ifBlank { "INBOX" },
+                        args.getLong("uid"),
+                        args.getInt("attachment_id"),
+                    ),
+                )
+                "record_email_attachment_scan" -> ToolExecution(
+                    emailClient.recordAttachmentScan(args.getString("attachment_token"), args.getBoolean("safe")),
+                )
+                "save_email_draft" -> ToolExecution(emailClient.saveDraft(resolveEmailAccount(args), emailComposeRequest(args)))
+                "send_email" -> ToolExecution(emailClient.send(resolveEmailAccount(args), emailComposeRequest(args)))
                 "list_ssh_servers" -> ToolExecution(sshExecutor.availableServers())
                 "ssh_exec" -> {
                     val server = settings.resolveSshServer(args.getString("server_id"))
@@ -2525,7 +2651,7 @@ class OpenAiAgent(
     private suspend fun manageAppConfig(args: JSONObject): String {
         val target = args.optString("target").trim().lowercase(Locale.US).replace("-", "_")
         val action = args.optString("action").trim().lowercase(Locale.US).replace("-", "_")
-        require(target.isNotBlank()) { "target is required: all, mcp_server, ssh_server, webdav_server, file_transfer_server, skill, or agent_tool." }
+        require(target.isNotBlank()) { "target is required: all, mcp_server, ssh_server, email_server, webdav_server, file_transfer_server, skill, or agent_tool." }
         require(action.isNotBlank()) { "action is required: list, add, update, enable, disable, or delete." }
         val result = when (target) {
             "all", "config", "configs", "inventory" -> {
@@ -2534,6 +2660,7 @@ class OpenAiAgent(
             }
             "mcp", "mcp_server", "mcp_servers" -> manageMcpConfig(action, args)
             "ssh", "ssh_server", "ssh_servers" -> manageSshConfig(action, args)
+            "email", "mail", "email_server", "email_servers", "imap", "smtp" -> manageEmailConfig(action, args)
             "webdav", "webdav_server", "webdav_servers" -> manageWebDavConfig(action, args)
             "file_transfer", "file_transfer_server", "file_transfer_servers", "ftp", "ftps", "sftp" -> manageFileTransferConfig(target, action, args)
             "skill", "skills" -> manageSkillConfig(action, args)
@@ -2656,6 +2783,51 @@ class OpenAiAgent(
                 require(server.authType != AppSettings.SSH_AUTH_KEY || server.privateKey.isNotBlank()) { "Key authentication requires private_key. Ask the user if it was not provided." }
         settings.upsertSshServer(server)
         return configResult("ssh_server_saved", sshServerJson(server)).toString()
+    }
+
+    private fun manageEmailConfig(action: String, args: JSONObject): String {
+        if (action == "list") return configResult("email_servers", emailServersJson()).toString()
+        val key = args.optString("id").ifBlank { args.optString("email_address") }.ifBlank { args.optString("name") }
+        val existing = settings.emailServers().firstOrNull {
+            it.id == key || it.name == key || it.stableId.equals(key, ignoreCase = true)
+        }
+        when (action) {
+            "delete", "remove" -> {
+                val target = existing ?: error("Email account to delete was not found. List configured accounts and use an exact id or address.")
+                settings.deleteEmailServer(target.id)
+                return configResult("email_server_deleted", JSONObject().put("id", target.id).put("email_address", target.emailAddress)).toString()
+            }
+            "enable", "disable" -> {
+                val target = existing ?: error("Email account to $action was not found. List configured accounts and use an exact id or address.")
+                settings.setEmailServerEnabled(target.id, action == "enable")
+                return configResult("email_server_${action}d", emailServerJson(target.copy(enabled = action == "enable"))).toString()
+            }
+        }
+        require(action in setOf("add", "create", "update", "modify", "upsert")) { "Email configuration does not support action=$action." }
+        val address = args.optString("email_address").ifBlank { existing?.emailAddress.orEmpty() }.trim()
+        val username = args.optString("username").ifBlank { existing?.username.orEmpty() }.ifBlank { address }.trim()
+        val password = args.optString("password").ifBlank { existing?.password.orEmpty() }
+        val imapHost = args.optString("imap_host").ifBlank { existing?.imapHost.orEmpty() }.trim()
+        val smtpHost = args.optString("smtp_host").ifBlank { existing?.smtpHost.orEmpty() }.trim()
+        require(address.contains('@') && address.substringAfter('@').contains('.')) { "A valid email_address is required." }
+        require(username.isNotBlank() && password.isNotBlank()) { "Email username and password/app password are required. Ask the user; never invent credentials." }
+        require(imapHost.isNotBlank() && smtpHost.isNotBlank()) { "Both imap_host and smtp_host are required." }
+        val server = EmailServerConfig(
+            id = existing?.id ?: args.optString("id").ifBlank { AppSettings.newId() },
+            name = args.optString("name").ifBlank { existing?.name.orEmpty() }.ifBlank { address },
+            emailAddress = address,
+            username = username,
+            password = password,
+            imapHost = imapHost,
+            imapPort = args.optInt("imap_port", existing?.imapPort ?: 993).coerceIn(1, 65535),
+            imapSecurity = AppSettings.normalizeEmailSecurity(args.optString("imap_security").ifBlank { existing?.imapSecurity.orEmpty() }),
+            smtpHost = smtpHost,
+            smtpPort = args.optInt("smtp_port", existing?.smtpPort ?: 465).coerceIn(1, 65535),
+            smtpSecurity = AppSettings.normalizeEmailSecurity(args.optString("smtp_security").ifBlank { existing?.smtpSecurity.orEmpty() }),
+            enabled = if (args.has("enabled")) args.optBoolean("enabled") else existing?.enabled ?: true,
+        )
+        settings.upsertEmailServer(server)
+        return configResult("email_server_saved", emailServerJson(server)).toString()
     }
 
     private fun manageWebDavConfig(action: String, args: JSONObject): String {
@@ -2847,11 +3019,12 @@ class OpenAiAgent(
                 .put("agent_tools", agentToolsJson())
                 .put("mcp_servers", mcpServersJson())
                 .put("ssh_servers", sshServersJson())
+                .put("email_servers", emailServersJson())
                 .put("webdav_servers", webDavServersJson())
                 .put("file_transfer_servers", fileTransferServersJson())
                 .put("skills", skillsJson())
                 .put("disabled_summary", disabledConfigSummaryJson())
-                .put("instruction", "Before enabling an item, confirm its id, name, or tool_name from disabled_summary or the matching list. Use target=agent_tool for Agent tools and the corresponding target for MCP, SSH, WebDAV, file-transfer, or Skill configuration."),
+                .put("instruction", "Before enabling an item, confirm its id, name, or tool_name from disabled_summary or the matching list. Use the corresponding target for MCP, SSH, email, WebDAV, file-transfer, Skill, or Agent-tool configuration."),
         )
     }
 
@@ -2885,6 +3058,11 @@ class OpenAiAgent(
             })
             .put("ssh_servers", JSONArray().also { array ->
                 settings.sshServers().filterNot { it.enabled }.forEach { array.put(JSONObject().put("id", it.id).put("name", it.name).put("host", it.host)) }
+            })
+            .put("email_servers", JSONArray().also { array ->
+                settings.emailServers().filterNot { it.enabled }.forEach {
+                    array.put(JSONObject().put("id", it.id).put("name", it.name).put("email_address", it.emailAddress))
+                }
             })
             .put("webdav_servers", JSONArray().also { array ->
                 settings.webDavServers().filterNot { it.enabled }.forEach { array.put(JSONObject().put("id", it.id).put("name", it.name).put("url", it.url)) }
@@ -3100,6 +3278,25 @@ class OpenAiAgent(
         .put("has_password", server.password.isNotBlank())
         .put("has_private_key", server.privateKey.isNotBlank())
 
+    private fun emailServersJson(): JSONArray = JSONArray().also { array ->
+        settings.emailServers().forEach { array.put(emailServerJson(it)) }
+    }
+
+    private fun emailServerJson(server: EmailServerConfig): JSONObject = JSONObject()
+        .put("id", server.id)
+        .put("stable_id", server.stableId)
+        .put("name", server.name)
+        .put("email_address", server.emailAddress)
+        .put("username", server.username)
+        .put("imap_host", server.imapHost)
+        .put("imap_port", server.imapPort)
+        .put("imap_security", server.imapSecurity)
+        .put("smtp_host", server.smtpHost)
+        .put("smtp_port", server.smtpPort)
+        .put("smtp_security", server.smtpSecurity)
+        .put("enabled", server.enabled)
+        .put("has_password", server.password.isNotBlank())
+
     private fun webDavServersJson(): JSONArray = JSONArray().also { array ->
         settings.webDavServers().forEach { array.put(webDavServerJson(it)) }
     }
@@ -3187,12 +3384,50 @@ class OpenAiAgent(
             }
         })
 
+    private fun resolveEmailAccount(args: JSONObject): EmailServerConfig =
+        settings.resolveEmailServer(args.getString("account_id"))
+            ?: error("Email account is missing or disabled: ${args.optString("account_id")}. Call list_email_accounts and use a returned id.")
+
+    private fun emailComposeRequest(args: JSONObject): EmailComposeRequest {
+        fun strings(name: String): List<String> = args.optJSONArray(name)?.let { array ->
+            buildList {
+                for (index in 0 until array.length()) {
+                    array.optString(index).trim().takeIf { it.isNotBlank() }?.let(::add)
+                }
+            }
+        }.orEmpty()
+        val attachmentPaths = strings("attachments")
+        val attachments = attachmentPaths.map { path ->
+            val bytes = nativeFileManager.readBytes(path, EmailClient.MAX_ATTACHMENT_BYTES.toLong() + 1L).getOrThrow()
+            require(bytes.size <= EmailClient.MAX_ATTACHMENT_BYTES) {
+                "Attachment exceeds 20 MB: $path. Use a cloud link or file-transfer service instead."
+            }
+            OutgoingAttachment(path.substringAfterLast('/').substringAfterLast('\\'), bytes)
+        }
+        require(attachments.sumOf { it.bytes.size.toLong() } <= EmailClient.MAX_ATTACHMENT_BYTES) {
+            "Combined attachments exceed 20 MB. Use a cloud link or file-transfer service instead."
+        }
+        return EmailComposeRequest(
+            to = strings("to"),
+            cc = strings("cc"),
+            bcc = strings("bcc"),
+            subject = args.getString("subject"),
+            textBody = args.optString("text_body"),
+            htmlBody = args.optString("html_body"),
+            attachments = attachments,
+            replyFolder = args.optString("reply_folder"),
+            replyUid = args.optLong("reply_uid", 0L),
+            allowReplyToAnswered = args.optBoolean("allow_reply_to_answered", false),
+        )
+    }
+
     private fun parseBackupOptions(args: JSONObject): BackupOptions = BackupOptions(
         includeProfile = args.optBoolean("include_profile", true),
         includeConversations = args.optBoolean("include_conversations", true),
         includeModelProfiles = args.optBoolean("include_model_profiles", true),
         includeMcp = args.optBoolean("include_mcp", true),
         includeSsh = args.optBoolean("include_ssh", true),
+        includeEmail = args.optBoolean("include_email", true),
         includePrompts = args.optBoolean("include_prompts", true),
         includeMemories = args.optBoolean("include_memories", true),
         includeSkills = args.optBoolean("include_skills", true),
@@ -3753,6 +3988,41 @@ class OpenAiAgent(
                 "以 Root 权限执行命令: ${args.toolCommandArgument()}",
                 "Root 命令拥有完整系统权限，可能造成数据丢失、系统无法启动或安全风险。Root 不可用时仅会按设置回退到 Shizuku Shell。",
             )
+            "set_email_flags" -> ToolApprovalRequest(
+                conversationId,
+                call.name,
+                call.rawArguments,
+                "修改邮件状态：${args.optString("folder")} UID ${args.optLong("uid")}",
+                "会在 IMAP 服务器上修改已读/未读或星标状态。",
+            )
+            "download_email_attachment" -> ToolApprovalRequest(
+                conversationId,
+                call.name,
+                call.rawArguments,
+                "下载邮件附件到隔离缓存：UID ${args.optLong("uid")} / 附件 ${args.optInt("attachment_id")}",
+                "附件可能很大或含恶意内容。文件只会保存到临时隔离目录，AI 不会读取；下载后请使用可信杀毒软件扫描。",
+            )
+            "record_email_attachment_scan" -> ToolApprovalRequest(
+                conversationId,
+                call.name,
+                call.rawArguments,
+                "记录附件扫描结果：${if (args.optBoolean("safe")) "安全" else "不安全"}",
+                "仅在你已经使用可信杀毒软件扫描该附件后确认；此操作不会让 AI 读取附件。",
+            )
+            "save_email_draft" -> ToolApprovalRequest(
+                conversationId,
+                call.name,
+                call.rawArguments,
+                "写入邮件草稿：${args.optString("subject")}",
+                "会通过 IMAP APPEND 把完整邮件写入自动识别的草稿箱，收件人、正文和附件将上传至邮箱服务器。",
+            )
+            "send_email" -> ToolApprovalRequest(
+                conversationId,
+                call.name,
+                call.rawArguments,
+                "通过 SMTP 发送邮件：${args.optString("subject")}",
+                "将立即向 ${args.optJSONArray("to") ?: JSONArray()} 发送邮件。请核对全部收件人、正文、回复引用和附件；发送后可能无法撤回，且本次确认不会被记忆或跳过。",
+            )
             "ssh_exec" -> ToolApprovalRequest(
                 conversationId,
                 call.name,
@@ -3793,7 +4063,7 @@ class OpenAiAgent(
                 call.name,
                 call.rawArguments,
                 "导出 Lyra Code 备份",
-                if (args.optBoolean("include_secrets")) "备份将包含 API Key、SSH/WebDAV/FTP/SFTP 密码等敏感信息，请确认保存位置可信。" else "会导出配置、对话、Skills 等数据；不包含密钥时仍可能包含私人对话内容。",
+                if (args.optBoolean("include_secrets")) "备份将包含 API Key、邮箱、SSH/WebDAV/FTP/SFTP 密码等敏感信息，请确认保存位置可信。" else "会导出配置、对话、Skills 等数据；不包含密钥时仍可能包含私人对话内容和邮箱地址。",
             )
             "import_backup" -> ToolApprovalRequest(
                 conversationId,
@@ -3826,7 +4096,7 @@ class OpenAiAgent(
                 call.name,
                 call.rawArguments,
                 "管理 Lyra Code 配置: ${args.optString("target")} / ${args.optString("action")}",
-                "会添加、修改、启用、禁用或删除 MCP、SSH、WebDAV、文件传输、Skills 或 Agent 工具配置；下载 Skill zip、保存密钥、删除配置均需要用户确认。",
+                "会添加、修改、启用、禁用或删除 MCP、SSH、邮箱、WebDAV、文件传输、Skills 或 Agent 工具配置；下载 Skill zip、保存密码/密钥、删除配置均需要用户确认。",
             )
             else -> if (settings.resolveMcpTool(call.name) != null) {
                 ToolApprovalRequest(
@@ -4522,8 +4792,8 @@ class OpenAiAgent(
 
             # App, server, and remote tools
             Use get_mini_server_status/manage_mini_server for workspace static-site previews. Use read_mini_server_logs after 404, authentication, asset, or JavaScript failures. Binding 0.0.0.0 exposes the server beyond the device; warn about passwords, plaintext HTTP, and untrusted self-signed TLS when relevant.
-            Before ssh_exec, WebDAV operations, or FTP/FTPS/SFTP operations, call the matching list_*_servers tool and use a returned server_id. Remote mutations require approval. Inspect remote OS, resources, permissions, and exact targets before installs or system changes; avoid interactive shells and unbounded log reads.
-            Use manage_app_config when the user asks to add, update, enable, disable, or delete MCP, SSH, WebDAV, file-transfer, Skill, or Agent-tool configuration. List first when identity is ambiguous. Ask for missing keys, passwords, or private keys; never invent them. After rejection, change the proposal or stop.
+            Before email, SSH, WebDAV, or FTP/FTPS/SFTP operations, call the matching list tool and use a returned account/server id. Email body reads stay read-only and omit media/attachment bytes. Download email attachments only into quarantine, never read them, and ask the user to run a trusted antivirus scan. SMTP send always requires a fresh foreground confirmation; prefer an IMAP draft when the user wants manual review. Never retry a duplicate or uncertain delivery, and never reply to the configured account's own message.
+            Use manage_app_config when the user asks to add, update, enable, disable, or delete MCP, SSH, email/IMAP/SMTP, WebDAV, file-transfer, Skill, or Agent-tool configuration. List first when identity is ambiguous. Ask for missing keys, passwords, app passwords, or private keys; never invent them. After rejection, change the proposal or stop.
             MCP tools have mcp_ names and run on user-configured external servers. They require approval and do not automatically have access to the Android workspace.
 
             # Skills, memories, and sub-agents
@@ -4805,6 +5075,15 @@ class OpenAiAgent(
             "list_installed_apps",
             "execute_shell_command",
             "execute_root_command",
+            "list_email_accounts",
+            "list_email_folders",
+            "list_emails",
+            "read_email",
+            "set_email_flags",
+            "download_email_attachment",
+            "record_email_attachment_scan",
+            "save_email_draft",
+            "send_email",
             "list_ssh_servers",
             "ssh_exec",
             "list_webdav_servers",
@@ -4951,6 +5230,11 @@ private fun JSONObject.stringFieldOrNull(name: String): String? {
     val value = opt(name) ?: return null
     val text = value as? String ?: return null
     return text.takeUnless { it.equals("null", ignoreCase = true) }
+}
+
+private fun JSONObject.booleanOrNull(name: String): Boolean? {
+    if (!has(name) || isNull(name)) return null
+    return optBoolean(name)
 }
 
 private fun cleanGeneratedText(text: String): String {

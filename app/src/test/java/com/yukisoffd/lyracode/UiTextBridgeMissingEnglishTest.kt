@@ -28,6 +28,10 @@ class UiTextBridgeMissingEnglishTest {
                 "Request failed. Retrying in 5 seconds (3/5)",
                 uiText("请求失败，5 秒后重试（3/5）"),
             )
+            assertEquals(
+                "Request interrupted after 5 automatic retries. This turn's reasoning and response have been preserved; switch models or continue the task after the API recovers.",
+                uiText("请求中断：已自动重试 5 次，仍无法继续。已保留本轮已输出的思维链和正文；可切换模型，或待 API 恢复后继续任务。"),
+            )
             assertEquals("Projects", uiText("项目"))
             assertEquals("Create project", uiText("创建项目"))
             assertEquals("File changes 3", "${uiText("文件变更")} 3")

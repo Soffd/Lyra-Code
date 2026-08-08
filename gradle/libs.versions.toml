@@ -22,6 +22,8 @@ work = "2.10.1"
 soraEditor = "0.24.4"
 desugar = "2.1.5"
 media3 = "1.10.1"
+androidMail = "1.6.7"
+androidActivation = "1.6.7"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -54,6 +56,8 @@ sora-language-textmate = { module = "io.github.rosemoe:language-textmate" }
 desugar-jdk-libs = { module = "com.android.tools:desugar_jdk_libs", version.ref = "desugar" }
 androidx-media3-exoplayer = { module = "androidx.media3:media3-exoplayer", version.ref = "media3" }
 androidx-media3-ui = { module = "androidx.media3:media3-ui", version.ref = "media3" }
+android-mail = { module = "com.sun.mail:android-mail", version.ref = "androidMail" }
+android-activation = { module = "com.sun.mail:android-activation", version.ref = "androidActivation" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

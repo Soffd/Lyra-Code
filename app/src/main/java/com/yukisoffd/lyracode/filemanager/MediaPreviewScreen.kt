@@ -91,6 +91,8 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.yukisoffd.lyracode.R
+import com.yukisoffd.lyracode.predictiveBackTransform
+import com.yukisoffd.lyracode.rememberPredictiveBackGestureState
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -119,11 +121,21 @@ internal fun mediaPreviewKind(file: File): MediaPreviewKind? = when (file.extens
 internal fun MediaPreviewScreen(
     file: File,
     kind: MediaPreviewKind,
+    predictiveBackEnabled: Boolean = false,
     onClose: () -> Unit,
     onOpenExternal: () -> Unit,
 ) {
-    BackHandler(onBack = onClose)
-    Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+    val predictiveBackState = rememberPredictiveBackGestureState(
+        enabled = predictiveBackEnabled,
+        onBack = onClose,
+    )
+    BackHandler(enabled = !predictiveBackEnabled, onBack = onClose)
+    Surface(
+        modifier = Modifier
+            .fillMaxSize()
+            .predictiveBackTransform(predictiveBackState),
+        color = Color.Black,
+    ) {
         when (kind) {
             MediaPreviewKind.IMAGE -> ImagePreview(file = file, onClose = onClose, onOpenExternal = onOpenExternal)
             MediaPreviewKind.AUDIO, MediaPreviewKind.VIDEO -> PlaybackPreview(

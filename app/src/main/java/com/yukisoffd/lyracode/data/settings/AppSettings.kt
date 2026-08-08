@@ -134,6 +134,10 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getBoolean(KEY_DYNAMIC_COLOR_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DYNAMIC_COLOR_ENABLED, value).apply()
 
+    var predictiveBackEnabled: Boolean
+        get() = plainPrefs.getBoolean(KEY_PREDICTIVE_BACK_ENABLED, false)
+        set(value) = plainPrefs.edit().putBoolean(KEY_PREDICTIVE_BACK_ENABLED, value).apply()
+
     var customThemeColorEnabled: Boolean
         get() = plainPrefs.getBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, value).apply()
@@ -1208,6 +1212,42 @@ class AppSettings(context: Context) {
             .firstOrNull { it.id == clean || it.stableId == clean || it.host == clean || it.name == clean }
     }
 
+    fun emailServers(): List<EmailServerConfig> {
+        val raw = securePrefs.getString(KEY_EMAIL_SERVERS, null).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return runCatching { parseEmailServers(JSONArray(raw)) }.getOrDefault(emptyList())
+    }
+
+    fun saveEmailServers(servers: List<EmailServerConfig>) {
+        val array = JSONArray()
+        servers.forEach { array.put(emailServerJson(it, includeSecrets = true)) }
+        securePrefs.edit().putString(KEY_EMAIL_SERVERS, array.toString()).apply()
+    }
+
+    fun upsertEmailServer(server: EmailServerConfig) {
+        val servers = emailServers().toMutableList()
+        val index = servers.indexOfFirst { it.id == server.id || it.stableId == server.stableId }
+        if (index >= 0) servers[index] = server else servers += server
+        saveEmailServers(servers)
+    }
+
+    fun deleteEmailServer(id: String) {
+        saveEmailServers(emailServers().filterNot { it.id == id || it.name == id || it.stableId == id })
+    }
+
+    fun setEmailServerEnabled(id: String, enabled: Boolean) {
+        saveEmailServers(emailServers().map {
+            if (it.id == id || it.name == id || it.stableId == id) it.copy(enabled = enabled) else it
+        })
+    }
+
+    fun resolveEmailServer(identifier: String): EmailServerConfig? {
+        val clean = identifier.trim()
+        return emailServers().filter { it.enabled }.firstOrNull {
+            it.id == clean || it.name == clean || it.stableId.equals(clean, ignoreCase = true)
+        }
+    }
+
     fun webDavServers(): List<WebDavServerConfig> {
         val raw = securePrefs.getString(KEY_WEBDAV_SERVERS, null).orEmpty()
         if (raw.isBlank()) return emptyList()
@@ -1296,6 +1336,7 @@ class AppSettings(context: Context) {
             .put("schema", "lyra_settings_backup_v1")
             .put("themeMode", themeMode)
             .put("dynamicColorEnabled", dynamicColorEnabled)
+            .put("predictiveBackEnabled", predictiveBackEnabled)
             .put("customThemeColorEnabled", customThemeColorEnabled)
             .put("customThemeColor", customThemeColor)
             .put("languageMode", languageMode)
@@ -1393,6 +1434,9 @@ class AppSettings(context: Context) {
                     )
                 }
             })
+            .put("emailServers", JSONArray().also { array ->
+                emailServers().forEach { array.put(emailServerJson(it, includeSecrets)) }
+            })
             .put("webDavServers", JSONArray().also { array ->
                 webDavServers().forEach { array.put(webDavServerJson(it, includeSecrets)) }
             })
@@ -1410,6 +1454,7 @@ class AppSettings(context: Context) {
         if (root.has("customThemeColorEnabled")) customThemeColorEnabled = root.optBoolean("customThemeColorEnabled")
         root.optString("customThemeColor").takeIf { it.isNotBlank() }?.let { customThemeColor = it }
         if (root.has("dynamicColorEnabled")) dynamicColorEnabled = root.optBoolean("dynamicColorEnabled")
+        if (root.has("predictiveBackEnabled")) predictiveBackEnabled = root.optBoolean("predictiveBackEnabled")
         root.optString("languageMode").takeIf { it.isNotBlank() }?.let { languageMode = it }
         root.optString("refreshRateMode").takeIf { it.isNotBlank() }?.let { refreshRateMode = it }
         root.optString("fontScaleMode").takeIf { it.isNotBlank() }?.let { fontScaleMode = it }
@@ -1489,6 +1534,11 @@ class AppSettings(context: Context) {
             saveSshServers(if (supplement) mergeSshServers(sshServers(), imported) else imported)
             messages += "SSH ${imported.size} 项"
         }
+        root.optJSONArray("emailServers")?.let { array ->
+            val imported = parseEmailServers(array)
+            saveEmailServers(if (supplement) mergeEmailServers(emailServers(), imported) else imported)
+            messages += "邮件服务器 ${imported.size} 项"
+        }
         root.optJSONArray("webDavServers")?.let { array ->
             val imported = parseWebDavServers(array)
             saveWebDavServers(if (supplement) mergeWebDavServers(webDavServers(), imported) else imported)
@@ -1558,6 +1608,47 @@ class AppSettings(context: Context) {
             .put("multiThread", server.multiThread)
             .put("hideAddressInDrawer", server.hideAddressInDrawer)
             .put("enabled", server.enabled)
+    }
+
+    private fun emailServerJson(server: EmailServerConfig, includeSecrets: Boolean): JSONObject = JSONObject()
+        .put("id", server.id)
+        .put("name", server.name)
+        .put("emailAddress", server.emailAddress)
+        .put("username", server.username)
+        .put("password", if (includeSecrets) server.password else "")
+        .put("imapHost", server.imapHost)
+        .put("imapPort", server.imapPort)
+        .put("imapSecurity", server.imapSecurity)
+        .put("smtpHost", server.smtpHost)
+        .put("smtpPort", server.smtpPort)
+        .put("smtpSecurity", server.smtpSecurity)
+        .put("enabled", server.enabled)
+
+    private fun parseEmailServers(array: JSONArray): List<EmailServerConfig> = buildList {
+        for (index in 0 until array.length()) {
+            val item = array.optJSONObject(index) ?: continue
+            val address = item.optString("emailAddress").trim()
+            val username = item.optString("username").trim().ifBlank { address }
+            val imapHost = item.optString("imapHost").trim()
+            val smtpHost = item.optString("smtpHost").trim()
+            if (address.isBlank() || username.isBlank() || imapHost.isBlank() || smtpHost.isBlank()) continue
+            add(
+                EmailServerConfig(
+                    id = item.optString("id").ifBlank { newId() },
+                    name = item.optString("name").ifBlank { address },
+                    emailAddress = address,
+                    username = username,
+                    password = item.optString("password"),
+                    imapHost = imapHost,
+                    imapPort = item.optInt("imapPort", 993).coerceIn(1, 65535),
+                    imapSecurity = normalizeEmailSecurity(item.optString("imapSecurity", "ssl")),
+                    smtpHost = smtpHost,
+                    smtpPort = item.optInt("smtpPort", 465).coerceIn(1, 65535),
+                    smtpSecurity = normalizeEmailSecurity(item.optString("smtpSecurity", "ssl")),
+                    enabled = item.optBoolean("enabled", true),
+                ),
+            )
+        }
     }
 
     private fun fileTransferServerJson(server: FileTransferServerConfig, includeSecrets: Boolean): JSONObject {
@@ -1953,6 +2044,23 @@ class AppSettings(context: Context) {
         return result
     }
 
+    private fun mergeEmailServers(existing: List<EmailServerConfig>, imported: List<EmailServerConfig>): List<EmailServerConfig> {
+        val result = existing.toMutableList()
+        imported.forEach { incoming ->
+            val index = result.indexOfFirst { it.id == incoming.id || it.stableId == incoming.stableId }
+            if (index >= 0) {
+                val current = result[index]
+                result[index] = incoming.copy(
+                    id = current.id,
+                    password = incoming.password.ifBlank { current.password },
+                )
+            } else {
+                result += incoming
+            }
+        }
+        return result
+    }
+
     private fun mergeWebDavServers(existing: List<WebDavServerConfig>, imported: List<WebDavServerConfig>): List<WebDavServerConfig> {
         val result = existing.toMutableList()
         imported.forEach { incoming ->
@@ -2051,6 +2159,7 @@ class AppSettings(context: Context) {
         private const val KEY_DARK_MODE = "dark_mode"
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_DYNAMIC_COLOR_ENABLED = "dynamic_color_enabled"
+        private const val KEY_PREDICTIVE_BACK_ENABLED = "predictive_back_enabled"
         private const val KEY_CUSTOM_THEME_COLOR_ENABLED = "custom_theme_color_enabled"
         private const val KEY_CUSTOM_THEME_COLOR = "custom_theme_color"
         private const val KEY_LANGUAGE_MODE = "language_mode"
@@ -2093,6 +2202,7 @@ class AppSettings(context: Context) {
         private const val KEY_MCP_SERVERS = "mcp_servers"
         private const val KEY_LOCAL_MCP_SERVER = "local_mcp_server"
         private const val KEY_SSH_SERVERS = "ssh_servers"
+        private const val KEY_EMAIL_SERVERS = "email_servers"
         private const val KEY_WEBDAV_SERVERS = "webdav_servers"
         private const val KEY_FILE_TRANSFER_SERVERS = "file_transfer_servers"
         private const val SKILL_NAME_FILE = "_name.txt"
@@ -2168,6 +2278,15 @@ class AppSettings(context: Context) {
         const val FILE_TRANSFER_FTP = "ftp"
         const val FILE_TRANSFER_FTPS = "ftps"
         const val FILE_TRANSFER_SFTP = "sftp"
+        const val EMAIL_SECURITY_SSL = "ssl"
+        const val EMAIL_SECURITY_STARTTLS = "starttls"
+        const val EMAIL_SECURITY_NONE = "none"
+
+        fun normalizeEmailSecurity(value: String): String = when (value.trim().lowercase()) {
+            EMAIL_SECURITY_STARTTLS -> EMAIL_SECURITY_STARTTLS
+            EMAIL_SECURITY_NONE -> EMAIL_SECURITY_NONE
+            else -> EMAIL_SECURITY_SSL
+        }
 
         fun normalizeLanguageMode(value: String): String = when (value.trim()) {
             LANGUAGE_ZH_CN -> LANGUAGE_ZH_CN

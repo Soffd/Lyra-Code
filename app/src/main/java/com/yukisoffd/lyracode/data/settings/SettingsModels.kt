@@ -120,6 +120,24 @@ data class SshServerConfig(
         get() = "${host.trim()}:${port.coerceIn(1, 65535)}"
 }
 
+data class EmailServerConfig(
+    val id: String,
+    val name: String,
+    val emailAddress: String,
+    val username: String,
+    val password: String,
+    val imapHost: String,
+    val imapPort: Int = 993,
+    val imapSecurity: String = "ssl",
+    val smtpHost: String,
+    val smtpPort: Int = 465,
+    val smtpSecurity: String = "ssl",
+    val enabled: Boolean = true,
+) {
+    val stableId: String
+        get() = emailAddress.trim().lowercase()
+}
+
 data class MiniServerConfig(
     val protocol: String,
     val host: String,

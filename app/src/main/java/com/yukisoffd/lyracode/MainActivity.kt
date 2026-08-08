@@ -258,6 +258,7 @@ class MainActivity : ComponentActivity() {
         setContent {
             var themeMode by remember { mutableStateOf(settings.themeMode) }
             var dynamicColorEnabled by remember { mutableStateOf(settings.dynamicColorEnabled) }
+            var predictiveBackEnabled by remember { mutableStateOf(settings.predictiveBackEnabled) }
             var languageMode by remember { mutableStateOf(settings.languageMode) }
             var refreshRateMode by remember { mutableStateOf(settings.refreshRateMode) }
             var fontScaleMode by remember { mutableStateOf(settings.fontScaleMode) }
@@ -343,6 +344,11 @@ class MainActivity : ComponentActivity() {
                         onDynamicColorChange = {
                             dynamicColorEnabled = it
                             settings.dynamicColorEnabled = it
+                        },
+                        predictiveBackEnabled = predictiveBackEnabled,
+                        onPredictiveBackChange = {
+                            predictiveBackEnabled = it
+                            settings.predictiveBackEnabled = it
                         },
                         languageMode = languageMode,
                         onLanguageModeChange = {

@@ -279,6 +279,7 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
 internal fun ModelServiceSettings(
     settings: AppSettings,
     controller: ChatController,
+    predictiveBackEnabled: Boolean = false,
     externalBackRequest: Int = 0,
     onNestedPageChanged: (Boolean, String) -> Unit = { _, _ -> },
 ) {
@@ -317,7 +318,12 @@ internal fun ModelServiceSettings(
             draftPresetId = null
         }
     }
-    BackHandler(enabled = editingProfileId != null || showProviderPicker) {
+    val modelNestedPageActive = editingProfileId != null || showProviderPicker
+    val predictiveBackState = rememberPredictiveBackGestureState(
+        enabled = predictiveBackEnabled && modelNestedPageActive,
+        onBack = ::navigateBackWithinModel,
+    )
+    BackHandler(enabled = !predictiveBackEnabled && modelNestedPageActive) {
         navigateBackWithinModel()
     }
     LaunchedEffect(externalBackRequest) {
@@ -495,7 +501,11 @@ internal fun ModelServiceSettings(
         )
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .predictiveBackTransform(predictiveBackState),
+    ) {
         AnimatedContent(
             targetState = when {
                 showReachabilityPage -> 3

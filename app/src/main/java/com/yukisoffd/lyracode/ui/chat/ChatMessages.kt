@@ -288,8 +288,8 @@ internal fun ToolApprovalDialog(
         title = { Text(uiText("确认工具调用")) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(pending.request.summary, style = MaterialTheme.typography.titleSmall)
-                Text(pending.request.risk, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(pending.request.summary), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(pending.request.risk), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 SelectionContainer {
                     Text(
                         pending.request.arguments,
@@ -316,11 +316,13 @@ internal fun ToolApprovalDialog(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                TextButton(
-                    onClick = { onApprove(true) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Text(uiText("本会话无需确认"))
+                if (pending.request.toolName != "send_email") {
+                    TextButton(
+                        onClick = { onApprove(true) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(uiText("本会话无需确认"))
+                    }
                 }
                 Row(
                     modifier = Modifier.fillMaxWidth(),

@@ -14,6 +14,11 @@ internal class RetryableModelHttpException(
     message: String,
 ) : IOException(message)
 
+internal class ModelRequestRetriesExhaustedException(
+    val retryCount: Int,
+    cause: Throwable,
+) : IOException(cause.message, cause)
+
 internal fun isRetryableModelHttpStatus(statusCode: Int): Boolean =
     statusCode in 500..599 || statusCode in setOf(402, 408, 409, 425, 429)
 
@@ -38,10 +43,27 @@ internal suspend fun <T> executeModelRequestWithRetry(
         } catch (error: CancellationException) {
             throw error
         } catch (error: Throwable) {
-            if (!isRetryableModelFailure(error) || retries >= maxRetries) throw error
+            if (!isRetryableModelFailure(error)) throw error
+            if (retries >= maxRetries) throw ModelRequestRetriesExhaustedException(maxRetries, error)
             retries++
             onRetry(retries, maxRetries, error)
             delay(retryDelayMillis)
         }
     }
 }
+
+internal fun mergeRetriedStreamText(previous: String, restarted: String): String {
+    if (previous.isEmpty()) return restarted
+    if (restarted.isEmpty()) return previous
+    if (restarted.startsWith(previous)) return restarted
+    if (previous.startsWith(restarted)) return previous
+    val overlapLimit = minOf(previous.length, restarted.length)
+    for (length in overlapLimit downTo MIN_RETRY_STREAM_OVERLAP) {
+        if (previous.regionMatches(previous.length - length, restarted, 0, length)) {
+            return previous + restarted.substring(length)
+        }
+    }
+    return previous.trimEnd() + "\n\n" + restarted.trimStart()
+}
+
+private const val MIN_RETRY_STREAM_OVERLAP = 12

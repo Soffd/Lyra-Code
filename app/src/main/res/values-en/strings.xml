@@ -692,6 +692,7 @@
     <string name="termux_path_primary">Termux Path Primary</string>
     <string name="workspace_hint">Workspace Hint</string>
     <string name="label_dynamic_color">Dynamic Color</string>
+    <string name="predictive_back_title">Predictive back gesture</string>
     <string name="menu_theme_mode">Menu Theme Mode</string>
     <string name="menu_font_size">Font size</string>
     <string name="menu_refresh_rate">Refresh rate</string>
@@ -1627,4 +1628,7 @@ Revocation stops new access through that permission but does not automatically e
     <string name="manage_enabled_models_count">Manage enabled models (%1$d)</string>
     <string name="enabled_models_count">%1$d models enabled</string>
     <string name="models_fetched_enabled_preserved">Fetched %1$d models; existing enabled selections were preserved</string>
+    <string name="menu_email">SMTP / IMAP Email</string>
+    <string name="menu_email_desc">Add mail servers for safe reading, drafts, sending, and replies</string>
+    <string name="detail_email">Email servers</string>
 </resources>

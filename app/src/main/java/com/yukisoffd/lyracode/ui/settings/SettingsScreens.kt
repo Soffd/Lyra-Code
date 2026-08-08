@@ -5,6 +5,8 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
@@ -12,6 +14,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,16 +22,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Shapes
 import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -62,6 +72,7 @@ private data class SettingsMenuEntry(
     val target: String,
 )
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SettingsScreen(
     settings: AppSettings,
@@ -83,6 +94,8 @@ internal fun SettingsScreen(
     onThemeModeChange: (String) -> Unit,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    predictiveBackEnabled: Boolean,
+    onPredictiveBackChange: (Boolean) -> Unit,
     languageMode: String,
     onLanguageModeChange: (String) -> Unit,
     refreshRateMode: String,
@@ -100,41 +113,53 @@ internal fun SettingsScreen(
     onUpdateAvailabilityChange: (Boolean) -> Unit,
     settingsBackRequest: Int,
     onDetailTitleChange: (String?) -> Unit,
+    onOpenDrawer: () -> Unit,
     onToggleSkill: (String, Boolean) -> Unit,
     onDeleteSkill: (String) -> Unit,
 ) {
     var detail by rememberSaveable { mutableStateOf<String?>(null) }
     var modelNestedPageActive by rememberSaveable { mutableStateOf(false) }
+    var modelNestedTitle by rememberSaveable { mutableStateOf("") }
     var modelBackRequest by rememberSaveable { mutableIntStateOf(0) }
     var settingsQuery by rememberSaveable { mutableStateOf("") }
+    var skipNextTransition by remember { mutableStateOf(false) }
     val settingsListScroll = rememberScrollState()
     val context = LocalContext.current
+    fun previousDetail(current: String?): String? = when (current) {
+        "device" -> "about"
+        CompliancePageIds.INDEX -> "about"
+        CompliancePageIds.USER_AGREEMENT,
+        CompliancePageIds.PRIVACY_POLICY,
+        CompliancePageIds.PERSONAL_INFO,
+        CompliancePageIds.THIRD_PARTY,
+        CompliancePageIds.APP_PERMISSIONS -> CompliancePageIds.INDEX
+        "custom_theme_color" -> "theme_mode"
+        "font_library" -> "font"
+        "topic_summary_model_topic",
+        "topic_summary_model_compression" -> "topic_summary_model"
+        "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
+        "mini_server_logs" -> "mini_server"
+        else -> null
+    }
     fun navigateBackFromDetail() {
         if (detail == "model" && modelNestedPageActive) {
             modelBackRequest++
             return
         }
-        detail = when (detail) {
-            "device" -> "about"
-            CompliancePageIds.INDEX -> "about"
-            CompliancePageIds.USER_AGREEMENT,
-            CompliancePageIds.PRIVACY_POLICY,
-            CompliancePageIds.PERSONAL_INFO,
-            CompliancePageIds.THIRD_PARTY,
-            CompliancePageIds.APP_PERMISSIONS -> CompliancePageIds.INDEX
-            "custom_theme_color" -> "theme_mode"
-            "font_library" -> "font"
-            "topic_summary_model_topic",
-            "topic_summary_model_compression" -> "topic_summary_model"
-            "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
-            "mini_server_logs" -> "mini_server"
-            else -> null
-        }
+        detail = previousDetail(detail)
     }
-    BackHandler(enabled = detail != null) { navigateBackFromDetail() }
+    val predictiveBackState = rememberPredictiveBackGestureState(
+        enabled = predictiveBackEnabled && detail != null,
+        onBack = {
+            skipNextTransition = true
+            navigateBackFromDetail()
+        },
+    )
+    BackHandler(enabled = !predictiveBackEnabled && detail != null) { navigateBackFromDetail() }
     LaunchedEffect(detail, context) {
         if (detail != "model") modelNestedPageActive = false
         onDetailTitleChange(detail?.let { settingsDetailTitle(context, it) })
+        skipNextTransition = false
     }
     LaunchedEffect(settingsBackRequest) {
         if (settingsBackRequest > 0 && detail != null) navigateBackFromDetail()
@@ -150,34 +175,48 @@ internal fun SettingsScreen(
             extraLarge = RoundedCornerShape(32.dp),
         ),
     ) {
-        AnimatedContent(
-            targetState = detail,
-            transitionSpec = {
-                val forward = when {
-                initialState == "device" && targetState == "about" -> false
-                initialState == "about" && targetState == "device" -> true
-                initialState == CompliancePageIds.INDEX && targetState == "about" -> false
-                initialState == "about" && targetState == CompliancePageIds.INDEX -> true
-                isComplianceDocument(initialState) && targetState == CompliancePageIds.INDEX -> false
-                initialState == CompliancePageIds.INDEX && isComplianceDocument(targetState) -> true
-                initialState == "custom_theme_color" && targetState == "theme_mode" -> false
-                initialState == "font_library" && targetState == "font" -> false
-                initialState == "theme_mode" && targetState == "custom_theme_color" -> true
-                initialState == "font" && targetState == "font_library" -> true
-                initialState in setOf("topic_summary_model_topic", "topic_summary_model_compression") && targetState == "topic_summary_model" -> false
-                initialState == "topic_summary_model" && targetState in setOf("topic_summary_model_topic", "topic_summary_model_compression") -> true
-                initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
-                initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
-                initialState == "mini_server_logs" && targetState == "mini_server" -> false
-                initialState == "mini_server" && targetState == "mini_server_logs" -> true
-                targetState == null -> false
-                else -> true
-                }
-                slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth / 3 } togetherWith
-                    slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth / 3 else fullWidth }
-            },
-            label = "settings-detail-transition",
-        ) { target ->
+        val renderPage: @Composable (String?) -> Unit = { target ->
+            Scaffold(
+                containerColor = MaterialTheme.colorScheme.background,
+                contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                topBar = {
+                    TopAppBar(
+                        expandedHeight = 56.dp,
+                        windowInsets = WindowInsets(0, 0, 0, 0),
+                        colors = TopAppBarDefaults.topAppBarColors(
+                            containerColor = MaterialTheme.colorScheme.background,
+                            titleContentColor = MaterialTheme.colorScheme.onBackground,
+                            navigationIconContentColor = MaterialTheme.colorScheme.primary,
+                        ),
+                        navigationIcon = {
+                            IconButton(
+                                onClick = if (target == null) onOpenDrawer else ::navigateBackFromDetail,
+                                modifier = Modifier.size(56.dp),
+                            ) {
+                                Icon(
+                                    if (target == null) Icons.Default.Menu else Icons.Default.ArrowBack,
+                                    contentDescription = context.getString(if (target == null) R.string.cd_menu else R.string.cd_back),
+                                )
+                            }
+                        },
+                        title = {
+                            Text(
+                                when {
+                                    target == "model" && modelNestedPageActive && modelNestedTitle.isNotBlank() -> modelNestedTitle
+                                    target != null -> settingsDetailTitle(context, target)
+                                    else -> context.getString(R.string.title_settings)
+                                },
+                                style = MaterialTheme.typography.titleLarge,
+                            )
+                        },
+                    )
+                },
+            ) { pagePadding ->
+                Box(
+                    Modifier
+                        .padding(pagePadding)
+                        .fillMaxSize(),
+                ) pageContent@{
             if (target != null) {
                 SettingsDetailPage(
                     scroll = target !in setOf("model", "prompts", "memories", "licenses", "about", "device", "font_library"),
@@ -187,9 +226,11 @@ internal fun SettingsScreen(
                     "model" -> ModelServiceSettings(
                         settings = settings,
                         controller = controller,
+                        predictiveBackEnabled = predictiveBackEnabled,
                         externalBackRequest = modelBackRequest,
                         onNestedPageChanged = { active, title ->
                             modelNestedPageActive = active
+                            modelNestedTitle = title
                             onDetailTitleChange(
                                 if (active) title else settingsDetailTitle(context, "model"),
                             )
@@ -208,6 +249,8 @@ internal fun SettingsScreen(
                         themeMode = themeMode,
                         dynamicColorEnabled = dynamicColorEnabled,
                         onDynamicColorChange = onDynamicColorChange,
+                        predictiveBackEnabled = predictiveBackEnabled,
+                        onPredictiveBackChange = onPredictiveBackChange,
                         languageMode = languageMode,
                         refreshRateMode = refreshRateMode,
                         onRefreshRateModeChange = onRefreshRateModeChange,
@@ -255,6 +298,7 @@ internal fun SettingsScreen(
                     "mcp" -> McpSettings(settings, mcpClientManager, controller.settingsRevision.intValue)
                     "local_mcp" -> LocalMcpServerSettings(settings, localMcpServerManager, controller.settingsRevision.intValue)
                     "ssh" -> SshSettings(settings, sshExecutor, controller.settingsRevision.intValue)
+                    "email" -> EmailSettings(settings, controller.settingsRevision.intValue)
                     "webdav" -> WebDavSettings(settings, webDavClient, controller.settingsRevision.intValue)
                     "file_transfer" -> FileTransferSettings(settings, fileTransferClient, controller.settingsRevision.intValue)
                     "mini_server" -> MiniServerSettings(
@@ -307,7 +351,7 @@ internal fun SettingsScreen(
                     else -> Text(context.getString(R.string.settings_not_available), color = KimiMuted)
                     }
                 }
-                return@AnimatedContent
+                return@pageContent
             }
 
         val modelEntries = listOf(
@@ -320,6 +364,7 @@ internal fun SettingsScreen(
             SettingsMenuEntry(ImageVector.vectorResource(R.drawable.ic_mcp), context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc), "mcp"),
             SettingsMenuEntry(Icons.Default.Hub, context.getString(R.string.menu_local_mcp), context.getString(R.string.menu_local_mcp_desc), "local_mcp"),
             SettingsMenuEntry(Icons.Default.Key, context.getString(R.string.menu_ssh), context.getString(R.string.menu_ssh_desc), "ssh"),
+            SettingsMenuEntry(Icons.Default.Email, context.getString(R.string.menu_email), context.getString(R.string.menu_email_desc), "email"),
             SettingsMenuEntry(Icons.Default.CloudSync, context.getString(R.string.menu_webdav), context.getString(R.string.menu_webdav_desc), "webdav"),
             SettingsMenuEntry(Icons.Default.SyncAlt, context.getString(R.string.menu_file_transfer), context.getString(R.string.menu_file_transfer_desc), "file_transfer"),
             SettingsMenuEntry(Icons.Default.Lan, context.getString(R.string.menu_mini_server), context.getString(R.string.menu_mini_server_desc), "mini_server"),
@@ -408,6 +453,61 @@ internal fun SettingsScreen(
                 )
             }
             }
+                }
+            }
+        }
+        Box(Modifier.fillMaxSize()) {
+            if (predictiveBackEnabled && detail != null && predictiveBackState.isInProgress) {
+                Box(Modifier.fillMaxSize()) {
+                    renderPage(previousDetail(detail))
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Color.Black.copy(
+                                    alpha = 0.22f * (1f - predictiveBackState.progress),
+                                ),
+                            ),
+                    )
+                }
+            }
+            AnimatedContent(
+                targetState = detail,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .predictiveBackTransform(predictiveBackState),
+                transitionSpec = {
+                    if (skipNextTransition) {
+                        EnterTransition.None togetherWith ExitTransition.None
+                    } else {
+                        val forward = when {
+                            initialState == "device" && targetState == "about" -> false
+                            initialState == "about" && targetState == "device" -> true
+                            initialState == CompliancePageIds.INDEX && targetState == "about" -> false
+                            initialState == "about" && targetState == CompliancePageIds.INDEX -> true
+                            isComplianceDocument(initialState) && targetState == CompliancePageIds.INDEX -> false
+                            initialState == CompliancePageIds.INDEX && isComplianceDocument(targetState) -> true
+                            initialState == "custom_theme_color" && targetState == "theme_mode" -> false
+                            initialState == "font_library" && targetState == "font" -> false
+                            initialState == "theme_mode" && targetState == "custom_theme_color" -> true
+                            initialState == "font" && targetState == "font_library" -> true
+                            initialState in setOf("topic_summary_model_topic", "topic_summary_model_compression") && targetState == "topic_summary_model" -> false
+                            initialState == "topic_summary_model" && targetState in setOf("topic_summary_model_topic", "topic_summary_model_compression") -> true
+                            initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
+                            initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
+                            initialState == "mini_server_logs" && targetState == "mini_server" -> false
+                            initialState == "mini_server" && targetState == "mini_server_logs" -> true
+                            targetState == null -> false
+                            else -> true
+                        }
+                        slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth / 3 } togetherWith
+                            slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth / 3 else fullWidth }
+                    }
+                },
+                label = "settings-detail-transition",
+            ) { target ->
+                renderPage(target)
+            }
         }
     }
 }
@@ -465,6 +565,7 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "mcp" -> context.getString(R.string.detail_mcp)
     "local_mcp" -> context.getString(R.string.detail_local_mcp)
     "ssh" -> context.getString(R.string.detail_ssh)
+    "email" -> context.getString(R.string.detail_email)
     "webdav" -> context.getString(R.string.detail_webdav)
     "file_transfer" -> context.getString(R.string.detail_file_transfer)
     "mini_server" -> context.getString(R.string.detail_mini_server)

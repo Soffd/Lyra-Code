@@ -42,6 +42,7 @@ class AiRequestRetryTest {
         assertEquals(MODEL_REQUEST_MAX_RETRIES + 1, requestCount)
         assertEquals((1..MODEL_REQUEST_MAX_RETRIES).toList(), retries)
         assertEquals("failure 6", result.exceptionOrNull()?.message)
+        assertTrue(result.exceptionOrNull() is ModelRequestRetriesExhaustedException)
     }
 
     @Test
@@ -55,5 +56,16 @@ class AiRequestRetryTest {
 
         assertEquals("ok", result)
         assertEquals(3, requestCount)
+    }
+
+    @Test
+    fun restartedStreamNeverRetractsPreviouslyDisplayedText() {
+        assertEquals("partial answer", mergeRetriedStreamText("partial answer", "partial"))
+        assertEquals("partial answer continued", mergeRetriedStreamText("partial answer", "partial answer continued"))
+        assertEquals(
+            "first paragraph continues here",
+            mergeRetriedStreamText("first paragraph continues", "paragraph continues here"),
+        )
+        assertEquals("kept output\n\nnew beginning", mergeRetriedStreamText("kept output", "new beginning"))
     }
 }

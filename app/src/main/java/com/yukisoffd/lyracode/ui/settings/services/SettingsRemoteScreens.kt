@@ -537,6 +537,7 @@ internal fun BackupSettings(
     var includeModelProfiles by rememberSaveable { mutableStateOf(true) }
     var includeMcp by rememberSaveable { mutableStateOf(true) }
     var includeSsh by rememberSaveable { mutableStateOf(true) }
+    var includeEmail by rememberSaveable { mutableStateOf(true) }
     var includePrompts by rememberSaveable { mutableStateOf(true) }
     var includeMemories by rememberSaveable { mutableStateOf(true) }
     var includeSkills by rememberSaveable { mutableStateOf(true) }
@@ -555,6 +556,7 @@ internal fun BackupSettings(
         includeModelProfiles = includeModelProfiles,
         includeMcp = includeMcp,
         includeSsh = includeSsh,
+        includeEmail = includeEmail,
         includePrompts = includePrompts,
         includeMemories = includeMemories,
         includeSkills = includeSkills,
@@ -572,6 +574,7 @@ internal fun BackupSettings(
         BackupIncludeRow(uiText("模型服务配置"), includeModelProfiles) { includeModelProfiles = it }
         BackupIncludeRow(uiText("MCP 服务器配置"), includeMcp) { includeMcp = it }
         BackupIncludeRow(uiText("SSH 连接配置"), includeSsh) { includeSsh = it }
+        BackupIncludeRow(uiText("邮件服务器配置"), includeEmail) { includeEmail = it }
         BackupIncludeRow(uiText("系统提示词"), includePrompts) { includePrompts = it }
         BackupIncludeRow(uiText("个性化记忆"), includeMemories) { includeMemories = it }
         BackupIncludeRow("Skills", includeSkills) { includeSkills = it }

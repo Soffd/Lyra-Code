@@ -656,6 +656,7 @@ class ChatController(
 
     private suspend fun maybeAutoCompress(conversationId: Long): Throwable? {
         val conversation = conversationStore.conversation(conversationId) ?: return null
+        if (conversation.status == ConversationStore.STATUS_INTERRUPTED) return null
         if (conversation.autoCompressionMode == ConversationStore.AUTO_COMPRESSION_OFF) return null
         val usage = withContext(Dispatchers.IO) { calculateContextWindowUsage(conversationId) }
         val shouldCompress = when (conversation.autoCompressionMode) {
@@ -865,6 +866,7 @@ class ChatController(
     }
 
     private fun markConversationFinished(conversationId: Long) {
+        if (conversationStore.conversation(conversationId)?.status == ConversationStore.STATUS_INTERRUPTED) return
         status.value = appContext.getString(R.string.status_done)
         scope.launch {
             delay(2400L)
@@ -1157,7 +1159,7 @@ class ChatController(
                 feedback = feedback.trim(),
             ),
         )
-        if (approved && rememberForConversation) {
+        if (approved && rememberForConversation && pending.request.toolName != "send_email") {
             autoApprovedConversations += pending.request.conversationId
         }
         pendingToolApproval.value = null
@@ -1221,7 +1223,9 @@ class ChatController(
     }
 
     private suspend fun requestToolApproval(request: ToolApprovalRequest): ToolApprovalDecision {
-        if (request.conversationId in autoApprovedConversations) return ToolApprovalDecision.Approved
+        if (request.toolName != "send_email" && request.conversationId in autoApprovedConversations) {
+            return ToolApprovalDecision.Approved
+        }
         return withContext(Dispatchers.Main) {
             val id = ++approvalId
             val waiter = CompletableDeferred<ToolApprovalDecision>()

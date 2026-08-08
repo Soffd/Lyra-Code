@@ -87,6 +87,8 @@ internal fun ThemeSettings(
     themeMode: String,
     dynamicColorEnabled: Boolean,
     onDynamicColorChange: (Boolean) -> Unit,
+    predictiveBackEnabled: Boolean,
+    onPredictiveBackChange: (Boolean) -> Unit,
     languageMode: String,
     refreshRateMode: String,
     onRefreshRateModeChange: (String) -> Unit,
@@ -110,6 +112,21 @@ internal fun ThemeSettings(
             )
             Text(uiText("Material You 动态配色"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
             Switch(checked = dynamicColorEnabled, onCheckedChange = onDynamicColorChange)
+        }
+        KimiDivider()
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.Default.Gesture,
+                contentDescription = null,
+                modifier = Modifier.width(36.dp).size(24.dp),
+                tint = MaterialTheme.colorScheme.primary,
+            )
+            Text(
+                stringResource(R.string.predictive_back_title),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleMedium,
+            )
+            Switch(checked = predictiveBackEnabled, onCheckedChange = onPredictiveBackChange)
         }
         KimiDivider()
         KimiMenuRow(Icons.Default.Palette, uiText("主题模式"), if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode), onOpenThemeModeSettings)

@@ -15,8 +15,8 @@ android {
         applicationId = "com.yukisoffd.lyracode"
         minSdk = 26
         targetSdk = 36
-        versionCode = 64
-        versionName = "3.4.2"
+        versionCode = 65
+        versionName = "3.5.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
@@ -54,6 +54,12 @@ android {
         buildConfig = true
         aidl = true
     }
+    packaging {
+        resources {
+            merges += "META-INF/LICENSE.md"
+            merges += "META-INF/NOTICE.md"
+        }
+    }
     sourceSets {
         getByName("main") {
             assets.srcDirs(rootProject.file("deepseek_v3_tokenizer/deepseek_v3_tokenizer"))
@@ -84,6 +90,8 @@ dependencies {
     implementation(libs.sora.language.textmate)
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+    implementation(libs.android.mail)
+    implementation(libs.android.activation)
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     debugImplementation(libs.androidx.compose.ui.tooling)
     testImplementation(libs.junit)

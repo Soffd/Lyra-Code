@@ -136,6 +136,8 @@ import com.yukisoffd.lyracode.ChatController
 import com.yukisoffd.lyracode.ChatScreen
 import com.yukisoffd.lyracode.R
 import com.yukisoffd.lyracode.ToolApprovalDialog
+import com.yukisoffd.lyracode.predictiveBackTransform
+import com.yukisoffd.lyracode.rememberPredictiveBackGestureState
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.AgentFileEditResult
 import com.yukisoffd.lyracode.data.AppSettings
@@ -170,7 +172,11 @@ internal fun FileManagerScreen(
         permissionRevision++
     }
     val hasPermission = remember(permissionRevision) { hasFileManagerPermission(context) }
-    BackHandler(onBack = onExit)
+    rememberPredictiveBackGestureState(
+        enabled = settings.predictiveBackEnabled,
+        onBack = onExit,
+    )
+    BackHandler(enabled = !settings.predictiveBackEnabled, onBack = onExit)
     if (!hasPermission) {
         FilePermissionRequest(
             onGrant = {
@@ -253,6 +259,7 @@ internal fun FileManagerScreen(
                 MediaPreviewScreen(
                     file = file,
                     kind = kind,
+                    predictiveBackEnabled = settings.predictiveBackEnabled,
                     onClose = { previewFile = null },
                     onOpenExternal = { openExternalFile(context, file) },
                 )
@@ -579,7 +586,11 @@ private fun DualPaneFileManager(
         }
     }
 
-    BackHandler(onBack = ::navigateActivePaneBack)
+    val predictiveBackState = rememberPredictiveBackGestureState(
+        enabled = settings.predictiveBackEnabled,
+        onBack = ::navigateActivePaneBack,
+    )
+    BackHandler(enabled = !settings.predictiveBackEnabled, onBack = ::navigateActivePaneBack)
 
     if (privilegedDialogOpen) {
         PrivilegedFileAccessDialog(
@@ -723,7 +734,11 @@ private fun DualPaneFileManager(
         FilePropertiesDialog(file = file, fileOperations = fileOperations, onDismiss = { propertiesTarget = null })
     }
 
-    Box(Modifier.fillMaxSize()) {
+    Box(
+        Modifier
+            .fillMaxSize()
+            .predictiveBackTransform(predictiveBackState),
+    ) {
         Column(Modifier.fillMaxSize()) {
             FileManagerHeader(
                 activePane = activePane,
@@ -1691,7 +1706,7 @@ private fun FileEditorScreen(
         }
     }
 
-    BackHandler {
+    fun navigateBackFromEditor() {
         when {
             aiOpen -> aiOpen = false
             searchOpen -> {
@@ -1706,6 +1721,11 @@ private fun FileEditorScreen(
             else -> requestClose()
         }
     }
+    val predictiveBackState = rememberPredictiveBackGestureState(
+        enabled = settings.predictiveBackEnabled,
+        onBack = ::navigateBackFromEditor,
+    )
+    BackHandler(enabled = !settings.predictiveBackEnabled) { navigateBackFromEditor() }
     if (showUnsaved) {
         AlertDialog(
             onDismissRequest = { showUnsaved = false },
@@ -1764,6 +1784,7 @@ private fun FileEditorScreen(
     Box(
         Modifier
             .fillMaxSize()
+            .predictiveBackTransform(predictiveBackState)
             .background(MaterialTheme.colorScheme.background)
             .pointerInput(file.absolutePath, aiOpen) {
                 if (aiOpen) return@pointerInput

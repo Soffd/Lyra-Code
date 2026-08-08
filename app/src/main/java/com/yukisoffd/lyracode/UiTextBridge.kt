@@ -1208,7 +1208,50 @@ internal object UiTextBridge {
         "SSH 连接已保存" to "SSH connection saved",
         "SSH 连接与远程命令执行。" to "SSH connections and remote command execution.",
         "WebDAV 已保存" to "WebDAV saved",
-        "WebDAV 云备份" to "WebDAV cloud backup",        )
+        "WebDAV 云备份" to "WebDAV cloud backup",
+        "邮件服务器已保存" to "Email server saved",
+        "名称" to "Name",
+        "邮件服务器配置" to "Email server configuration",
+        "删除邮件服务器" to "Delete email server",
+        "SMTP / IMAP 邮件" to "SMTP / IMAP email",
+        "密码加密保存在本机。读取正文不会改变已读状态；SMTP 发送每次都要求确认。" to "Passwords are encrypted on this device. Reading a message does not change its read status; every SMTP send requires confirmation.",
+        "暂无邮件服务器" to "No email servers yet",
+        "建议使用邮箱服务商生成的应用专用密码，并启用 SSL/TLS。" to "Use an app-specific password from your email provider and enable SSL/TLS.",
+        "安全警告：连接未加密，账号、密码和邮件内容可能被窃听。" to "Security warning: this connection is unencrypted, so account credentials and email content may be intercepted.",
+        "正在测试 IMAP 连接…" to "Testing IMAP connection…",
+        "IMAP 连接成功" to "IMAP connection successful",
+        "测试 IMAP" to "Test IMAP",
+        "邮件服务器" to "Email server",
+        "邮箱地址" to "Email address",
+        "登录用户名（留空则使用邮箱地址）" to "Login username (leave blank to use the email address)",
+        "密码 / 应用专用密码" to "Password / app-specific password",
+        "安全模式填写 ssl、starttls 或 none。推荐 ssl；none 仅用于受信任的本地测试服务器。" to "Enter ssl, starttls, or none. ssl is recommended; use none only for a trusted local test server.",
+        "请填写有效邮箱、密码、服务器和端口。" to "Enter a valid email address, password, server, and port.",
+        "安全模式" to "Security mode",
+        "列出邮件账户" to "List email accounts",
+        "查看用户已配置且启用的 IMAP/SMTP 邮件账户，不显示密码。" to "View configured and enabled IMAP/SMTP email accounts without exposing passwords.",
+        "列出邮件文件夹" to "List email folders",
+        "列出 IMAP 文件夹并识别草稿箱，不读取邮件内容。" to "List IMAP folders and identify the drafts folder without reading message content.",
+        "列出邮件" to "List emails",
+        "以只读方式列出邮件元数据及未读、已读、已回复、草稿等状态。" to "List email metadata and unread, read, answered, and draft states in read-only mode.",
+        "读取邮件正文" to "Read email body",
+        "只读获取受限长度的邮件正文；清洗 HTML，并忽略附件及多媒体内容。" to "Read a bounded email body without changing its state; sanitize HTML and omit attachments and media.",
+        "修改邮件状态" to "Change email status",
+        "修改邮件的已读/未读或星标状态，执行前需要用户确认。" to "Change an email's read/unread or flagged state after user confirmation.",
+        "隔离下载邮件附件" to "Quarantine email attachment",
+        "将附件下载到临时隔离目录，AI 不读取附件；执行后需要用户进行病毒扫描。" to "Download an attachment to temporary quarantine without exposing it to AI; the user must scan it for malware.",
+        "记录附件扫描结果" to "Record attachment scan result",
+        "记录用户明确提供的附件病毒扫描结果，不会向 AI 开放附件内容。" to "Record the attachment scan result explicitly provided by the user without exposing its contents to AI.",
+        "保存邮件草稿" to "Save email draft",
+        "构建 TXT/HTML 邮件并通过 IMAP APPEND 写入自动识别的草稿箱，执行前需要用户确认。" to "Build a TXT/HTML email and append it to the detected drafts folder through IMAP after user confirmation.",
+        "发送邮件" to "Send email",
+        "通过 SMTP 发送或线程回复邮件；每次发送都必须由用户单独确认。" to "Send or reply in-thread through SMTP; every send requires separate user confirmation.",
+        "通过用户确认后添加、修改、启用、禁用或删除 MCP、SSH、邮箱、WebDAV、Skills 与其他 Agent 工具配置。" to "Add, edit, enable, disable, or delete MCP, SSH, email, WebDAV, Skills, and other Agent tool configs after user confirmation.",
+        "会在 IMAP 服务器上修改已读/未读或星标状态。" to "This changes the read/unread or flagged state on the IMAP server.",
+        "附件可能很大或含恶意内容。文件只会保存到临时隔离目录，AI 不会读取；下载后请使用可信杀毒软件扫描。" to "The attachment may be large or malicious. It will only be saved to temporary quarantine and will not be read by AI; scan it with trusted antivirus software after downloading.",
+        "仅在你已经使用可信杀毒软件扫描该附件后确认；此操作不会让 AI 读取附件。" to "Confirm only after scanning the attachment with trusted antivirus software; this does not allow AI to read it.",
+        "会通过 IMAP APPEND 把完整邮件写入自动识别的草稿箱，收件人、正文和附件将上传至邮箱服务器。" to "This uses IMAP APPEND to write the complete email to the detected drafts folder; recipients, body, and attachments will be uploaded to the email server.",
+    )
 
     private fun translateBySegments(text: String): String {
         if (!text.any { it in '\u4e00'..'\u9fff' }) return text
@@ -1228,12 +1271,28 @@ internal object UiTextBridge {
             t.endsWith(" · 分支") -> t.removeSuffix(" · 分支") + " · Branch"
             t.startsWith("请求失败，5 秒后重试（") && t.endsWith("）") ->
                 "Request failed. Retrying in 5 seconds (${t.removePrefix("请求失败，5 秒后重试（").removeSuffix("）")})"
+            t.startsWith("请求中断：已自动重试 ") && t.contains(" 次，仍无法继续。已保留本轮已输出的思维链和正文；可切换模型，或待 API 恢复后继续任务。") ->
+                "Request interrupted after ${t.substringAfter("请求中断：已自动重试 ").substringBefore(" 次，")} automatic retries. This turn's reasoning and response have been preserved; switch models or continue the task after the API recovers."
             t.startsWith("匹配 ") && t.endsWith(" 个工具") ->
                 "Matching ${t.removePrefix("匹配 ").removeSuffix(" 个工具")} tools"
             t.startsWith("外部私有文件 ") -> "External private files " + t.removePrefix("外部私有文件 ")
             t.startsWith("外部缓存 ") -> "External cache " + t.removePrefix("外部缓存 ")
             t.startsWith("正在服务 ") -> "Serving " + t.removePrefix("正在服务 ")
             t.startsWith("监听失败：") -> "Listen failed: " + t.removePrefix("监听失败：")
+            t.startsWith("将删除 ") && t.endsWith(" 及其加密保存的登录密码。") ->
+                "This will delete ${t.removePrefix("将删除 ").removeSuffix(" 及其加密保存的登录密码。")} and its encrypted login password."
+            t.startsWith("连接失败：") -> "Connection failed: " + t.removePrefix("连接失败：")
+            t.startsWith("修改邮件状态：") -> "Change email status: " + t.removePrefix("修改邮件状态：")
+            t.startsWith("下载邮件附件到隔离缓存：") -> "Download email attachment to quarantine: " + t.removePrefix("下载邮件附件到隔离缓存：").replace("附件 ", "attachment ")
+            t.startsWith("记录附件扫描结果：") -> "Record attachment scan result: " + when (t.removePrefix("记录附件扫描结果：")) {
+                "安全" -> "safe"
+                "不安全" -> "unsafe"
+                else -> t.removePrefix("记录附件扫描结果：")
+            }
+            t.startsWith("写入邮件草稿：") -> "Save email draft: " + t.removePrefix("写入邮件草稿：")
+            t.startsWith("通过 SMTP 发送邮件：") -> "Send email through SMTP: " + t.removePrefix("通过 SMTP 发送邮件：")
+            t.startsWith("将立即向 ") && t.contains(" 发送邮件。请核对全部收件人、正文、回复引用和附件；发送后可能无法撤回，且本次确认不会被记忆或跳过。") ->
+                "This will immediately send email to ${t.substringAfter("将立即向 ").substringBefore(" 发送邮件。")}. Verify all recipients, body content, reply references, and attachments. Sending may be irreversible, and this confirmation will not be remembered or skipped."
             t.endsWith(" 个对话") -> t.removeSuffix(" 个对话") + " chats"
             t.startsWith("已创建项目“") && t.endsWith("”") ->
                 "Created project “${t.removePrefix("已创建项目“").removeSuffix("”")}”"
