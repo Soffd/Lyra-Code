@@ -31,11 +31,12 @@ import androidx.compose.material.icons.filled.DataUsage
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Output
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -78,7 +79,11 @@ import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun UsageStatsScreen(controller: ChatController) {
+internal fun UsageStatsScreen(
+    controller: ChatController,
+    showAboutDialog: Boolean,
+    onDismissAboutDialog: () -> Unit,
+) {
     val context = LocalContext.current
     var selectedPeriodName by rememberSaveable { mutableStateOf(UsageStatsPeriod.DAY.name) }
     var anchorAt by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
@@ -132,6 +137,26 @@ internal fun UsageStatsScreen(controller: ChatController) {
         ) {
             DatePicker(state = datePickerState)
         }
+    }
+
+    if (showAboutDialog) {
+        AlertDialog(
+            onDismissRequest = onDismissAboutDialog,
+            icon = {
+                Icon(Icons.Default.ErrorOutline, contentDescription = null)
+            },
+            title = {
+                Text(context.getString(R.string.stats_about_title))
+            },
+            text = {
+                Text(context.getString(R.string.stats_disclaimer))
+            },
+            confirmButton = {
+                TextButton(onClick = onDismissAboutDialog) {
+                    Text(context.getString(R.string.action_close))
+                }
+            },
+        )
     }
 
     Column(
@@ -378,25 +403,6 @@ private fun UsageStatsContent(summary: UsageStatsSummary, compactNumbers: Boolea
 
     TopModelsCard(summary.modelUsage, compactNumbers)
 
-    KimiCardBox {
-        Row(verticalAlignment = Alignment.Top) {
-            Icon(
-                Icons.Default.Info,
-                contentDescription = null,
-                modifier = Modifier.size(22.dp),
-                tint = MaterialTheme.colorScheme.primary,
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(context.getString(R.string.stats_about_title), style = MaterialTheme.typography.titleSmall)
-                Text(
-                    context.getString(R.string.stats_disclaimer),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.bodySmall,
-                )
-            }
-        }
-    }
 }
 
 @Composable

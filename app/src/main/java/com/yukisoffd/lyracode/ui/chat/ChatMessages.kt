@@ -534,8 +534,11 @@ internal fun TodoProgressPanel(settings: AppSettings, conversationId: Long, item
             Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("TODO $completed/${items.size}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
-                    TextButton(onClick = { expanded = !expanded }) {
-                        Text(if (expanded) uiText("收纳") else uiText("展开"))
+                    IconButton(onClick = { expanded = !expanded }) {
+                        Icon(
+                            if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                            contentDescription = if (expanded) uiText("收起") else uiText("展开"),
+                        )
                     }
                 }
                 AnimatedVisibility(expanded) {
@@ -642,8 +645,11 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
                 Text("+$totalAdded", color = Color(0xFF188038), style = MaterialTheme.typography.labelMedium)
                 Spacer(Modifier.width(8.dp))
                 Text("-$totalRemoved", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
-                TextButton(onClick = { expanded = !expanded }) {
-                    Text(if (expanded) uiText("收纳") else uiText("展开"))
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = if (expanded) uiText("收起") else uiText("展开"),
+                    )
                 }
             }
             AnimatedVisibility(expanded) {

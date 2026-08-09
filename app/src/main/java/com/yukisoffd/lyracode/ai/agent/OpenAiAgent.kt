@@ -736,6 +736,10 @@ class OpenAiAgent(
                         conversationStore.updateMessage(assistantId, content = content, thinking = thinking)
                         onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
                     },
+                    onStatus = { status ->
+                        val current = conversationStore.message(assistantId)
+                        onUpdate(ChatUpdate(current?.content.orEmpty(), current?.thinking.orEmpty(), status, assistantId))
+                    },
                     onRetry = { retryNumber, maxRetries, error ->
                         val retryStatus = uiText(context.getString(R.string.status_request_retry, retryNumber, maxRetries))
                         Log.w(
@@ -771,7 +775,7 @@ class OpenAiAgent(
                     return
                 }
                 result.toolCalls.forEach { call ->
-                    onUpdate(ChatUpdate(result.content, result.thinking, uiText("调用工具：") + call.name, assistantId))
+                    onUpdate(ChatUpdate(result.content, result.thinking, runningToolStatus(call), assistantId))
                     val toolResult = executeTool(conversationId, call) { toolStatus ->
                         onUpdate(ChatUpdate(result.content, result.thinking, toolStatus, assistantId))
                     }
@@ -806,12 +810,42 @@ class OpenAiAgent(
         }
     }
 
+    private fun runningToolStatus(call: ToolCall): String {
+        val args = call.arguments
+        val path = args.optString("path").trim()
+        return when (call.name) {
+            "read_file", "read_file_lines", "global_read_file", "global_read_file_lines" ->
+                path.takeIf { it.isNotBlank() }
+                    ?.let { context.getString(R.string.status_reading_file, it) }
+
+            "write_file", "edit_file", "append_file",
+            "global_write_file", "global_edit_file", "global_append_file",
+            "create_folder", "delete_file_or_folder",
+            "global_create_folder", "global_delete_file_or_folder" ->
+                path.takeIf { it.isNotBlank() }
+                    ?.let { context.getString(R.string.status_modifying_file, it) }
+
+            "rename_move", "global_rename_move" -> {
+                val from = args.optString("from").trim()
+                val to = args.optString("to").trim()
+                if (from.isNotBlank() && to.isNotBlank()) {
+                    context.getString(R.string.status_moving_file, from, to)
+                } else {
+                    null
+                }
+            }
+
+            else -> null
+        } ?: (uiText("调用工具：") + call.name)
+    }
+
     private suspend fun streamModel(
         conversationId: Long,
         excludeMessageId: Long,
         profile: ApiProfile,
         model: String,
         onDelta: suspend (String, String) -> Unit,
+        onStatus: suspend (String) -> Unit,
         onRetry: suspend (retryNumber: Int, maxRetries: Int, error: Throwable) -> Unit,
     ): StreamingResult {
         var preservedContent = ""
@@ -842,7 +876,7 @@ class OpenAiAgent(
                 ApiProfile.API_FORMAT_ANTHROPIC -> requestAnthropicModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 ApiProfile.API_FORMAT_GEMINI -> requestGeminiModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 else -> if (profile.useResponsesApi) {
-                    streamResponsesModel(conversationId, excludeMessageId, profile, model, preservingDelta)
+                    streamResponsesModel(conversationId, excludeMessageId, profile, model, preservingDelta, onStatus)
                 } else {
                     streamOpenAiModel(conversationId, excludeMessageId, profile, model, preservingDelta)
                 }
@@ -852,7 +886,9 @@ class OpenAiAgent(
             result.copy(
                 content = mergedContent,
                 thinking = mergedThinking,
-                rawMessage = assistantRawMessage(mergedContent, mergedThinking, result.toolCalls),
+                rawMessage = assistantRawMessage(mergedContent, mergedThinking, result.toolCalls).also {
+                    copyReplayableResponseItems(result.rawMessage, it)
+                },
             )
         }
     }
@@ -863,14 +899,15 @@ class OpenAiAgent(
         profile: ApiProfile,
         model: String,
         onDelta: suspend (String, String) -> Unit,
+        onStatus: suspend (String) -> Unit,
     ): StreamingResult {
         require(profile.apiFormat == ApiProfile.API_FORMAT_OPENAI) { "Responses API 仅支持 OpenAI 接口格式" }
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
         val requestJson = JSONObject()
             .put("model", model)
-            .put("instructions", providerSystemText(conversationId))
-            .put("input", responsesInputItems(conversationId, excludeMessageId))
-            .put("tools", responsesToolDefinitions(conversationId))
+            .put("instructions", responsesInstructions(conversationId, profile))
+            .put("input", responsesInputItems(conversationId, excludeMessageId, profile))
+            .put("tools", responsesToolDefinitions(conversationId, profile))
             .put("tool_choice", "auto")
             .put("stream", true)
             .put("store", false)
@@ -892,11 +929,17 @@ class OpenAiAgent(
         var outputTokens = 0L
         var streamCompleted = false
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
+        val replayableItems = JSONArray()
         client.newCall(request).execute().use { response ->
             val source = response.body ?: throw IOException("响应为空")
             if (!response.isSuccessful) throwModelRequestHttpError(response.code, source.string())
             source.byteStream().bufferedReader().useLines { lines ->
+                var sseEventType = ""
                 lines.forEach { line ->
+                    if (line.startsWith("event:")) {
+                        sseEventType = line.removePrefix("event:").trim()
+                        return@forEach
+                    }
                     if (!line.startsWith("data:")) return@forEach
                     val data = line.removePrefix("data:").trim()
                     if (data.isBlank()) return@forEach
@@ -905,8 +948,10 @@ class OpenAiAgent(
                         return@forEach
                     }
                     val event = runCatching { JSONObject(data) }.getOrNull() ?: return@forEach
+                    val eventType = responsesStreamEventType(event, sseEventType)
+                    sseEventType = ""
                     val outputIndex = event.optInt("output_index", 0)
-                    when (event.optString("type")) {
+                    when (eventType) {
                         "response.output_text.delta" -> {
                             event.stringFieldOrNull("delta")?.let(content::append)
                             onDelta(content.toString(), thinking.toString())
@@ -916,9 +961,11 @@ class OpenAiAgent(
                             onDelta(content.toString(), thinking.toString())
                         }
                         "response.output_item.added", "response.output_item.done" -> {
-                            event.optJSONObject("item")
-                                ?.takeIf { it.optString("type") == "function_call" }
-                                ?.let { item ->
+                            event.optJSONObject("item")?.let { item ->
+                                if (eventType == "response.output_item.done") {
+                                    collectReplayableResponseItem(item, replayableItems)
+                                }
+                                if (item.optString("type") == "function_call") {
                                     val builder = toolBuilders.getOrPut(outputIndex) { ToolCallBuilder() }
                                     builder.id = item.optString("call_id").ifBlank { item.optString("id") }
                                     builder.name = item.optString("name")
@@ -927,6 +974,7 @@ class OpenAiAgent(
                                         builder.arguments.append(it)
                                     }
                                 }
+                            }
                         }
                         "response.function_call_arguments.delta" -> {
                             val builder = toolBuilders.getOrPut(outputIndex) { ToolCallBuilder() }
@@ -942,12 +990,26 @@ class OpenAiAgent(
                                 builder.arguments.append(it)
                             }
                         }
-                        "response.completed" -> {
+                        "response.web_search_call.in_progress", "response.web_search_call.searching" -> {
+                            onStatus(uiText(context.getString(R.string.status_native_web_search)))
+                        }
+                        "response.web_search_call.completed" -> {
+                            onStatus(uiText(context.getString(R.string.status_native_web_search_completed)))
+                        }
+                        "response.completed", "response.incomplete" -> {
                             streamCompleted = true
                             event.optJSONObject("response")?.let { completed ->
                                 outputTokens = completed.optJSONObject("usage")?.optLong("output_tokens", outputTokens) ?: outputTokens
                                 collectCompletedResponseItems(completed, content, thinking, toolBuilders)
+                                collectReplayableResponseItems(completed, replayableItems)
                             }
+                        }
+                        "response.failed" -> {
+                            val failed = event.optJSONObject("response")
+                            val message = (failed?.optJSONObject("error") ?: event.optJSONObject("error"))?.optString("message")
+                                .orEmpty()
+                                .ifBlank { "Responses API 请求失败" }
+                            throw IOException(message)
                         }
                         "error" -> throw IOException(event.optJSONObject("error")?.optString("message").orEmpty().ifBlank { "Responses API 请求失败" })
                     }
@@ -958,7 +1020,9 @@ class OpenAiAgent(
         val calls = toolBuilders.mapNotNull { (index, builder) -> builder.toToolCall(index) }
         val cleanContent = cleanGeneratedText(content.toString())
         val cleanThinking = cleanGeneratedText(thinking.toString())
-        val raw = assistantRawMessage(cleanContent, cleanThinking, calls)
+        val raw = assistantRawMessage(cleanContent, cleanThinking, calls).also {
+            if (replayableItems.length() > 0) it.put(RESPONSES_REPLAY_ITEMS_KEY, replayableItems)
+        }
         return StreamingResult(cleanContent, cleanThinking, raw, calls, outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos))
     }
 
@@ -1362,25 +1426,15 @@ class OpenAiAgent(
         return sanitizePromptMessageSequence(messages)
     }
 
-    private fun responsesToolDefinitions(conversationId: Long): JSONArray {
-        val chatTools = toolDefinitionsFor(conversationId)
-        return JSONArray().also { output ->
-            for (index in 0 until chatTools.length()) {
-                val function = chatTools.optJSONObject(index)?.optJSONObject("function") ?: continue
-                output.put(
-                    JSONObject()
-                        .put("type", "function")
-                        .put("name", function.optString("name"))
-                        .put("description", function.optString("description"))
-                        .put("parameters", function.optJSONObject("parameters") ?: JSONObject())
-                        .put("strict", false),
-                )
-            }
-        }
-    }
+    private fun responsesToolDefinitions(conversationId: Long, profile: ApiProfile): JSONArray =
+        buildResponsesToolDefinitions(
+            chatTools = toolDefinitionsFor(conversationId),
+            includeDeepSeekWebSearch = supportsDeepSeekNativeWebSearch(profile),
+        )
 
-    private fun responsesInputItems(conversationId: Long, excludeMessageId: Long): JSONArray {
+    private fun responsesInputItems(conversationId: Long, excludeMessageId: Long, profile: ApiProfile): JSONArray {
         val messages = promptMessages(conversationId, excludeMessageId)
+        val includeReasoningTextFallback = supportsDeepSeekNativeWebSearch(profile)
         return JSONArray().also { output ->
             for (index in 0 until messages.length()) {
                 val message = messages.optJSONObject(index) ?: continue
@@ -1393,6 +1447,7 @@ class OpenAiAgent(
                             .put("output", message.optString("content")),
                     )
                     "assistant" -> {
+                        appendReplayableResponseItems(message, output, includeReasoningTextFallback)
                         val assistantText = message.optString("content")
                         if (assistantText.isNotBlank()) {
                             output.put(JSONObject().put("type", "message").put("role", "assistant").put("content", assistantText))
@@ -1466,9 +1521,18 @@ class OpenAiAgent(
                     }
                 }
                 "reasoning" -> if (thinking.isEmpty()) {
-                    val summary = item.optJSONArray("summary") ?: JSONArray()
-                    for (summaryIndex in 0 until summary.length()) {
-                        summary.optJSONObject(summaryIndex)?.optString("text")?.let(thinking::append)
+                    val reasoningContent = item.optJSONArray("content") ?: JSONArray()
+                    for (partIndex in 0 until reasoningContent.length()) {
+                        reasoningContent.optJSONObject(partIndex)
+                            ?.takeIf { it.optString("type") == "reasoning_text" }
+                            ?.optString("text")
+                            ?.let(thinking::append)
+                    }
+                    if (thinking.isEmpty()) {
+                        val summary = item.optJSONArray("summary") ?: JSONArray()
+                        for (summaryIndex in 0 until summary.length()) {
+                            summary.optJSONObject(summaryIndex)?.optString("text")?.let(thinking::append)
+                        }
                     }
                 }
                 "function_call" -> {
@@ -1484,6 +1548,18 @@ class OpenAiAgent(
 
     private fun providerSystemText(conversationId: Long): String {
         return systemMessagesFor(conversationId).joinToString("\n\n") { it.optString("content") }
+    }
+
+    private fun responsesInstructions(conversationId: Long, profile: ApiProfile): String {
+        val base = providerSystemText(conversationId)
+        if (!supportsDeepSeekNativeWebSearch(profile)) return base
+        return "$base\n\n" +
+            "DEEPSEEK_NATIVE_WEB_SEARCH_V1\n" +
+            "A server-side built-in web_search tool is available in this Responses API request. " +
+            "It is distinct from Lyra's function tool named web_search: the built-in tool is executed by DeepSeek, " +
+            "while Lyra's function uses the app's configured search and page-reading workflow. " +
+            "Prefer the built-in tool for direct current-web questions; use the Lyra function when the task needs " +
+            "explicit search candidates followed by read_web_page or mark_web_sources."
     }
 
     private fun systemMessagesFor(conversationId: Long): List<JSONObject> = buildList {
@@ -1942,6 +2018,7 @@ class OpenAiAgent(
                     )
                 }
             }
+            onStatus(runningToolStatus(call))
             withWorkspaceMutationLease(conversationId, call) {
                 when (call.name) {
                 "list_directory" -> nativeFileManager.listDirectory(args.optString("path"))
@@ -2185,7 +2262,8 @@ class OpenAiAgent(
                     } else {
                         val workDir = normalizeCommandWorkDir(args.cleanString("workDir"))
                         val timeoutSeconds = args.optInt("timeout_seconds", 60).coerceIn(5, 600)
-                        val result = termuxExecutor.execute(command, workDir, timeoutSeconds)
+                        val background = args.optBoolean("background", false)
+                        val result = termuxExecutor.execute(command, workDir, timeoutSeconds, background = background)
                         if (result.ok) ToolExecution(result.message) else error(result.message)
                     }
                 }
@@ -2345,10 +2423,18 @@ class OpenAiAgent(
                 currentCoroutineContext().ensureActive()
                 val agentConfig = chooseSubAgent(candidates, task, index, assignmentCounts)
                 assignmentCounts[agentConfig.id] = (assignmentCounts[agentConfig.id] ?: 0) + 1
-                onStatus(uiText("正在执行子代理任务") + " ${index + 1}/${tasks.size}: ${agentConfig.name}")
+                onStatus(
+                    context.getString(
+                        R.string.status_sub_agent_progress_running,
+                        index,
+                        tasks.size,
+                        agentConfig.name,
+                    ),
+                )
                 val profile = settings.profiles().firstOrNull { it.id == agentConfig.profileId }
                 if (profile == null) {
                     results.put(subAgentError(index, agentConfig, task, "Model profile does not exist: ${agentConfig.profileId}"))
+                    onStatus(context.getString(R.string.status_sub_agent_progress, index + 1, tasks.size))
                     return@forEachIndexed
                 }
                 val model = agentConfig.model.ifBlank { profile.selectedModel }
@@ -2376,7 +2462,15 @@ class OpenAiAgent(
                         model,
                         onUpdate = { update ->
                             if (update.status.isNotBlank()) {
-                                onStatus(uiText("正在执行子代理任务") + " ${index + 1}/${tasks.size}: ${agentConfig.name} · ${update.status}")
+                                onStatus(
+                                    context.getString(
+                                        R.string.status_sub_agent_progress_detail,
+                                        index,
+                                        tasks.size,
+                                        agentConfig.name,
+                                        update.status,
+                                    ),
+                                )
                             }
                         },
                         propagateErrors = false,
@@ -2399,8 +2493,9 @@ class OpenAiAgent(
                 } finally {
                     subAgentContexts.remove(childConversationId)
                 }
+                onStatus(context.getString(R.string.status_sub_agent_progress, index + 1, tasks.size))
             }
-            onStatus(uiText("子代理任务完成"))
+            onStatus(context.getString(R.string.status_sub_agent_progress, tasks.size, tasks.size))
             return stableJson(
                 JSONObject()
                     .put("schema", "lyra_sub_agent_results_v2")
@@ -4782,7 +4877,7 @@ class OpenAiAgent(
             run_command executes Bash in Termux as the Termux app user; it is not Android's Shizuku shell and is not root. It defaults to the selected workspace. Omit workDir for the root or pass a workspace-relative directory; never use cd merely to change the working directory. Use command_lines for multiline or indentation-sensitive commands.
             Use execute_shell_command only for Android shell operations that actually require Shizuku, and execute_root_command only when root is necessary and the user-approved tool is present. Never escalate from Termux to Shizuku or root merely to make a failing command pass.
             Quote paths containing spaces or shell metacharacters. Use non-interactive flags. Join dependent steps with && so later steps stop on failure; keep unrelated commands separate or batch them as independent tool calls. Before a destructive command, resolve and inspect the exact target, minimize its scope, and prefer a recoverable operation when available.
-            Do not run interactive, background, or persistent processes that will not return a final result. Choose a realistic timeout from 5 to 600 seconds. When stdout_original_length or stderr_original_length exceeds the visible text, rerun a narrower query or redirect bounded output to a workspace file and inspect it with native tools. Do not install a convenience utility solely because rg or another preferred command is missing.
+            Do not run interactive processes. For a persistent service or watcher, set run_command background=true instead of manually composing nohup or a terminal ampersand. Background mode closes inherited input/output, returns launcher_pid and output_file promptly, and waits at most 15 seconds for acknowledgement; launch acceptance does not prove the service is healthy, so inspect the process or log in a separate foreground call before claiming success. Raw standalone ampersands are auto-detected only for compatibility. For foreground commands, choose a realistic timeout from 5 to 600 seconds. When stdout_original_length or stderr_original_length exceeds the visible text, rerun a narrower query or redirect bounded output to a workspace file and inspect it with native tools. Do not install a convenience utility solely because rg or another preferred command is missing.
             Prefer download_file for HTTP/HTTPS downloads. Use curl or wget only if download_file is unavailable, fails, or cannot support the protocol. Preserve checksums or required headers when provided.
 
             # Web and sources

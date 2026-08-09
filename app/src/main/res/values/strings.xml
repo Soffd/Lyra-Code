@@ -145,12 +145,14 @@
     <string name="action_album">相册</string>
     <string name="action_camera">相机</string>
     <string name="action_file">文件</string>
+    <string name="notice_camera_permission_required">未授予相机权限，无法打开相机。请在系统设置中允许相机权限。</string>
+    <string name="notice_camera_unavailable">无法打开相机，请确认设备已安装可用的相机应用。</string>
+    <string name="notice_album_unavailable">无法打开系统照片选择器。</string>
+    <string name="notice_file_picker_unavailable">无法打开系统文件选择器。</string>
     <string name="label_provider">服务商</string>
     <string name="label_not_configured">未配置</string>
     <string name="label_model">模型</string>
     <string name="label_not_selected">未选择</string>
-    <string name="action_fetch_models">获取当前平台模型</string>
-    <string name="subtitle_fetch_models">从 models 端点刷新可用模型</string>
     <string name="label_workspace_session">当前会话工作区</string>
     <string name="label_no_workspace">未选择工作目录</string>
     <string name="notice_workspace_selected_current_chat">已为当前会话选择工作区：%1$s</string>
@@ -232,6 +234,12 @@
     <!-- ==================== ChatController.kt ==================== -->
     <string name="title_new_chat">新对话</string>
     <string name="status_running">运行中</string>
+    <string name="status_reading_file">正在阅读文件：%1$s</string>
+    <string name="status_modifying_file">正在修改文件：%1$s</string>
+    <string name="status_moving_file">正在移动文件：%1$s → %2$s</string>
+    <string name="status_sub_agent_progress">子代理任务：已完成 %1$d/%2$d</string>
+    <string name="status_sub_agent_progress_running">子代理任务：已完成 %1$d/%2$d · 正在执行 %3$s</string>
+    <string name="status_sub_agent_progress_detail">子代理任务：已完成 %1$d/%2$d · 正在执行 %3$s · %4$s</string>
     <string name="status_interrupted">已中断</string>
     <string name="status_continue">继续运行</string>
     <string name="status_regenerate">重新生成</string>
@@ -1370,11 +1378,20 @@
     <string name="file_permission_message">文件管理器需要访问共享存储，才能在 /storage/emulated/0 中浏览、编辑、移动和复制文件。请在系统设置中允许 Lyra Code 管理所有文件。</string>
     <string name="file_permission_grant">授予权限</string>
     <string name="file_permission_retry">重新检查</string>
+    <string name="file_permission_settings_unavailable">无法打开系统权限设置，请前往应用详情页手动允许“管理所有文件”。</string>
     <string name="file_folder_count">文件夹：%1$d</string>
     <string name="file_file_count">文件：%1$d</string>
     <string name="file_empty_folder">空文件夹</string>
     <string name="file_loading">正在读取…</string>
     <string name="file_open_failed">无法打开文件</string>
+    <string name="apk_install_title">安装应用</string>
+    <string name="apk_install_message">是否安装“%1$s”？将依次尝试 Root、Shell、ADB，最后使用系统安装器。</string>
+    <string name="apk_install_confirm">安装</string>
+    <string name="apk_installing">正在准备安装…</string>
+    <string name="apk_install_success">已通过 %1$s 完成安装</string>
+    <string name="apk_install_permission_hint">请允许安装未知应用，然后再次点击该安装包。</string>
+    <string name="apk_install_system_success">应用安装完成</string>
+    <string name="apk_install_system_failed">系统安装器未能安装此应用</string>
     <string name="file_action_copy_other">复制到另一栏</string>
     <string name="file_action_move_other">移动到另一栏</string>
     <string name="file_action_copy">复制</string>
@@ -1714,6 +1731,8 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="menu_email">SMTP / IMAP 邮件</string>
     <string name="menu_email_desc">添加邮箱服务器，让 AI 安全读取、写草稿、发送与回复邮件</string>
     <string name="detail_email">邮件服务器</string>
+    <string name="status_native_web_search">正在进行原生搜索…</string>
+    <string name="status_native_web_search_completed">原生搜索完成</string>
 </resources>
 
 

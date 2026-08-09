@@ -10,6 +10,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -290,6 +292,7 @@ internal fun ModelServiceSettings(
     var showProviderPicker by rememberSaveable { mutableStateOf(false) }
     var query by rememberSaveable { mutableStateOf("") }
     var showReachabilityPage by rememberSaveable { mutableStateOf(false) }
+    var skipNextModelTransition by remember { mutableStateOf(false) }
     val serviceListScrollState = rememberScrollState()
     val providerPickerScrollState = rememberScrollState()
     val editorScrollState = rememberScrollState()
@@ -319,9 +322,18 @@ internal fun ModelServiceSettings(
         }
     }
     val modelNestedPageActive = editingProfileId != null || showProviderPicker
+    val modelPage = when {
+        showReachabilityPage -> 3
+        editingProfileId != null -> 2
+        showProviderPicker -> 1
+        else -> 0
+    }
     val predictiveBackState = rememberPredictiveBackGestureState(
         enabled = predictiveBackEnabled && modelNestedPageActive,
-        onBack = ::navigateBackWithinModel,
+        onBack = {
+            skipNextModelTransition = true
+            navigateBackWithinModel()
+        },
     )
     BackHandler(enabled = !predictiveBackEnabled && modelNestedPageActive) {
         navigateBackWithinModel()
@@ -333,6 +345,14 @@ internal fun ModelServiceSettings(
     }
     val editingIndex = profiles.indexOfFirst { it.id == editingProfileId }
     val current = if (draftNewProfile?.id == editingProfileId) draftNewProfile else profiles.getOrNull(editingIndex)
+    val predictiveTargetPage = when (modelPage) {
+        3 -> 2
+        2 -> if (draftNewProfile?.id == editingProfileId) 1 else 0
+        else -> 0
+    }
+    LaunchedEffect(modelPage) {
+        skipNextModelTransition = false
+    }
     var platformMenuExpanded by remember { mutableStateOf(false) }
     val editKey = editingProfileId ?: "none"
     LaunchedEffect(editKey) {
@@ -501,25 +521,12 @@ internal fun ModelServiceSettings(
         )
     }
 
-    Box(
-        Modifier
-            .fillMaxSize()
-            .predictiveBackTransform(predictiveBackState),
-    ) {
-        AnimatedContent(
-            targetState = when {
-                showReachabilityPage -> 3
-                editingProfileId != null -> 2
-                showProviderPicker -> 1
-                else -> 0
-            },
-            transitionSpec = {
-                val forward = targetState > initialState
-                (fadeIn(animationSpec = tween(180)) + slideInHorizontally { if (forward) it / 6 else -it / 6 })
-                    .togetherWith(fadeOut(animationSpec = tween(140)) + slideOutHorizontally { if (forward) -it / 8 else it / 8 })
-            },
-            label = "model-service-page",
-        ) { page ->
+    val renderModelPage: @Composable (Int) -> Unit = { page ->
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background),
+        ) {
         if (page == 0) {
             val filtered = remember(profiles, query) {
                 val q = query.trim()
@@ -855,6 +862,41 @@ internal fun ModelServiceSettings(
                 if (status.isNotBlank()) Text(status, color = KimiMuted)
             }
         }
+        }
+    }
+
+    Box(Modifier.fillMaxSize()) {
+        if (predictiveBackState.isInProgress) {
+            Box(Modifier.fillMaxSize()) {
+                renderModelPage(predictiveTargetPage)
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .background(
+                            Color.Black.copy(
+                                alpha = 0.22f * (1f - predictiveBackState.progress),
+                            ),
+                        ),
+                )
+            }
+        }
+        AnimatedContent(
+            targetState = modelPage,
+            modifier = Modifier
+                .fillMaxSize()
+                .predictiveBackTransform(predictiveBackState),
+            transitionSpec = {
+                if (skipNextModelTransition) {
+                    EnterTransition.None togetherWith ExitTransition.None
+                } else {
+                    val forward = targetState > initialState
+                    (fadeIn(animationSpec = tween(180)) + slideInHorizontally { if (forward) it / 6 else -it / 6 })
+                        .togetherWith(fadeOut(animationSpec = tween(140)) + slideOutHorizontally { if (forward) -it / 8 else it / 8 })
+                }
+            },
+            label = "model-service-page",
+        ) { page ->
+            renderModelPage(page)
         }
         ScreenCenterNotice(
             message = notice,

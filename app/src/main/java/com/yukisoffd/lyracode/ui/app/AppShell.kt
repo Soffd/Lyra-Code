@@ -8,6 +8,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -194,6 +196,8 @@ internal fun LyraCodeApp(
     var settingsDetailTitle by rememberSaveable { mutableStateOf<String?>(null) }
     var settingsBackRequest by remember { mutableIntStateOf(0) }
     var conversationDetailsExpanded by rememberSaveable { mutableStateOf(false) }
+    var showStatsAboutDialog by rememberSaveable { mutableStateOf(false) }
+    var skipNextPageTransition by remember { mutableStateOf(false) }
     fun requestNewConversation() {
         if (controller.requestNewConversation()) {
             selectedPage = PAGE_CHAT
@@ -237,6 +241,7 @@ internal fun LyraCodeApp(
     }
     LaunchedEffect(safeSelectedPage) {
         if (safeSelectedPage != PAGE_SETTINGS) settingsDetailTitle = null
+        skipNextPageTransition = false
     }
     LaunchedEffect(safeSelectedPage, activeConversationId) {
         if (safeSelectedPage != PAGE_CHAT || conversationDetailsExpanded) {
@@ -246,10 +251,10 @@ internal fun LyraCodeApp(
     val pagePredictiveBackState = rememberPredictiveBackGestureState(
         enabled = predictiveBackEnabled &&
             safeSelectedPage != PAGE_CHAT &&
-            safeSelectedPage != PAGE_FILES &&
             !(safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) &&
             !drawerState.isOpen,
     ) {
+        skipNextPageTransition = true
         selectedPage = PAGE_CHAT
     }
     BackHandler(enabled = !predictiveBackEnabled && safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null && !drawerState.isOpen) {
@@ -358,6 +363,96 @@ internal fun LyraCodeApp(
         )
     }
 
+    val renderAppTopBar: @Composable (Int) -> Unit = { page ->
+        if (page != PAGE_FILES && page != PAGE_SETTINGS) TopAppBar(
+            expandedHeight = 56.dp,
+            colors = TopAppBarDefaults.topAppBarColors(
+                containerColor = MaterialTheme.colorScheme.background,
+                titleContentColor = MaterialTheme.colorScheme.onBackground,
+                navigationIconContentColor = MaterialTheme.colorScheme.primary,
+                actionIconContentColor = MaterialTheme.colorScheme.primary,
+            ),
+            navigationIcon = {
+                IconButton(
+                    onClick = { scope.launch { drawerState.open() } },
+                    modifier = Modifier.width(64.dp),
+                ) {
+                    Icon(Icons.Default.Menu, contentDescription = context.getString(R.string.cd_menu))
+                }
+            },
+            title = {
+                if (page == PAGE_CHAT) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { conversationDetailsExpanded = !conversationDetailsExpanded },
+                        verticalArrangement = Arrangement.Center,
+                    ) {
+                        Text(
+                            conversationTitle,
+                            style = MaterialTheme.typography.titleMedium,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        ) {
+                            Text(
+                                "$activeModelName / $workspaceLabel",
+                                modifier = Modifier.weight(1f),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.labelSmall,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Icon(
+                                if (conversationDetailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                                contentDescription = if (conversationDetailsExpanded) {
+                                    uiText("收起对话信息")
+                                } else {
+                                    uiText("展开对话信息")
+                                },
+                                modifier = Modifier.size(14.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                } else {
+                    Text(
+                        pages[page],
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            },
+            actions = {
+                if (page == PAGE_CHAT) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = { treeLauncher.launch(null) }) {
+                            PlusBadgeIcon(
+                                baseIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
+                            )
+                        }
+                        IconButton(onClick = { requestNewConversation() }) {
+                            PlusBadgeIcon(
+                                baseIcon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
+                            )
+                        }
+                    }
+                } else if (page == PAGE_STATS) {
+                    IconButton(onClick = { showStatsAboutDialog = true }) {
+                        Icon(
+                            Icons.Default.ErrorOutline,
+                            contentDescription = context.getString(R.string.stats_about_title),
+                        )
+                    }
+                }
+            },
+        )
+    }
+
     ModalNavigationDrawer(
         drawerState = drawerState,
         gesturesEnabled = safeSelectedPage != PAGE_FILES,
@@ -420,113 +515,53 @@ internal fun LyraCodeApp(
             }
         },
     ) {
-        Scaffold(
-            containerColor = MaterialTheme.colorScheme.background,
-            topBar = {
-                if (safeSelectedPage != PAGE_FILES && safeSelectedPage != PAGE_SETTINGS) TopAppBar(
-                    expandedHeight = 56.dp,
-                    colors = TopAppBarDefaults.topAppBarColors(
+        Box(Modifier.fillMaxSize()) {
+            if (pagePredictiveBackState.isInProgress) {
+                Box(Modifier.fillMaxSize()) {
+                    Scaffold(
                         containerColor = MaterialTheme.colorScheme.background,
-                        titleContentColor = MaterialTheme.colorScheme.onBackground,
-                        navigationIconContentColor = MaterialTheme.colorScheme.primary,
-                        actionIconContentColor = MaterialTheme.colorScheme.primary,
-                    ),
-                    navigationIcon = {
-                        IconButton(
-                            onClick = {
-                                if (safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) {
-                                    settingsBackRequest++
-                                } else {
-                                    scope.launch { drawerState.open() }
-                                }
-                            },
-                            modifier = Modifier.width(64.dp),
-                        ) {
-                            if (safeSelectedPage == PAGE_SETTINGS && settingsDetailTitle != null) {
-                                Icon(Icons.Default.ArrowBack, contentDescription = context.getString(R.string.cd_back))
-                            } else {
-                                Icon(Icons.Default.Menu, contentDescription = context.getString(R.string.cd_menu))
-                            }
-                        }
-                    },
-                    title = {
-                        if (safeSelectedPage == PAGE_CHAT) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { conversationDetailsExpanded = !conversationDetailsExpanded },
-                                verticalArrangement = Arrangement.Center,
-                            ) {
-                                Text(
-                                    conversationTitle,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                )
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                ) {
-                                    Text(
-                                        "$activeModelName / $workspaceLabel",
-                                        modifier = Modifier.weight(1f),
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                    Icon(
-                                        if (conversationDetailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                                        contentDescription = if (conversationDetailsExpanded) {
-                                            uiText("收起对话信息")
-                                        } else {
-                                            uiText("展开对话信息")
-                                        },
-                                        modifier = Modifier.size(14.dp),
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
-                        } else {
-                            Text(
-                                if (safeSelectedPage == PAGE_SETTINGS) settingsDetailTitle ?: context.getString(R.string.title_settings) else pages[safeSelectedPage],
-                                style = MaterialTheme.typography.titleLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        topBar = { renderAppTopBar(PAGE_CHAT) },
+                    ) { targetPadding ->
+                        Box(Modifier.padding(targetPadding)) {
+                            ChatScreen(
+                                controller = controller,
+                                settings = settings,
+                                termuxExecutor = termuxExecutor,
+                                keyboardLiftPx = chatKeyboardOffsetPx,
                             )
                         }
-                    },
-                    actions = {
-                        if (safeSelectedPage == PAGE_CHAT) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                IconButton(onClick = { treeLauncher.launch(null) }) {
-                                    PlusBadgeIcon(
-                                        baseIcon = { Icon(Icons.Default.Folder, contentDescription = null) },
-                                    )
-                                }
-                                IconButton(onClick = { requestNewConversation() }) {
-                                    PlusBadgeIcon(
-                                        baseIcon = { Icon(Icons.Default.ChatBubble, contentDescription = null) },
-                                    )
-                                }
-                            }
-                        }
-                    },
-                )
-            },
+                    }
+                    Box(
+                        Modifier
+                            .fillMaxSize()
+                            .background(
+                                Color.Black.copy(
+                                    alpha = 0.22f * (1f - pagePredictiveBackState.progress),
+                                ),
+                            ),
+                    )
+                }
+            }
+        Scaffold(
+            modifier = Modifier.predictiveBackTransform(pagePredictiveBackState),
+            containerColor = MaterialTheme.colorScheme.background,
+            topBar = { renderAppTopBar(safeSelectedPage) },
         ) { padding ->
             Box(
                 Modifier
                     .padding(padding)
-                    .fillMaxSize()
-                    .predictiveBackTransform(pagePredictiveBackState),
+                    .fillMaxSize(),
             ) {
                 AnimatedContent(
                     targetState = safeSelectedPage,
                     transitionSpec = {
-                        val forward = targetState > initialState
-                        slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth } togetherWith
-                            slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth else fullWidth }
+                        if (skipNextPageTransition) {
+                            EnterTransition.None togetherWith ExitTransition.None
+                        } else {
+                            val forward = targetState > initialState
+                            slideInHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) fullWidth else -fullWidth } togetherWith
+                                slideOutHorizontally(animationSpec = tween(260)) { fullWidth -> if (forward) -fullWidth else fullWidth }
+                        }
                     },
                     label = "page-transition",
                 ) { page ->
@@ -544,7 +579,11 @@ internal fun LyraCodeApp(
                             onExit = { selectedPage = PAGE_CHAT },
                         )
                         PAGE_LOG -> LogScreen(auditLogStore)
-                        PAGE_STATS -> UsageStatsScreen(controller)
+                        PAGE_STATS -> UsageStatsScreen(
+                            controller = controller,
+                            showAboutDialog = showStatsAboutDialog,
+                            onDismissAboutDialog = { showStatsAboutDialog = false },
+                        )
                         PAGE_TASKS -> TaskScreen(settings, downloadTaskManager, scheduledTaskManager)
                         PAGE_ARCHIVE -> ArchivedConversationsScreen(controller)
                         PAGE_SETTINGS -> SettingsScreen(
@@ -670,6 +709,7 @@ internal fun LyraCodeApp(
                     onDismiss = { appNotice = "" },
                 )
             }
+        }
         }
     }
 }

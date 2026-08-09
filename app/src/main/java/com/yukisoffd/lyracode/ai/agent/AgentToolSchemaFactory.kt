@@ -243,9 +243,9 @@ internal class AgentToolSchemaFactory(
             definitions.put(
                 functionWithOptional(
                     "run_command",
-                    "Run a shell command in Termux and return exit_code, stdout, and stderr. High-risk commands may be blocked. Prefer download_file over curl/wget. Do not start persistent or interactive processes. For multiline or indentation-sensitive commands, use command_lines; Lyra Code joins its string elements with newlines. The default timeout is 60 seconds and the maximum is 600.",
+                    "Run a shell command in Termux and return exit_code, stdout, and stderr. High-risk commands may be blocked. Prefer download_file over curl/wget. Do not start interactive processes. For a persistent service or watcher, set background=true: Lyra closes inherited input/output, saves launcher output to the returned output_file, and returns without waiting for the process. A standalone shell & is auto-detected for compatibility. A successful launch does not prove the service is healthy, so inspect its process or log with a separate call. For multiline or indentation-sensitive commands, use command_lines; Lyra Code joins its string elements with newlines. Foreground timeout defaults to 60 seconds and has a maximum of 600; a background launch waits at most 15 seconds for acknowledgement.",
                     required = emptyList(),
-                    optional = listOf("command" to "string", "command_lines" to "array:string", "workDir" to "string", "timeout_seconds" to "integer"),
+                    optional = listOf("command" to "string", "command_lines" to "array:string", "workDir" to "string", "timeout_seconds" to "integer", "background" to "boolean"),
                 ),
             )
         }

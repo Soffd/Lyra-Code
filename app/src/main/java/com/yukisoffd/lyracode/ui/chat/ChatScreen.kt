@@ -1,8 +1,10 @@
 package com.yukisoffd.lyracode
 
+import android.Manifest
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Rect
@@ -11,8 +13,13 @@ import android.os.Build
 import android.provider.Settings
 import android.util.DisplayMetrics
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,6 +42,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +62,10 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -64,10 +75,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.filled.*
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.content.ContextCompat
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.ConversationStore
 import com.yukisoffd.lyracode.termux.TermuxExecutor
@@ -200,7 +211,7 @@ internal fun ChatScreen(
 ) {
     val context = LocalContext.current
     var input by rememberSaveable { mutableStateOf("") }
-    var fetchStatus by remember { mutableStateOf("") }
+    var actionStatus by remember { mutableStateOf("") }
     var attachmentMenuOpen by rememberSaveable { mutableStateOf(false) }
     var attachmentMenuPage by rememberSaveable { mutableStateOf("root") }
     var attachmentMenuSearch by rememberSaveable { mutableStateOf("") }
@@ -213,11 +224,22 @@ internal fun ChatScreen(
     val fileUploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) controller.attachUploadedFile(uri)
     }
-    val imageUploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
+    val imageUploadLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri: Uri? ->
         if (uri != null) cropUploadUri = uri
     }
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap: Bitmap? ->
         if (bitmap != null) cropUploadUri = saveTemporaryUploadImage(context, bitmap)
+    }
+    fun launchCamera() {
+        runCatching { cameraLauncher.launch(null) }
+            .onFailure { actionStatus = context.getString(R.string.notice_camera_unavailable) }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            launchCamera()
+        } else {
+            actionStatus = context.getString(R.string.notice_camera_permission_required)
+        }
     }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -340,30 +362,37 @@ internal fun ChatScreen(
             },
             onPickFile = {
                 attachmentMenuOpen = false
-                fileUploadLauncher.launch("*/*")
+                runCatching { fileUploadLauncher.launch("*/*") }
+                    .onFailure { actionStatus = context.getString(R.string.notice_file_picker_unavailable) }
             },
             onPickImage = {
                 attachmentMenuOpen = false
-                imageUploadLauncher.launch("image/*")
+                runCatching {
+                    imageUploadLauncher.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                    )
+                }.onFailure { actionStatus = context.getString(R.string.notice_album_unavailable) }
             },
             onTakePhoto = {
                 attachmentMenuOpen = false
-                cameraLauncher.launch(null)
-            },
-            onFetchModels = {
-                attachmentMenuOpen = false
-                controller.fetchModels {
-                    fetchStatus = it.fold({ uiText("已获取 ${it.size} 个模型") }, { error -> error.message.orEmpty() })
+                val hasCameraPermission = runCatching {
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                }.getOrDefault(false)
+                if (hasCameraPermission) {
+                    launchCamera()
+                } else {
+                    runCatching { cameraPermissionLauncher.launch(Manifest.permission.CAMERA) }
+                        .onFailure { actionStatus = context.getString(R.string.notice_camera_permission_required) }
                 }
             },
         )
     }
-    LaunchedEffect(fetchStatus) {
-        val currentStatus = fetchStatus
+    LaunchedEffect(actionStatus) {
+        val currentStatus = actionStatus
         if (currentStatus.isNotBlank()) {
             kotlinx.coroutines.delay(2400L)
-            if (fetchStatus == currentStatus) {
-                fetchStatus = ""
+            if (actionStatus == currentStatus) {
+                actionStatus = ""
             }
         }
     }
@@ -515,12 +544,12 @@ internal fun ChatScreen(
                 )
             }
         }
-        val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, fetchStatus)
+        val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, actionStatus)
             .map(::uiText)
             .filter { it.isNotBlank() && it != uiText("完成") }
             .joinToString(" ")
         if (statusLine.isNotBlank()) {
-            Text(statusLine, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+            AnimatedConversationStatus(statusLine)
         }
         Card(
             Modifier.fillMaxWidth().keyboardAwareInputOffset(resolvedKeyboardLiftPx),
@@ -599,5 +628,102 @@ internal fun ChatScreen(
         }
     }
 }
+}
+
+@Composable
+private fun AnimatedConversationStatus(status: String) {
+    val transition = rememberInfiniteTransition(label = "conversation-status-glow")
+    // Keep the animated value read inside the draw pass so every frame only
+    // invalidates the border, rather than recomposing the status contents.
+    val phase = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 2800, easing = LinearEasing),
+        ),
+        label = "conversation-status-glow-phase",
+    )
+    val accent = MaterialTheme.colorScheme.primary
+    val glowColors = remember(accent) {
+        listOf(
+            accent,
+            accent.copy(alpha = 0.48f),
+            Color.Transparent,
+        )
+    }
+    val shape = RoundedCornerShape(11.dp)
+    Box(
+        Modifier
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.28f), shape)
+            .drawWithContent {
+                drawContent()
+                val inset = 2.dp.toPx()
+                val cornerRadius = 11.dp.toPx()
+                val horizontalLength = (size.width - inset * 2).coerceAtLeast(0f)
+                val verticalLength = (size.height - inset * 2).coerceAtLeast(0f)
+                val perimeter = (horizontalLength + verticalLength) * 2f
+                val travel = phase.value * perimeter
+                val glowCenter = when {
+                    travel <= horizontalLength -> Offset(inset + travel, inset)
+                    travel <= horizontalLength + verticalLength ->
+                        Offset(size.width - inset, inset + travel - horizontalLength)
+                    travel <= horizontalLength * 2f + verticalLength ->
+                        Offset(
+                            size.width - inset - (travel - horizontalLength - verticalLength),
+                            size.height - inset,
+                        )
+                    else ->
+                        Offset(
+                            inset,
+                            size.height - inset - (travel - horizontalLength * 2f - verticalLength),
+                        )
+                }
+                val glowBrush = Brush.radialGradient(
+                    colors = glowColors,
+                    center = glowCenter,
+                    radius = 42.dp.toPx(),
+                )
+                drawRoundRect(
+                    color = accent.copy(alpha = 0.10f),
+                    topLeft = Offset(inset, inset),
+                    size = Size(
+                        (size.width - inset * 2).coerceAtLeast(0f),
+                        (size.height - inset * 2).coerceAtLeast(0f),
+                    ),
+                    cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.dp.toPx()),
+                )
+                drawRoundRect(
+                    brush = glowBrush,
+                    topLeft = Offset(inset, inset),
+                    size = Size(
+                        (size.width - inset * 2).coerceAtLeast(0f),
+                        (size.height - inset * 2).coerceAtLeast(0f),
+                    ),
+                    cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.dp.toPx()),
+                    alpha = 0.22f,
+                )
+                drawRoundRect(
+                    brush = glowBrush,
+                    topLeft = Offset(inset, inset),
+                    size = Size(
+                        (size.width - inset * 2).coerceAtLeast(0f),
+                        (size.height - inset * 2).coerceAtLeast(0f),
+                    ),
+                    cornerRadius = CornerRadius(cornerRadius, cornerRadius),
+                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 1.2.dp.toPx()),
+                )
+            }
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+    ) {
+        Text(
+            text = status,
+            color = KimiMuted,
+            style = MaterialTheme.typography.labelMedium,
+            maxLines = 2,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+        )
+    }
 }
 

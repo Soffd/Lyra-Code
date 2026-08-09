@@ -36,6 +36,8 @@ internal object UiTextBridge {
         "保存启用模型" to "Save enabled models",
         "刷新模型列表" to "Refresh model list",
         "Responses API 请求失败" to "Responses API request failed",
+        "正在进行原生搜索…" to "Native search in progress…",
+        "原生搜索完成" to "Native search completed",
         "用于兼容非默认请求路径的服务商。留空时使用当前接口格式的默认请求路径。" to "For providers that use a non-default request path. Leave blank to use the default path for the selected API format.",
         "未选择工作目录" to "No workspace selected",
         "请求端点：%1\$s；模型列表：%2\$s" to "Request endpoint: %1\$s; model list: %2\$s",
@@ -526,8 +528,6 @@ internal object UiTextBridge {
         "文件" to "File",
         "未配置" to "Not configured",
         "未选择" to "Not selected",
-        "获取当前平台模型" to "Fetch current provider models",
-        "从 models 端点刷新可用模型" to "Refresh available models from the models endpoint",
         "提示词" to "Prompt",
         "默认助手" to "Default assistant",
         "推理深度" to "Reasoning depth",
@@ -565,14 +565,23 @@ internal object UiTextBridge {
         "运行中" to "Running",
         "已中断" to "Interrupted",
         "继续运行" to "Continue",
+        "重新生成" to "Regenerate",
+        "已发送" to "Sent",
+        "输出中" to "Generating",
+        "模型完成" to "Model completed",
+        "缓存命中" to "Cache hit",
         "读取上传文件" to "Reading upload",
         "已上传 %1\$s" to "Uploaded %1\$s",
         "处理拍照图片" to "Processing photo",
         "待发送 %1\$d 个附件" to "%1\$d attachments pending",
         "获取模型列表" to "Fetching models",
+        "检测模型可达性" to "Checking model reachability",
         "已批准工具调用" to "Tool call approved",
         "已拒绝工具调用" to "Tool call rejected",
         "等待确认：%1\$s" to "Waiting for confirmation: %1\$s",
+        "等待用户回答追问" to "Waiting for the user's answer",
+        "追问回答已提交" to "Answer submitted",
+        "追问因 10 分钟无操作已撤回，AI 将自行继续" to "The question timed out after 10 minutes of inactivity; the AI will continue on its own",
         "TODO 列表已设置，共 %1\$d 项。" to "TODO list set, %1\$d items.",
         "未命名步骤" to "Untitled step",
         "新对话" to "New chat",
@@ -1214,6 +1223,7 @@ internal object UiTextBridge {
         "邮件服务器配置" to "Email server configuration",
         "删除邮件服务器" to "Delete email server",
         "SMTP / IMAP 邮件" to "SMTP / IMAP email",
+        "为应用提供 IMAP 邮件读取、文件夹与草稿管理，以及 SMTP 邮件发送和 MIME 处理。" to "Provides IMAP message reading, folder and draft management, SMTP sending, and MIME handling for the app.",
         "密码加密保存在本机。读取正文不会改变已读状态；SMTP 发送每次都要求确认。" to "Passwords are encrypted on this device. Reading a message does not change its read status; every SMTP send requires confirmation.",
         "暂无邮件服务器" to "No email servers yet",
         "建议使用邮箱服务商生成的应用专用密码，并启用 SSL/TLS。" to "Use an app-specific password from your email provider and enable SSL/TLS.",
@@ -1306,6 +1316,12 @@ internal object UiTextBridge {
             t.startsWith("待发送 ") && t.endsWith(" 个附件") ->
                 t.removePrefix("待发送 ").removeSuffix(" 个附件") + " attachments pending"
             t.startsWith("等待确认：") -> "Waiting for confirmation: " + t.removePrefix("等待确认：")
+            t.startsWith("正在阅读文件：") -> "Reading file: " + t.removePrefix("正在阅读文件：")
+            t.startsWith("正在修改文件：") -> "Modifying file: " + t.removePrefix("正在修改文件：")
+            t.startsWith("正在移动文件：") -> "Moving file: " + t.removePrefix("正在移动文件：")
+            t.startsWith("调用工具：") -> "Using tool: " + t.removePrefix("调用工具：")
+            t.startsWith("工具完成：") -> "Tool complete: " + t.removePrefix("工具完成：")
+            t.startsWith("子代理任务：已完成 ") -> translateSubAgentProgress(t)
             t.startsWith("约 ") && t.endsWith(" tokens") -> "About " + t.removePrefix("约 ")
             t.startsWith("当前 API 上下文包含 ") -> t
                 .replace("当前 API 上下文包含 ", "The current API context contains ")
@@ -1372,6 +1388,24 @@ internal object UiTextBridge {
             t.startsWith("已截断预览，完整工具结果共 ") -> t.replace("已截断预览，完整工具结果共 ", "Preview truncated. Full tool result has ").replace(" 字符。", " characters.")
             t.endsWith("小时") || t.endsWith("分") || t.endsWith("秒") -> t.replace("小时", "h ").replace("分", "m ").replace("秒", "s")
             else -> text
+        }
+    }
+
+    private fun translateSubAgentProgress(text: String): String {
+        val sections = text.removePrefix("子代理任务：已完成 ").split(" · ", limit = 3)
+        return buildString {
+            append("Sub-agent tasks: ").append(sections.firstOrNull().orEmpty()).append(" completed")
+            sections.getOrNull(1)?.let { running ->
+                append(" · ")
+                if (running.startsWith("正在执行 ")) {
+                    append("Running ").append(running.removePrefix("正在执行 "))
+                } else {
+                    append(translateDynamic(running))
+                }
+            }
+            sections.getOrNull(2)?.let { detail ->
+                append(" · ").append(translateDynamic(detail))
+            }
         }
     }
 }

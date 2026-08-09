@@ -24,6 +24,21 @@ class UiTextBridgeMissingEnglishTest {
             assertEquals("Uploaded notes.txt", uiText("已上传 notes.txt"))
             assertEquals("2 attachments pending", uiText("待发送 2 个附件"))
             assertEquals("Waiting for confirmation: write_file", uiText("等待确认：write_file"))
+            assertEquals("Sent", uiText("已发送"))
+            assertEquals("Generating", uiText("输出中"))
+            assertEquals("Model completed", uiText("模型完成"))
+            assertEquals("Cache hit", uiText("缓存命中"))
+            assertEquals("Native search in progress…", uiText("正在进行原生搜索…"))
+            assertEquals("Native search completed", uiText("原生搜索完成"))
+            assertEquals("Reading file: app/src/Main.kt", uiText("正在阅读文件：app/src/Main.kt"))
+            assertEquals("Modifying file: README.md", uiText("正在修改文件：README.md"))
+            assertEquals("Moving file: old.txt → new.txt", uiText("正在移动文件：old.txt → new.txt"))
+            assertEquals("Using tool: read_file", uiText("调用工具：read_file"))
+            assertEquals("Tool complete: edit_file", uiText("工具完成：edit_file"))
+            assertEquals(
+                "Sub-agent tasks: 1/3 completed · Running Android · Reading file: app/Main.kt",
+                uiText("子代理任务：已完成 1/3 · 正在执行 Android · 正在阅读文件：app/Main.kt"),
+            )
             assertEquals(
                 "Request failed. Retrying in 5 seconds (3/5)",
                 uiText("请求失败，5 秒后重试（3/5）"),

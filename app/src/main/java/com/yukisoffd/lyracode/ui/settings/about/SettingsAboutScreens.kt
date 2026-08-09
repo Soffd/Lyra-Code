@@ -104,6 +104,12 @@ internal fun OpenSourceLicensesScreen() {
             LicenseNotice("AndroidX Security Crypto", "Apache License 2.0", uiText("本地敏感配置加密存储。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("Kotlinx Coroutines", "Apache License 2.0", uiText("异步任务与流式请求。"), LicenseTexts.APACHE_2_0),
             LicenseNotice("OkHttp", "Apache License 2.0", uiText("HTTP、SSE 兼容读取与 MCP Streamable HTTP 通信。"), LicenseTexts.APACHE_2_0),
+            LicenseNotice(
+                "Android Mail / Jakarta Mail for Android 1.6.7",
+                "Eclipse Public License 2.0",
+                uiText("为应用提供 IMAP 邮件读取、文件夹与草稿管理，以及 SMTP 邮件发送和 MIME 处理。"),
+                LicenseTexts.EPL_2_0,
+            ),
             LicenseNotice("JetBrains Markdown / RikkaHub Markdown fork", "Apache License 2.0", uiText("Markdown GFM AST 解析，支持表格、列表和数学节点。"), LicenseTexts.APACHE_2_0),
             LicenseNotice(
                 "Sora Editor / language-textmate",

@@ -57,6 +57,9 @@
         <receiver
             android:name=".termux.TermuxCommandResultReceiver"
             android:exported="false" />
+        <receiver
+            android:name=".filemanager.AndroidPackageInstallReceiver"
+            android:exported="false" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

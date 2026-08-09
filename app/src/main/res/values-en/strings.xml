@@ -144,12 +144,14 @@
     <string name="action_album">Album</string>
     <string name="action_camera">Camera</string>
     <string name="action_file">File</string>
+    <string name="notice_camera_permission_required">Camera permission is required. Allow it in system settings to take a photo.</string>
+    <string name="notice_camera_unavailable">Unable to open the camera. Make sure a camera app is available.</string>
+    <string name="notice_album_unavailable">Unable to open the system photo picker.</string>
+    <string name="notice_file_picker_unavailable">Unable to open the system file picker.</string>
     <string name="label_provider">Provider</string>
     <string name="label_not_configured">Not configured</string>
     <string name="label_model">Model</string>
     <string name="label_not_selected">Not selected</string>
-    <string name="action_fetch_models">Fetch models</string>
-    <string name="subtitle_fetch_models">Refresh available models from the models endpoint</string>
     <string name="label_workspace_session">Workspace for this chat</string>
     <string name="label_no_workspace">No workspace selected</string>
     <string name="notice_workspace_selected_current_chat">Workspace selected for this chat: %1$s</string>
@@ -230,6 +232,12 @@
     <!-- ChatController.kt -->
     <string name="title_new_chat">New chat</string>
     <string name="status_running">Running</string>
+    <string name="status_reading_file">Reading file: %1$s</string>
+    <string name="status_modifying_file">Modifying file: %1$s</string>
+    <string name="status_moving_file">Moving file: %1$s → %2$s</string>
+    <string name="status_sub_agent_progress">Sub-agent tasks: %1$d/%2$d completed</string>
+    <string name="status_sub_agent_progress_running">Sub-agent tasks: %1$d/%2$d completed · Running %3$s</string>
+    <string name="status_sub_agent_progress_detail">Sub-agent tasks: %1$d/%2$d completed · Running %3$s · %4$s</string>
     <string name="status_interrupted">Interrupted</string>
     <string name="status_continue">Continue</string>
     <string name="status_regenerate">Regenerate</string>
@@ -1287,11 +1295,20 @@
     <string name="file_permission_message">The file manager needs shared-storage access to browse, edit, move, and copy files under /storage/emulated/0. Allow Lyra Code to manage all files in system settings.</string>
     <string name="file_permission_grant">Grant access</string>
     <string name="file_permission_retry">Check again</string>
+    <string name="file_permission_settings_unavailable">Unable to open permission settings. Open the app details page and allow all-files access manually.</string>
     <string name="file_folder_count">Folders: %1$d</string>
     <string name="file_file_count">Files: %1$d</string>
     <string name="file_empty_folder">Empty folder</string>
     <string name="file_loading">Loading…</string>
     <string name="file_open_failed">Unable to open file</string>
+    <string name="apk_install_title">Install app</string>
+    <string name="apk_install_message">Install “%1$s”? Lyra Code will try Root, Shell, and ADB, then use the system installer.</string>
+    <string name="apk_install_confirm">Install</string>
+    <string name="apk_installing">Preparing installation…</string>
+    <string name="apk_install_success">Installed successfully via %1$s</string>
+    <string name="apk_install_permission_hint">Allow unknown app installs, then tap the package again.</string>
+    <string name="apk_install_system_success">App installed successfully</string>
+    <string name="apk_install_system_failed">The system installer could not install this app</string>
     <string name="file_action_copy_other">Copy to other pane</string>
     <string name="file_action_move_other">Move to other pane</string>
     <string name="file_action_copy">Copy</string>
@@ -1631,4 +1648,6 @@ Revocation stops new access through that permission but does not automatically e
     <string name="menu_email">SMTP / IMAP Email</string>
     <string name="menu_email_desc">Add mail servers for safe reading, drafts, sending, and replies</string>
     <string name="detail_email">Email servers</string>
+    <string name="status_native_web_search">Native search in progress…</string>
+    <string name="status_native_web_search_completed">Native search completed</string>
 </resources>

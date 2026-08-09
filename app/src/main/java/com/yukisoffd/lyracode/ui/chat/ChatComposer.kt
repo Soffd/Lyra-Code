@@ -554,7 +554,6 @@ internal fun AttachmentActionBottomSheet(
     onPickFile: () -> Unit,
     onPickImage: () -> Unit,
     onTakePhoto: () -> Unit,
-    onFetchModels: () -> Unit,
 ) {
     val profiles = controller.profiles.toList()
     val activeProfile = profiles.firstOrNull { it.id == controller.activeProfileId.value } ?: profiles.firstOrNull()
@@ -913,12 +912,6 @@ internal fun AttachmentActionBottomSheet(
                                 subtitle = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { uiText(stringResource(R.string.label_not_selected)) } },
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("models") },
-                            )
-                            ActionSheetRow(
-                                icon = Icons.Default.Sync,
-                                title = uiText(stringResource(R.string.action_fetch_models)),
-                                subtitle = uiText(stringResource(R.string.subtitle_fetch_models)),
-                                onClick = onFetchModels,
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.EditNote,

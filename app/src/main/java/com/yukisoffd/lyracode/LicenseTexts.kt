@@ -76,6 +76,23 @@ The Software shall be used for Good, not Evil.
 
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT."""
 
+    const val EPL_2_0 = """Eclipse Public License - v 2.0
+
+THE ACCOMPANYING PROGRAM IS PROVIDED UNDER THE TERMS OF THIS ECLIPSE PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.
+
+Subject to the terms of this Agreement, each Contributor grants recipients a non-exclusive, worldwide, royalty-free copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, distribute and sublicense its Contribution and derivative works.
+
+Each Contributor also grants a non-exclusive, worldwide, royalty-free patent license under licensed patents necessarily infringed by its Contribution, subject to the conditions in the Agreement.
+
+When the Program is distributed, its Source Code must be made available in accordance with section 3 of the Agreement, required notices must be retained, and a copy of the Agreement must be included with Source Code distributions.
+
+THE PROGRAM IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND. NEITHER RECIPIENT NOR ANY CONTRIBUTORS SHALL HAVE LIABILITY FOR DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES TO THE EXTENT PERMITTED BY APPLICABLE LAW.
+
+Canonical complete license text:
+https://www.eclipse.org/legal/epl-2.0/
+
+The Android Mail package also retains its upstream META-INF/LICENSE.md and META-INF/NOTICE.md resources."""
+
     const val EPL_1_0 = """Eclipse Public License - v 1.0
 
 THE ACCOMPANYING PROGRAM IS PROVIDED UNDER THE TERMS OF THIS ECLIPSE PUBLIC LICENSE ("AGREEMENT"). ANY USE, REPRODUCTION OR DISTRIBUTION OF THE PROGRAM CONSTITUTES RECIPIENT'S ACCEPTANCE OF THIS AGREEMENT.

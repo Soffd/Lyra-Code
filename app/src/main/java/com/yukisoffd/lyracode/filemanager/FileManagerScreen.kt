@@ -21,6 +21,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.snap
@@ -60,6 +62,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowUpward
+import androidx.compose.material.icons.filled.Android
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
@@ -119,6 +122,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
@@ -172,22 +176,33 @@ internal fun FileManagerScreen(
         permissionRevision++
     }
     val hasPermission = remember(permissionRevision) { hasFileManagerPermission(context) }
-    rememberPredictiveBackGestureState(
-        enabled = settings.predictiveBackEnabled,
-        onBack = onExit,
-    )
     BackHandler(enabled = !settings.predictiveBackEnabled, onBack = onExit)
     if (!hasPermission) {
         FilePermissionRequest(
             onGrant = {
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val intent = Intent(
-                        Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
-                        Uri.parse("package:${context.packageName}"),
+                    val packageUri = Uri.parse("package:${context.packageName}")
+                    val permissionIntents = listOf(
+                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri),
+                        Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri),
                     )
-                    permissionLauncher.launch(intent)
+                    val launched = permissionIntents.any { intent ->
+                        runCatching {
+                            permissionLauncher.launch(intent)
+                            true
+                        }.getOrDefault(false)
+                    }
+                    if (!launched) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.file_permission_settings_unavailable),
+                            Toast.LENGTH_LONG,
+                        ).show()
+                    }
                 } else {
-                    legacyPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE)
+                    runCatching { legacyPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE) }
+                        .onFailure { showError(context, it) }
                 }
             },
             onRetry = { permissionRevision++ },
@@ -197,7 +212,11 @@ internal fun FileManagerScreen(
 
     var openFile by remember { mutableStateOf<Pair<File, TextFileContent>?>(null) }
     var previewFile by remember { mutableStateOf<Pair<File, MediaPreviewKind>?>(null) }
+    var pendingPackageInstall by remember { mutableStateOf<File?>(null) }
     val scope = rememberCoroutineScope()
+    val packageInstaller = remember(context, settings, systemCommandExecutor, termuxExecutor) {
+        AndroidPackageInstaller(context, settings, systemCommandExecutor, termuxExecutor)
+    }
     LaunchedEffect(openFile?.first?.absolutePath) {
         controller.setEditorContextPath(openFile?.first?.absolutePath)
     }
@@ -231,6 +250,10 @@ internal fun FileManagerScreen(
             onExit = onExit,
             externalRefreshRevision = aiFileChangeRevision,
             onOpenFile = { file ->
+                if (isAndroidPackageFile(file)) {
+                    pendingPackageInstall = file
+                    return@DualPaneFileManager
+                }
                 val mediaKind = mediaPreviewKind(file)
                 if (mediaKind != null) {
                     openFile = null
@@ -248,6 +271,43 @@ internal fun FileManagerScreen(
                 }
             },
         )
+        pendingPackageInstall?.let { packageFile ->
+            AlertDialog(
+                onDismissRequest = { pendingPackageInstall = null },
+                title = { Text(context.getString(R.string.apk_install_title)) },
+                text = { Text(context.getString(R.string.apk_install_message, packageFile.name)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            pendingPackageInstall = null
+                            Toast.makeText(context, R.string.apk_installing, Toast.LENGTH_SHORT).show()
+                            scope.launch {
+                                val result = packageInstaller.install(packageFile)
+                                if (result.installed) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.apk_install_success, result.mode?.displayName.orEmpty()),
+                                        Toast.LENGTH_LONG,
+                                    ).show()
+                                } else {
+                                    val readableFile = withContext(Dispatchers.IO) {
+                                        fileOperations.prepareReadableCopy(packageFile).getOrElse { packageFile }
+                                    }
+                                    runCatching { launchSystemPackageInstaller(context, readableFile) }
+                                        .onFailure { showError(context, it) }
+                                    if (readableFile != packageFile) readableFile.delete()
+                                }
+                            }
+                        },
+                    ) { Text(context.getString(R.string.apk_install_confirm)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { pendingPackageInstall = null }) {
+                        Text(context.getString(android.R.string.cancel))
+                    }
+                },
+            )
+        }
         AnimatedContent(
             targetState = previewFile,
             transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(140)) },
@@ -482,6 +542,8 @@ private fun DualPaneFileManager(
     var privilegedDialogOpen by rememberSaveable { mutableStateOf(false) }
     var privilegedRevision by remember { mutableIntStateOf(0) }
     var privilegedStatus by remember { mutableStateOf("") }
+    var skipNextLeftTransition by remember { mutableStateOf(false) }
+    var skipNextRightTransition by remember { mutableStateOf(false) }
     val shizukuPermissionListener = remember {
         Shizuku.OnRequestPermissionResultListener { requestCode, _ ->
             if (requestCode == FILE_SHIZUKU_PERMISSION_REQUEST_CODE) privilegedRevision++
@@ -587,10 +649,17 @@ private fun DualPaneFileManager(
     }
 
     val predictiveBackState = rememberPredictiveBackGestureState(
-        enabled = settings.predictiveBackEnabled,
-        onBack = ::navigateActivePaneBack,
+        // At the storage root the app shell owns the gesture so it can draw the
+        // conversation page underneath the complete file-manager surface.
+        enabled = settings.predictiveBackEnabled && !isStorageRoot(File(activePath)),
+        onBack = {
+            if (activePane == 0) skipNextLeftTransition = true else skipNextRightTransition = true
+            navigateActivePaneBack()
+        },
     )
     BackHandler(enabled = !settings.predictiveBackEnabled, onBack = ::navigateActivePaneBack)
+    LaunchedEffect(leftPath) { skipNextLeftTransition = false }
+    LaunchedEffect(rightPath) { skipNextRightTransition = false }
 
     if (privilegedDialogOpen) {
         PrivilegedFileAccessDialog(
@@ -736,8 +805,7 @@ private fun DualPaneFileManager(
 
     Box(
         Modifier
-            .fillMaxSize()
-            .predictiveBackTransform(predictiveBackState),
+            .fillMaxSize(),
     ) {
         Column(Modifier.fillMaxSize()) {
             FileManagerHeader(
@@ -780,10 +848,19 @@ private fun DualPaneFileManager(
             )
             HorizontalDivider()
             Row(Modifier.weight(1f).fillMaxWidth()) {
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clipToBounds()
+                    .then(if (activePane == 0) Modifier.predictiveBackTransform(predictiveBackState) else Modifier),
+            ) {
                 AnimatedContent(
                     targetState = leftPath,
-                    transitionSpec = { fileNavigationTransition(initialState, targetState) },
+                    transitionSpec = {
+                        if (skipNextLeftTransition) EnterTransition.None togetherWith ExitTransition.None
+                        else fileNavigationTransition(initialState, targetState)
+                    },
                     label = "left-directory-transition",
                     modifier = Modifier.fillMaxSize(),
                 ) { animatedPath ->
@@ -814,10 +891,19 @@ private fun DualPaneFileManager(
                 }
             }
             Box(Modifier.fillMaxHeight().width(1.dp).background(MaterialTheme.colorScheme.outlineVariant))
-            Box(Modifier.weight(1f).fillMaxHeight()) {
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clipToBounds()
+                    .then(if (activePane == 1) Modifier.predictiveBackTransform(predictiveBackState) else Modifier),
+            ) {
                 AnimatedContent(
                     targetState = rightPath,
-                    transitionSpec = { fileNavigationTransition(initialState, targetState) },
+                    transitionSpec = {
+                        if (skipNextRightTransition) EnterTransition.None togetherWith ExitTransition.None
+                        else fileNavigationTransition(initialState, targetState)
+                    },
                     label = "right-directory-transition",
                     modifier = Modifier.fillMaxSize(),
                 ) { animatedPath ->
@@ -1337,6 +1423,7 @@ private fun FileVisual(entry: LocalFileEntry) {
         mediaPreviewKind(entry.file) == MediaPreviewKind.IMAGE -> ImageThumbnail(entry.file)
         mediaPreviewKind(entry.file) == MediaPreviewKind.VIDEO -> FileCategoryIcon(Icons.Default.Movie, MaterialTheme.colorScheme.primary)
         mediaPreviewKind(entry.file) == MediaPreviewKind.AUDIO -> FileCategoryIcon(Icons.Default.MusicNote, Color(0xFF7E57C2))
+        isAndroidPackageFile(entry.file) -> FileCategoryIcon(Icons.Default.Android, Color(0xFF3DDC84))
         extension in archiveExtensions -> FileCategoryIcon(Icons.Default.UnfoldMore, Color(0xFFFF8F00))
         extension in codeLanguageMarks -> CodeLanguageBadge(extension)
         extension == "pdf" -> FormatBadge("PDF", Color(0xFFD32F2F))
@@ -2304,11 +2391,13 @@ private fun filesReferToSamePath(first: File, second: File): Boolean = runCatchi
 
 private const val FILE_SHIZUKU_PERMISSION_REQUEST_CODE = 2401
 
-private fun hasFileManagerPermission(context: Context): Boolean = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-    Environment.isExternalStorageManager()
-} else {
-    ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
-}
+private fun hasFileManagerPermission(context: Context): Boolean = runCatching {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        Environment.isExternalStorageManager()
+    } else {
+        ContextCompat.checkSelfPermission(context, Manifest.permission.READ_EXTERNAL_STORAGE) == PackageManager.PERMISSION_GRANTED
+    }
+}.getOrDefault(false)
 
 private fun openExternalFile(context: Context, file: File) {
     runCatching {

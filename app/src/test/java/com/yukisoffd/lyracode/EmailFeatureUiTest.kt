@@ -16,6 +16,10 @@ class EmailFeatureUiTest {
             assertEquals("Email server configuration", uiText("邮件服务器配置"))
             assertEquals("No email servers yet", uiText("暂无邮件服务器"))
             assertEquals("Send email", uiText("发送邮件"))
+            assertEquals(
+                "Provides IMAP message reading, folder and draft management, SMTP sending, and MIME handling for the app.",
+                uiText("为应用提供 IMAP 邮件读取、文件夹与草稿管理，以及 SMTP 邮件发送和 MIME 处理。"),
+            )
             assertEquals("Connection failed: timeout", uiText("连接失败：timeout"))
             assertEquals("Send email through SMTP: Status report", uiText("通过 SMTP 发送邮件：Status report"))
             listOf(
@@ -60,5 +64,7 @@ class EmailFeatureUiTest {
             "send_email",
         )
         assertTrue(agentToolCatalog().map { it.name }.containsAll(expected))
+        assertTrue(LicenseTexts.EPL_2_0.contains("Eclipse Public License - v 2.0"))
+        assertTrue(LicenseTexts.EPL_2_0.contains("https://www.eclipse.org/legal/epl-2.0/"))
     }
 }
