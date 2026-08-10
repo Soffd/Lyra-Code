@@ -393,8 +393,8 @@ internal fun AboutSoftwareScreen(
                 SocialLinkRow(
                     logo = { AboutIconBadge(R.drawable.ic_simple_github) },
                     title = "GitHub",
-                    value = "Soffd/Lyra-Code",
-                    onClick = { uriHandler.openUri("https://github.com/Soffd/Lyra-Code") },
+                    value = "lyracode-app/Lyra-Code",
+                    onClick = { uriHandler.openUri("https://github.com/lyracode-app/Lyra-Code") },
                 )
                 KimiDivider()
                 SocialLinkRow(
