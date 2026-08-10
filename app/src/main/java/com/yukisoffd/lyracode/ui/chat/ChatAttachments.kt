@@ -137,7 +137,7 @@ internal fun uploadedMediaPreviews(content: String): List<UploadedMediaPreview> 
         .filter { payload -> payload.optString("kind") in setOf("image", "video", "audio") }
         .map { payload ->
             UploadedMediaPreview(
-                name = payload.optString("name").ifBlank { uiText("未命名文件") },
+                name = payload.optString("name").ifBlank { uiText(R.string.label_unnamed_file) },
                 kind = payload.optString("kind"),
                 mimeType = payload.optString("mime_type"),
                 uri = payload.optString("data_url").ifBlank { payload.optString("uri") },
@@ -159,7 +159,7 @@ internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
     val markerPreviews = uploadedAttachmentPayloads(content)
         .filter { payload -> payload.optString("kind").ifBlank { "text" } == "text" }
         .map { payload ->
-            val name = payload.optString("name").ifBlank { uiText("未命名文件") }
+            val name = payload.optString("name").ifBlank { uiText(R.string.label_unnamed_file) }
             UploadedFilePreview(
                 name = name,
                 sizeBytes = payload.optLong("size", -1L).takeIf { it >= 0L },
@@ -168,7 +168,7 @@ internal fun uploadedFilePreviews(content: String): List<UploadedFilePreview> {
         }
     val legacyRegex = Regex("用户上传文件：([^\\n]+)\\n大小：(\\d+) bytes", RegexOption.MULTILINE)
     val legacyPreviews = legacyRegex.findAll(content).map {
-        val name = it.groupValues[1].trim().ifBlank { uiText("未命名文件") }
+        val name = it.groupValues[1].trim().ifBlank { uiText(R.string.label_unnamed_file) }
         UploadedFilePreview(
             name = name,
             sizeBytes = it.groupValues[2].toLongOrNull(),

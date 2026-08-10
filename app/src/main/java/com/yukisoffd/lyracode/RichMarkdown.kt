@@ -403,7 +403,7 @@ private fun RichCodeBlock(code: String, language: String = "text") {
                 onClick = { clipboard.setText(AnnotatedString(code)) },
                 modifier = Modifier.size(34.dp),
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制代码"), modifier = Modifier.size(18.dp), tint = colorScheme.primary)
+                Icon(Icons.Default.ContentCopy, contentDescription = uiText(R.string.cd_copy_code), modifier = Modifier.size(18.dp), tint = colorScheme.primary)
             }
         }
         Text(
@@ -435,22 +435,22 @@ private fun RichTable(node: ASTNode, content: String) {
     if (exportConfirmOpen) {
         AlertDialog(
             onDismissRequest = { exportConfirmOpen = false },
-            title = { Text(uiText("导出为 CSV？")) },
-            text = { Text(uiText("将此表格保存到 Download 文件夹。")) },
+            title = { Text(uiText(R.string.ui_export_as_csv)) },
+            text = { Text(uiText(R.string.ui_save_this_table_to_the_download_folder)) },
             confirmButton = {
                 TextButton(onClick = {
                     val name = "lyra_table_${System.currentTimeMillis()}.csv"
                     val result = saveCsvToDownloads(context, name, csv)
                     Toast.makeText(
                         context,
-                        result.fold({ uiText("已导出到 Download/") + name }, { uiText("导出失败: ") + it.message.orEmpty() }),
+                        result.fold({ uiText(R.string.ui_exported_to_download) + name }, { uiText(R.string.ui_export_failed) + it.message.orEmpty() }),
                         Toast.LENGTH_SHORT,
                     ).show()
                     exportConfirmOpen = false
-                }) { Text(uiText("导出 CSV")) }
+                }) { Text(uiText(R.string.cd_export_csv)) }
             },
             dismissButton = {
-                TextButton(onClick = { exportConfirmOpen = false }) { Text(uiText("取消")) }
+                TextButton(onClick = { exportConfirmOpen = false }) { Text(uiText(R.string.action_cancel)) }
             },
         )
     }
@@ -465,7 +465,7 @@ private fun RichTable(node: ASTNode, content: String) {
         ) {
             Icon(
                 Icons.Default.FileDownload,
-                contentDescription = uiText("导出 CSV"),
+                contentDescription = uiText(R.string.cd_export_csv),
                 modifier = Modifier.size(19.dp),
                 tint = MaterialTheme.colorScheme.primary,
             )
@@ -619,7 +619,7 @@ private fun RichImage(node: ASTNode, content: String) {
     val alt = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_TEXT)?.getTextInNode(content)?.trim('[', ']').orEmpty()
     val url = node.findChildOfTypeRecursive(MarkdownElementTypes.LINK_DESTINATION)?.getTextInNode(content).orEmpty()
     if (url.isNotBlank()) {
-        MarkdownMediaPreview(alt.ifBlank { uiText("媒体文件") }, url)
+        MarkdownMediaPreview(alt.ifBlank { uiText(R.string.label_media_file) }, url)
     }
 }
 
@@ -1149,9 +1149,9 @@ private fun saveCsvToDownloads(context: Context, fileName: String, csv: String):
             put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
         }
         val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            ?: error(uiText("无法创建下载文件"))
+            ?: error(uiText(R.string.error_cannot_create_download))
         context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
-            ?: error(uiText("无法写入下载文件"))
+            ?: error(uiText(R.string.error_cannot_write_download))
     } else {
         val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
         if (!dir.exists()) dir.mkdirs()

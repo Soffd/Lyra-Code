@@ -86,20 +86,20 @@ internal fun McpSettings(
             onSave = {
                 settings.upsertMcpServer(it)
                 editing = null
-                status = uiText("MCP 服务器已保存")
+                status = uiText(R.string.notice_mcp_saved)
                 revision++
             },
         )
     }
     deleteTarget?.let { server ->
         ConfirmDeleteDialog(
-            title = uiText("删除 MCP 服务器"),
-            message = uiText("该操作会删除此 MCP 服务器连接、认证信息和已拉取的工具列表。"),
+            title = uiText(R.string.title_delete_mcp),
+            message = uiText(R.string.confirm_delete_mcp),
             targetName = server.name.ifBlank { server.url },
             onDismiss = { deleteTarget = null },
             onConfirm = {
                 settings.deleteMcpServer(server.id)
-                status = uiText("已删除 ${server.name}")
+                status = uiText(R.string.notice_deleted_service, server.name)
                 revision++
             },
         )
@@ -108,12 +108,12 @@ internal fun McpSettings(
     KimiCardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(uiText("MCP 服务器"), style = MaterialTheme.typography.titleMedium)
-                Text(uiText("支持 Streamable HTTP 与 SSE。Android 端不直接启动 stdio MCP Server。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.detail_mcp), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.mcp_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
             Button(onClick = {
                 editing = defaultMcpServer()
-            }, shape = KimiPillShape) { Text(uiText("添加")) }
+            }, shape = KimiPillShape) { Text(uiText(R.string.action_add)) }
         }
         if (status.isNotBlank()) {
             Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
@@ -121,8 +121,8 @@ internal fun McpSettings(
     }
     if (servers.isEmpty()) {
         KimiCardBox {
-            Text(uiText("暂无 MCP 服务器"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("请添加远程或局域网 MCP Server URL。若服务器使用 HTTP 明文连接，API Key 和工具参数可能被同一网络中的第三方截获。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_mcp), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.mcp_empty_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
     servers.forEach { server ->
@@ -133,7 +133,7 @@ internal fun McpSettings(
                     Text(server.url, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
                     Text(context.getString(R.string.label_mcp_tools_count, transportLabel(server.transport), server.timeoutSeconds, server.tools.size), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     if (server.url.startsWith("http://", ignoreCase = true)) {
-                        Text(uiText("安全提示：HTTP 明文连接可能泄露认证 key、工具参数和返回内容。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_http_mcp_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Switch(
@@ -147,24 +147,24 @@ internal fun McpSettings(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        status = uiText("正在测试 ${server.name}...")
+                        status = uiText(R.string.server_testing_name, server.name)
                         scope.launch {
                             mcpClientManager.testAndRefreshTools(server).fold(
                                 onSuccess = {
                                     status = context.getString(R.string.mcp_connected, server.name, it.size)
                                     revision++
                                 },
-                                onFailure = { status = uiText("MCP 连接失败: ${it.message}") },
+                                onFailure = { status = uiText(R.string.mcp_connection_failed_detail, it.message) },
                             )
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("测试并拉取")) }
+                ) { Text(uiText(R.string.action_test_and_fetch)) }
                 IconButton(onClick = { editing = server }) {
-                    Icon(Icons.Default.Edit, contentDescription = uiText("编辑 MCP"))
+                    Icon(Icons.Default.Edit, contentDescription = uiText(R.string.cd_edit_mcp))
                 }
                 IconButton(onClick = { deleteTarget = server }) {
-                    Icon(Icons.Default.Delete, contentDescription = uiText("删除 MCP"))
+                    Icon(Icons.Default.Delete, contentDescription = uiText(R.string.cd_delete_mcp))
                 }
             }
             if (server.tools.isNotEmpty()) {
@@ -189,7 +189,7 @@ internal fun McpSettings(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text(context.getString(R.string.label_fetched_tools, server.tools.size), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            if (toolsExpanded) uiText("点击收起工具名称和简介") else uiText("点击展开查看工具名称和简介"),
+                            if (toolsExpanded) uiText(R.string.action_collapse_tools) else uiText(R.string.action_expand_tools),
                             color = KimiMuted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -246,7 +246,7 @@ internal fun LocalMcpServerSettings(
                     localMcpServerManager.stop()
                 }
                 editing = false
-                status = uiText("本机 MCP 服务端配置已保存")
+                status = uiText(R.string.notice_local_mcp_saved)
                 revision++
             },
         )
@@ -257,9 +257,9 @@ internal fun LocalMcpServerSettings(
             Icon(Icons.Default.Hub, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(uiText("本机作为 MCP 服务端"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.title_local_mcp_as_server), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("将 Lyra Code 已启用的 Agent 工具和已启用 MCP 工具暴露给其他 MCP Client。"),
+                    uiText(R.string.local_mcp_desc),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -280,30 +280,28 @@ internal fun LocalMcpServerSettings(
         }
         KimiDivider()
         Text(
-            uiText(
-                stringResource(
+            stringResource(
                     R.string.label_server_status,
-                    if (localStatus.running) uiText("运行中") else uiText("已停止"),
-                    uiText(localStatus.message),
+                    if (localStatus.running) uiText(R.string.label_server_running) else uiText(R.string.notice_server_stopped),
+                    localStatus.message,
                 ),
-            ),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         Text(
-            uiText(stringResource(R.string.label_local_address_info, localStatus.url)),
+            stringResource(R.string.label_local_address_info, localStatus.url),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         if (localStatus.lanUrls.isNotEmpty()) {
             Text(
-                uiText("局域网地址：") + localStatus.lanUrls.joinToString("  "),
+                uiText(R.string.ui_lan_address) + localStatus.lanUrls.joinToString("  "),
                 color = KimiMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         Text(
-            if (localConfig.authKey.isBlank()) uiText("认证：未设置 key，局域网或公网暴露时不安全。") else uiText("认证：已启用 Authorization Bearer / X-Lyra-MCP-Key"),
+            if (localConfig.authKey.isBlank()) uiText(R.string.local_mcp_auth_not_set) else uiText(R.string.local_mcp_auth_enabled),
             color = if (localConfig.authKey.isBlank()) MaterialTheme.colorScheme.error else KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -314,7 +312,7 @@ internal fun LocalMcpServerSettings(
             OutlinedButton(onClick = { editing = true }, shape = KimiPillShape) {
                 Icon(Icons.Default.Settings, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text(uiText("配置"))
+                Text(uiText(R.string.action_configure))
             }
             OutlinedButton(
                 onClick = {
@@ -322,33 +320,33 @@ internal fun LocalMcpServerSettings(
                         localMcpServerManager.stop()
                     }
                     localMcpServerManager.start(localConfig.copy(enabled = true))
-                    status = uiText("本机 MCP 服务端已重启")
+                    status = uiText(R.string.notice_local_mcp_restarted)
                     revision++
                 },
                 shape = KimiPillShape,
             ) {
                 Icon(Icons.Default.RestartAlt, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
-                Text(uiText("重启"))
+                Text(uiText(R.string.action_restart))
             }
         }
     }
 
     KimiCardBox {
-        Text(uiText("外部调用说明"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_external_usage), style = MaterialTheme.typography.titleMedium)
         Text(
-            uiText("外部 MCP Client 调用工具时，Lyra Code 默认不再弹出二次确认。请在外部 MCP Client 中配置是否需要用户确认，并避免把未设置认证 Key 的服务暴露到不可信网络。"),
+            uiText(R.string.external_usage_desc),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
-        Text(uiText("外部连接原始 JSON"), style = MaterialTheme.typography.titleSmall)
+        Text(uiText(R.string.ui_external_connection_raw_json), style = MaterialTheme.typography.titleSmall)
         CommandCopyCard(
             command = externalConnectionJson,
-            buttonText = uiText("复制外部连接 JSON"),
+            buttonText = uiText(R.string.ui_copy_external_connection_json),
             onCopy = { clipboard.setText(AnnotatedString(externalConnectionJson)) },
         )
         Text(
-            uiText("复制配置默认只包含 Mcp-Protocol-Version 和 Authorization。X-Lyra-MCP-Key、X-API-Key、Api-Key 是兼容替代写法，不需要同时填写。请求地址必须是 /mcp。"),
+            uiText(R.string.ui_the_copied_config_only_includes_mcp_protocol_version_and),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -392,7 +390,7 @@ internal fun McpToolSummaryRow(tool: McpToolDefinition) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(3.dp)) {
         Text(tool.name, style = MaterialTheme.typography.titleSmall)
         Text(
-            tool.description.ifBlank { uiText("无描述") },
+            tool.description.ifBlank { uiText(R.string.label_no_description) },
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
             maxLines = 3,
@@ -413,7 +411,7 @@ internal fun LocalMcpServerDialog(
     var enabled by rememberSaveable { mutableStateOf(initial.enabled) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("本机 MCP 服务端")) },
+        title = { Text(uiText(R.string.ui_local_mcp_server)) },
         text = {
             Column(
                 Modifier
@@ -423,7 +421,7 @@ internal fun LocalMcpServerDialog(
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    uiText("其他 MCP Client 可通过 http://主机:端口/mcp 连接。若监听局域网或公网，建议设置认证 Key。"),
+                    uiText(R.string.local_mcp_dialog_hint),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -431,29 +429,29 @@ internal fun LocalMcpServerDialog(
                     value = host,
                     onValueChange = { host = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("监听主机")) },
+                    label = { Text(uiText(R.string.label_listen_host)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = port,
                     onValueChange = { port = it.filter(Char::isDigit).take(5) },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("端口")) },
+                    label = { Text(uiText(R.string.label_port)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = authKey,
                     onValueChange = { authKey = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("认证 Key，可空")) },
+                    label = { Text(uiText(R.string.label_auth_key_optional)) },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                 )
                 if (authKey.isBlank()) {
-                    Text(uiText("未设置认证 Key 时，同网络内能访问该端口的客户端都可请求工具调用。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.notice_auth_key_risk), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText("保存后立即启用"), modifier = Modifier.weight(1f))
+                    Text(uiText(R.string.label_save_and_enable), modifier = Modifier.weight(1f))
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
             }
@@ -470,9 +468,9 @@ internal fun LocalMcpServerDialog(
                         ),
                     )
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -491,7 +489,7 @@ internal fun McpServerDialog(
     var enabled by rememberSaveable(initial.id) { mutableStateOf(initial.enabled) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("MCP 服务器")) },
+        title = { Text(uiText(R.string.detail_mcp)) },
         text = {
             Column(
                 Modifier
@@ -507,7 +505,7 @@ internal fun McpServerDialog(
                         rawJson = buildMcpRawJson(rawJson, name, url, authKey, transport)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("服务名")) },
+                    label = { Text(uiText(R.string.label_webdav_service_name)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
@@ -521,7 +519,7 @@ internal fun McpServerDialog(
                     singleLine = true,
                 )
                 if (url.startsWith("http://", ignoreCase = true)) {
-                    Text(uiText("HTTP 明文连接不安全，但不会阻止添加。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.label_http_insecure), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
                 OutlinedTextField(
                     value = authKey,
@@ -530,7 +528,7 @@ internal fun McpServerDialog(
                         rawJson = buildMcpRawJson(rawJson, name, url, authKey, transport)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("认证 Key，可空")) },
+                    label = { Text(uiText(R.string.label_auth_key_optional)) },
                     visualTransformation = PasswordVisualTransformation(),
                     singleLine = true,
                 )
@@ -544,9 +542,9 @@ internal fun McpServerDialog(
                         rawJson = buildMcpRawJson(rawJson, name, url, authKey, transport)
                     }
                 }
-                OutlinedTextField(value = timeout, onValueChange = { timeout = it.filter(Char::isDigit) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("超时秒数 5-300")) }, singleLine = true)
+                OutlinedTextField(value = timeout, onValueChange = { timeout = it.filter(Char::isDigit) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_timeout_seconds)) }, singleLine = true)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText("启用"), modifier = Modifier.weight(1f))
+                    Text(uiText(R.string.label_enabled), modifier = Modifier.weight(1f))
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
                 OutlinedTextField(
@@ -562,7 +560,7 @@ internal fun McpServerDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 5,
-                    label = { Text(uiText("原始 JSON：实际以此连接")) },
+                    label = { Text(uiText(R.string.label_raw_json)) },
                 )
             }
         },
@@ -581,9 +579,9 @@ internal fun McpServerDialog(
                         ),
                     )
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 

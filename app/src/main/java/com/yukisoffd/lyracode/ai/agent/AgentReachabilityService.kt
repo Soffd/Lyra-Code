@@ -1,5 +1,6 @@
 package com.yukisoffd.lyracode.ai
 
+import com.yukisoffd.lyracode.R
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.uiText
 import okhttp3.MediaType.Companion.toMediaType
@@ -167,15 +168,15 @@ internal class AgentReachabilityService(
                 val latencyMs = elapsedMs(startedAtNanos)
                 val body = response.body?.string().orEmpty()
                 if (response.isSuccessful) {
-                    ReachabilityProbe(true, response.code, latencyMs, uiText("可用"))
+                    ReachabilityProbe(true, response.code, latencyMs, uiText(R.string.label_available))
                 } else {
                     ReachabilityProbe(false, response.code, latencyMs, "HTTP ${response.code}: ${body.cleanProbeMessage()}")
                 }
             }
         } catch (error: IOException) {
-            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText("网络不可达或连接超时") })
+            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText(R.string.ui_network_unreachable_or_connection_timed_out) })
         } catch (error: Throwable) {
-            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText("检测失败") })
+            ReachabilityProbe(false, null, elapsedMs(startedAtNanos), error.message.orEmpty().ifBlank { uiText(R.string.ui_check_failed) })
         }
     }
 
@@ -277,7 +278,7 @@ internal class AgentReachabilityService(
         return ((System.nanoTime() - startedAtNanos) / 1_000_000L).coerceAtLeast(0L)
     }
     private fun String.cleanProbeMessage(): String {
-        return replace(Regex("\\s+"), " ").trim().take(300).ifBlank { uiText("请求失败") }
+        return replace(Regex("\\s+"), " ").trim().take(300).ifBlank { uiText(R.string.ui_request_failed) }
     }
 
     private companion object {

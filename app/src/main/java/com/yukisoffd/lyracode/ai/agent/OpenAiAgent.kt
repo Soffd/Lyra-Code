@@ -389,7 +389,7 @@ class OpenAiAgent(
             if (!userMessagePersisted) {
                 conversationStore.addMessage(conversationId, "user", userInput, profileId = profile.id, model = model)
             }
-            onUpdate(ChatUpdate("", "", uiText("已发送")))
+            onUpdate(ChatUpdate("", "", uiText(R.string.ui_sent)))
             runLoop(conversationId, profile, model, onUpdate, propagateErrors)
         } finally {
             if (normalizedForcedSkillIds.isNotEmpty()) forcedSkillsByConversation.remove(conversationId)
@@ -686,11 +686,11 @@ class OpenAiAgent(
 
     private fun historyCompressionHttpError(code: Int, body: String): String {
         val detail = body.take(500)
-        return uiText(if (code == 400 || code == 413) {
+        return if (code == 400 || code == 413) {
             "会话历史压缩失败：某个分段或合并输入可能仍超过所选压缩模型的上下文窗口（HTTP $code）。请增加分段块数后重试；原上下文已保留。$detail"
         } else {
             "会话历史压缩请求失败（HTTP $code）。原上下文已保留。$detail"
-        })
+        }
     }
 
     suspend fun continueConversation(
@@ -734,14 +734,14 @@ class OpenAiAgent(
                     model = model,
                     onDelta = { content, thinking ->
                         conversationStore.updateMessage(assistantId, content = content, thinking = thinking)
-                        onUpdate(ChatUpdate(content, thinking, uiText("输出中"), assistantId))
+                        onUpdate(ChatUpdate(content, thinking, uiText(R.string.ui_generating), assistantId))
                     },
                     onStatus = { status ->
                         val current = conversationStore.message(assistantId)
                         onUpdate(ChatUpdate(current?.content.orEmpty(), current?.thinking.orEmpty(), status, assistantId))
                     },
                     onRetry = { retryNumber, maxRetries, error ->
-                        val retryStatus = uiText(context.getString(R.string.status_request_retry, retryNumber, maxRetries))
+                        val retryStatus = context.getString(R.string.status_request_retry, retryNumber, maxRetries)
                         Log.w(
                             AGENT_TAG,
                             "model_request_retry conversation=$conversationId model=$model retry=$retryNumber/$maxRetries error=${error.message}",
@@ -769,7 +769,7 @@ class OpenAiAgent(
                     estimatedPromptInputTokens(conversationId, assistantId),
                     estimatedAssistantOutputTokens(result.content, result.thinking, result.rawMessage.toString()),
                 )
-                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText("缓存命中") else uiText("模型完成"), assistantId, result.tokensPerSecond))
+                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText(R.string.ui_cache_hit) else uiText(R.string.ui_model_completed), assistantId, result.tokensPerSecond))
                 if (result.toolCalls.isEmpty()) {
                     conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE, profileId = profile.id, model = model)
                     return
@@ -787,7 +787,7 @@ class OpenAiAgent(
                         model = model,
                         toolCallId = call.id,
                     )
-                    onUpdate(ChatUpdate(result.content, result.thinking, uiText("工具完成：") + call.name, assistantId))
+                    onUpdate(ChatUpdate(result.content, result.thinking, uiText(R.string.ui_tool_complete) + call.name, assistantId))
                 }
             }
         } catch (error: CancellationException) {
@@ -799,10 +799,10 @@ class OpenAiAgent(
                 .filterIsInstance<ModelRequestRetriesExhaustedException>()
                 .firstOrNull()
             val finalError = if (exhausted != null) {
-                uiText("请求中断：已自动重试 ${exhausted.retryCount} 次，仍无法继续。已保留本轮已输出的思维链和正文；可切换模型，或待 API 恢复后继续任务。") +
+                uiText(R.string.ui_request_interrupted_after_1_s_automatic_retries_this_turn, exhausted.retryCount) +
                     error.message.orEmpty().takeIf { it.isNotBlank() }?.let { "\n$it" }.orEmpty()
             } else {
-                uiText("请求中断：") + error.message.orEmpty()
+                uiText(R.string.ui_request_interrupted) + error.message.orEmpty()
             }
             conversationStore.addMessage(conversationId, "assistant", finalError, profileId = profile.id, model = model)
             onUpdate(ChatUpdate("", "", finalError))
@@ -836,7 +836,7 @@ class OpenAiAgent(
             }
 
             else -> null
-        } ?: (uiText("调用工具：") + call.name)
+        } ?: (uiText(R.string.ui_using_tool) + call.name)
     }
 
     private suspend fun streamModel(
@@ -991,10 +991,10 @@ class OpenAiAgent(
                             }
                         }
                         "response.web_search_call.in_progress", "response.web_search_call.searching" -> {
-                            onStatus(uiText(context.getString(R.string.status_native_web_search)))
+                            onStatus(context.getString(R.string.status_native_web_search))
                         }
                         "response.web_search_call.completed" -> {
-                            onStatus(uiText(context.getString(R.string.status_native_web_search_completed)))
+                            onStatus(context.getString(R.string.status_native_web_search_completed))
                         }
                         "response.completed", "response.incomplete" -> {
                             streamCompleted = true
@@ -1400,7 +1400,7 @@ class OpenAiAgent(
     }
 
     private fun throwModelRequestHttpError(statusCode: Int, body: String): Nothing {
-        val message = uiText("AI 请求失败 ") + "$statusCode: ${body.take(600)}"
+        val message = uiText(R.string.ui_ai_request_failed) + "$statusCode: ${body.take(600)}"
         if (isRetryableModelHttpStatus(statusCode)) {
             throw RetryableModelHttpException(statusCode, message)
         }
@@ -5041,7 +5041,7 @@ class OpenAiAgent(
     }
 
     private fun String.cleanProbeMessage(): String {
-        return replace(Regex("\\s+"), " ").trim().take(300).ifBlank { uiText("请求失败") }
+        return replace(Regex("\\s+"), " ").trim().take(300).ifBlank { uiText(R.string.ui_request_failed) }
     }
 
     companion object {

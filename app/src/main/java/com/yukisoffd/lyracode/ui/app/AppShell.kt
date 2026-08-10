@@ -164,7 +164,7 @@ internal fun LyraCodeApp(
     val activeConversationId = controller.activeConversationId.value
     val workspaceName = remember(activeConversationId, controller.settingsRevision.intValue) { controller.workspaceDisplayName() }
     val workspaceLabel = if (workspaceName == "未选择工作目录") {
-        uiText(context.getString(R.string.label_no_workspace))
+        context.getString(R.string.label_no_workspace)
     } else {
         workspaceName
     }
@@ -409,9 +409,9 @@ internal fun LyraCodeApp(
                             Icon(
                                 if (conversationDetailsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
                                 contentDescription = if (conversationDetailsExpanded) {
-                                    uiText("收起对话信息")
+                                    uiText(R.string.collapse_conversation_details)
                                 } else {
-                                    uiText("展开对话信息")
+                                    uiText(R.string.expand_conversation_details)
                                 },
                                 modifier = Modifier.size(14.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -674,7 +674,7 @@ internal fun LyraCodeApp(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                uiText("对话信息"),
+                                uiText(R.string.conversation_details),
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.titleSmall,
                             )
@@ -684,20 +684,20 @@ internal fun LyraCodeApp(
                             ) {
                                 Icon(
                                     Icons.Default.ExpandLess,
-                                    contentDescription = uiText("收起对话信息"),
+                                    contentDescription = uiText(R.string.collapse_conversation_details),
                                 )
                             }
                         }
-                        ConversationDetailRow(uiText("对话标题"), conversationTitle)
+                        ConversationDetailRow(uiText(R.string.conversation_title_label), conversationTitle)
                         ConversationDetailRow(
-                            uiText("模型服务"),
-                            activeProfile?.name.orEmpty().ifBlank { uiText("未选择") },
+                            uiText(R.string.detail_model),
+                            activeProfile?.name.orEmpty().ifBlank { uiText(R.string.label_not_selected) },
                         )
-                        ConversationDetailRow(uiText("当前模型"), activeModelName)
-                        ConversationDetailRow(uiText("当前工作区目录"), workspacePath)
+                        ConversationDetailRow(uiText(R.string.current_model_label), activeModelName)
+                        ConversationDetailRow(uiText(R.string.current_workspace_directory_label), workspacePath)
                         ConversationDetailRow(
-                            uiText("对话 ID"),
-                            activeConversation?.id?.toString() ?: uiText("尚未生成"),
+                            uiText(R.string.conversation_id_label),
+                            activeConversation?.id?.toString() ?: uiText(R.string.conversation_id_pending),
                         )
                     }
                 }

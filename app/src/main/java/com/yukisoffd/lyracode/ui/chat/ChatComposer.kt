@@ -161,13 +161,13 @@ internal fun ChatMessageComposer(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(
-                            uiText(stringResource(R.string.title_fullscreen_input)),
+                            stringResource(R.string.title_fullscreen_input),
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.SemiBold,
                         )
                         IconButton(onClick = { fullscreen = false }) {
-                            Icon(Icons.Default.Close, contentDescription = uiText(stringResource(R.string.action_exit_fullscreen_input)))
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.action_exit_fullscreen_input))
                         }
                     }
                     ComposerTextEditor(
@@ -232,7 +232,7 @@ private fun ComposerTextEditor(
             Box(Modifier.fillMaxWidth()) {
                 if (value.isEmpty()) {
                     Text(
-                        uiText(stringResource(R.string.placeholder_input_message)),
+                        stringResource(R.string.placeholder_input_message),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.62f),
                         style = MaterialTheme.typography.bodyLarge,
                     )
@@ -266,17 +266,17 @@ private fun ComposerActionBar(
     if (autoApproveConfirmOpen) {
         AlertDialog(
             onDismissRequest = { autoApproveConfirmOpen = false },
-            title = { Text(uiText(stringResource(R.string.title_enable_auto_approve))) },
-            text = { Text(uiText(stringResource(R.string.auto_approve_warning))) },
+            title = { Text(stringResource(R.string.title_enable_auto_approve)) },
+            text = { Text(stringResource(R.string.auto_approve_warning)) },
             confirmButton = {
                 TextButton(onClick = {
                     controller.setAutoApprovalForActiveSession(true)
                     autoApproveConfirmOpen = false
-                }) { Text(uiText(stringResource(R.string.action_enable_auto_approve))) }
+                }) { Text(stringResource(R.string.action_enable_auto_approve)) }
             },
             dismissButton = {
                 TextButton(onClick = { autoApproveConfirmOpen = false }) {
-                    Text(uiText(stringResource(R.string.action_cancel)))
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
@@ -289,7 +289,7 @@ private fun ComposerActionBar(
     ) {
         ComposerIconButton(
             icon = Icons.Default.AdminPanelSettings,
-            description = uiText(stringResource(R.string.label_auto_approve)),
+            description = stringResource(R.string.label_auto_approve),
             selected = autoApprovalEnabled,
             onClick = {
                 if (autoApprovalEnabled) controller.setAutoApprovalForActiveSession(false)
@@ -298,13 +298,13 @@ private fun ComposerActionBar(
         )
         ComposerIconButton(
             icon = Icons.Default.Lightbulb,
-            description = "${uiText(stringResource(R.string.label_reasoning_depth))}: ${reasoningDepthLabel(settings.reasoningDepth)}",
+            description = "${stringResource(R.string.label_reasoning_depth)}: ${reasoningDepthLabel(settings.reasoningDepth)}",
             onClick = onOpenReasoning,
         )
         if (showFullscreen) {
             ComposerIconButton(
                 icon = Icons.Default.OpenInFull,
-                description = uiText(stringResource(R.string.action_fullscreen_input)),
+                description = stringResource(R.string.action_fullscreen_input),
                 onClick = onFullscreen,
             )
         }
@@ -318,7 +318,7 @@ private fun ComposerActionBar(
         ) {
             Icon(
                 Icons.Default.DataUsage,
-                contentDescription = uiText(stringResource(R.string.cd_context_window_usage)),
+                contentDescription = stringResource(R.string.cd_context_window_usage),
                 modifier = Modifier.size(19.dp),
                 tint = if (controller.contextWindowUsage.value.hasCompressedHistory) composerAccent.first else MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -333,7 +333,7 @@ private fun ComposerActionBar(
         ) {
             Icon(
                 Icons.Default.Add,
-                contentDescription = uiText(stringResource(R.string.cd_add_attachment)),
+                contentDescription = stringResource(R.string.cd_add_attachment),
                 modifier = Modifier.size(16.dp),
                 tint = composerAccent.first,
             )
@@ -349,7 +349,7 @@ private fun ComposerActionBar(
             ) {
                 Icon(
                     Icons.Default.Stop,
-                    contentDescription = uiText(stringResource(R.string.cd_stop)),
+                    contentDescription = stringResource(R.string.cd_stop),
                     modifier = Modifier.size(15.dp),
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -366,7 +366,7 @@ private fun ComposerActionBar(
             ) {
                 Icon(
                     Icons.Default.ArrowUpward,
-                    contentDescription = uiText(stringResource(R.string.cd_send)),
+                    contentDescription = stringResource(R.string.cd_send),
                     modifier = Modifier.size(16.dp),
                     tint = MaterialTheme.colorScheme.onPrimary,
                 )
@@ -431,31 +431,31 @@ internal fun ContextWindowInfoDialog(
         AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS..AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS
     AlertDialog(
         onDismissRequest = { if (!isRunning) onDismiss() },
-        title = { Text(uiText(stringResource(R.string.title_context_window_usage))) },
+        title = { Text(stringResource(R.string.title_context_window_usage)) },
         text = {
             Column(
                 Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Text(
-                    uiText(stringResource(R.string.context_tokens_used, usage.estimatedTokens)),
+                    stringResource(R.string.context_tokens_used, usage.estimatedTokens),
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                 )
                 Text(
-                    uiText(stringResource(R.string.context_usage_details, usage.contextMessageCount, usage.turnsSinceCompression)),
+                    stringResource(R.string.context_usage_details, usage.contextMessageCount, usage.turnsSinceCompression),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (usage.hasCompressedHistory) {
-                    Text(uiText(stringResource(R.string.context_contains_summary)), color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.context_contains_summary), color = MaterialTheme.colorScheme.primary)
                 }
-                Text(uiText(stringResource(R.string.context_estimate_warning)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.context_estimate_warning), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 KimiDivider()
-                Text(uiText(stringResource(R.string.label_history_compression_model)), style = MaterialTheme.typography.titleSmall)
+                Text(stringResource(R.string.label_history_compression_model), style = MaterialTheme.typography.titleSmall)
                 Text(
                     settings.historyCompressionModel.ifBlank {
-                        uiText(stringResource(R.string.current_conversation_model, controller.activeModel.value))
+                        stringResource(R.string.current_conversation_model, controller.activeModel.value)
                     },
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodyMedium,
@@ -467,16 +467,14 @@ internal fun ContextWindowInfoDialog(
                     },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isRunning,
-                    label = { Text(uiText(stringResource(R.string.label_compression_chunk_count))) },
+                    label = { Text(stringResource(R.string.label_compression_chunk_count)) },
                     supportingText = {
                         Text(
-                            uiText(
-                                stringResource(
+                            stringResource(
                                     R.string.compression_chunk_count_hint,
                                     AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS,
                                     AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS,
                                 ),
-                            ),
                         )
                     },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -488,13 +486,13 @@ internal fun ContextWindowInfoDialog(
                     onValueChange = { customInstruction = it },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isRunning,
-                    label = { Text(uiText(stringResource(R.string.label_custom_compression_instruction))) },
-                    supportingText = { Text(uiText(stringResource(R.string.custom_compression_instruction_hint))) },
+                    label = { Text(stringResource(R.string.label_custom_compression_instruction)) },
+                    supportingText = { Text(stringResource(R.string.custom_compression_instruction_hint)) },
                     minLines = 3,
                     maxLines = 6,
                 )
                 if (isRunning) {
-                    Text(uiText(stringResource(R.string.status_compressing_history)), color = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(R.string.status_compressing_history), color = MaterialTheme.colorScheme.primary)
                 } else if (resultMessage.isNotBlank()) {
                     Text(resultMessage, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 }
@@ -508,16 +506,16 @@ internal fun ContextWindowInfoDialog(
                     settings.historyCompressionChunkCount = chunkCount!!
                     controller.compressActiveHistory(customInstruction, chunkCount) { result ->
                         resultMessage = result.fold(
-                            onSuccess = { uiText("会话历史压缩完成") },
-                            onFailure = { uiText(it.message.orEmpty()).ifBlank { uiText("会话历史压缩失败") } },
+                            onSuccess = { uiText(R.string.status_history_compressed) },
+                            onFailure = { it.message.orEmpty().ifBlank { uiText(R.string.ui_conversation_history_compression_failed) } },
                         )
                     }
                 },
-            ) { Text(uiText(stringResource(R.string.action_compress_history))) }
+            ) { Text(stringResource(R.string.action_compress_history)) }
         },
         dismissButton = {
             TextButton(enabled = !isRunning, onClick = onDismiss) {
-                Text(uiText(stringResource(R.string.action_close)))
+                Text(stringResource(R.string.action_close))
             }
         },
     )
@@ -599,12 +597,12 @@ internal fun AttachmentActionBottomSheet(
                 ) {
                     when (targetPage) {
                         "providers" -> {
-                            SheetBackTitle(uiText(stringResource(R.string.label_choose_provider))) { onPageChange("root") }
+                            SheetBackTitle(stringResource(R.string.label_choose_provider)) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = uiText(stringResource(R.string.search_provider_placeholder)),
+                                placeholder = stringResource(R.string.search_provider_placeholder),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredProfiles = profiles.filter { search.isBlank() || it.name.contains(search, ignoreCase = true) }
@@ -631,12 +629,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "models" -> {
-                            SheetBackTitle(uiText(stringResource(R.string.label_choose_model))) { onPageChange("root") }
+                            SheetBackTitle(stringResource(R.string.label_choose_model)) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = uiText(stringResource(R.string.search_model_placeholder)),
+                                placeholder = stringResource(R.string.search_model_placeholder),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredModels = activeProfile?.enabledModels.orEmpty()
@@ -664,12 +662,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "prompts" -> {
-                            SheetBackTitle(uiText(stringResource(R.string.label_switch_prompt))) { onPageChange("root") }
+                            SheetBackTitle(stringResource(R.string.label_switch_prompt)) { onPageChange("root") }
                             CapsuleTextField(
                                 value = search,
                                 onValueChange = onSearchChange,
                                 modifier = Modifier.fillMaxWidth(),
-                                placeholder = uiText(stringResource(R.string.search_prompt_placeholder)),
+                                placeholder = stringResource(R.string.search_prompt_placeholder),
                                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                             )
                             val filteredPrompts = prompts.filter {
@@ -680,13 +678,13 @@ internal fun AttachmentActionBottomSheet(
                             LazyColumn(Modifier.fillMaxWidth().heightIn(max = 420.dp)) {
                                 if (
                                     search.isBlank() ||
-                                    uiText("应用原生提示词").contains(search, ignoreCase = true)
+                                    uiText(R.string.ui_app_native_prompt).contains(search, ignoreCase = true)
                                 ) {
                                     item(key = "native-prompt") {
                                         ActionSheetRow(
                                             icon = Icons.Default.SmartToy,
-                                            title = uiText("应用原生提示词"),
-                                            subtitle = uiText("适配 Lyra Code 当前工具和 Android 运行环境"),
+                                            title = uiText(R.string.ui_app_native_prompt),
+                                            subtitle = uiText(R.string.ui_adapted_to_lyra_code_s_current_tools_and_android),
                                             trailing = if (activePrompt == null) Icons.Default.Check else null,
                                             onClick = {
                                                 controller.selectSystemPrompt(AppSettings.NATIVE_SYSTEM_PROMPT_ID)
@@ -717,7 +715,7 @@ internal fun AttachmentActionBottomSheet(
                                 mutableStateOf(selectedIndex.toFloat())
                             }
                             Text(
-                                uiText(stringResource(R.string.label_reasoning_depth)),
+                                stringResource(R.string.label_reasoning_depth),
                                 style = MaterialTheme.typography.headlineSmall,
                                 fontWeight = FontWeight.Bold,
                             )
@@ -750,7 +748,7 @@ internal fun AttachmentActionBottomSheet(
                                 }
                             }
                             Text(
-                                uiText(stringResource(R.string.reasoning_depth_hint)),
+                                stringResource(R.string.reasoning_depth_hint),
                                 color = KimiMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
@@ -804,12 +802,12 @@ internal fun AttachmentActionBottomSheet(
                             }
                         }
                         "auto_compression" -> {
-                            SheetBackTitle(uiText(stringResource(R.string.title_auto_compression))) { onPageChange("root") }
+                            SheetBackTitle(stringResource(R.string.title_auto_compression)) { onPageChange("root") }
                             val mode = autoCompressionConfig.first
                             ActionSheetSwitchRow(
                                 icon = Icons.Default.Compress,
-                                title = uiText(stringResource(R.string.action_auto_compression)),
-                                subtitle = uiText(stringResource(R.string.auto_compression_session_hint)),
+                                title = stringResource(R.string.action_auto_compression),
+                                subtitle = stringResource(R.string.auto_compression_session_hint),
                                 checked = mode != com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_OFF,
                                 onCheckedChange = { enabled ->
                                     controller.setAutoCompressionForActiveSession(
@@ -820,11 +818,11 @@ internal fun AttachmentActionBottomSheet(
                                 },
                             )
                             if (mode != com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_OFF) {
-                                Text(uiText(stringResource(R.string.label_compression_mode)), style = MaterialTheme.typography.titleSmall)
+                                Text(stringResource(R.string.label_compression_mode), style = MaterialTheme.typography.titleSmall)
                                 ActionSheetRow(
                                     icon = Icons.Default.Repeat,
-                                    title = uiText(stringResource(R.string.mode_fixed_turns)),
-                                    subtitle = uiText(stringResource(R.string.mode_fixed_turns_desc)),
+                                    title = stringResource(R.string.mode_fixed_turns),
+                                    subtitle = stringResource(R.string.mode_fixed_turns_desc),
                                     trailing = if (mode == com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS) Icons.Default.Check else null,
                                     onClick = {
                                         controller.setAutoCompressionForActiveSession(
@@ -836,8 +834,8 @@ internal fun AttachmentActionBottomSheet(
                                 )
                                 ActionSheetRow(
                                     icon = Icons.Default.DataUsage,
-                                    title = uiText(stringResource(R.string.mode_context_threshold)),
-                                    subtitle = uiText(stringResource(R.string.mode_context_threshold_desc)),
+                                    title = stringResource(R.string.mode_context_threshold),
+                                    subtitle = stringResource(R.string.mode_context_threshold_desc),
                                     trailing = if (mode == com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS) Icons.Default.Check else null,
                                     onClick = {
                                         controller.setAutoCompressionForActiveSession(
@@ -860,8 +858,8 @@ internal fun AttachmentActionBottomSheet(
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(uiText(stringResource(R.string.label_turn_threshold))) },
-                                        supportingText = { Text(uiText(stringResource(R.string.turn_definition_hint))) },
+                                        label = { Text(stringResource(R.string.label_turn_threshold)) },
+                                        supportingText = { Text(stringResource(R.string.turn_definition_hint)) },
                                         singleLine = true,
                                     )
                                 } else {
@@ -877,13 +875,13 @@ internal fun AttachmentActionBottomSheet(
                                             }
                                         },
                                         modifier = Modifier.fillMaxWidth(),
-                                        label = { Text(uiText(stringResource(R.string.label_token_threshold))) },
-                                        supportingText = { Text(uiText(stringResource(R.string.token_threshold_hint))) },
+                                        label = { Text(stringResource(R.string.label_token_threshold)) },
+                                        supportingText = { Text(stringResource(R.string.token_threshold_hint)) },
                                         singleLine = true,
                                     )
                                 }
                                 Text(
-                                    uiText(stringResource(R.string.auto_compression_limit_warning)),
+                                    stringResource(R.string.auto_compression_limit_warning),
                                     color = KimiMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -894,39 +892,39 @@ internal fun AttachmentActionBottomSheet(
                                 Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
-                                ActionSheetTile(Icons.Default.PhotoLibrary, uiText(stringResource(R.string.action_album)), Modifier.weight(1f), onPickImage)
-                                ActionSheetTile(Icons.Default.PhotoCamera, uiText(stringResource(R.string.action_camera)), Modifier.weight(1f), onTakePhoto)
-                                ActionSheetTile(Icons.Default.AttachFile, uiText(stringResource(R.string.action_file)), Modifier.weight(1f), onPickFile)
+                                ActionSheetTile(Icons.Default.PhotoLibrary, stringResource(R.string.action_album), Modifier.weight(1f), onPickImage)
+                                ActionSheetTile(Icons.Default.PhotoCamera, stringResource(R.string.action_camera), Modifier.weight(1f), onTakePhoto)
+                                ActionSheetTile(Icons.Default.AttachFile, stringResource(R.string.action_file), Modifier.weight(1f), onPickFile)
                             }
                             KimiDivider()
                             ActionSheetRow(
                                 icon = Icons.Default.Cloud,
-                                title = uiText(stringResource(R.string.label_provider)),
-                                subtitle = activeProfile?.name ?: uiText(stringResource(R.string.label_not_configured)),
+                                title = stringResource(R.string.label_provider),
+                                subtitle = activeProfile?.name ?: stringResource(R.string.label_not_configured),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("providers") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.SmartToy,
-                                title = uiText(stringResource(R.string.label_model)),
-                                subtitle = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { uiText(stringResource(R.string.label_not_selected)) } },
+                                title = stringResource(R.string.label_model),
+                                subtitle = controller.activeModel.value.ifBlank { activeProfile?.selectedModel.orEmpty().ifBlank { stringResource(R.string.label_not_selected) } },
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("models") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.EditNote,
-                                title = uiText(stringResource(R.string.label_prompt)),
-                                subtitle = activePrompt?.name ?: uiText(stringResource(R.string.label_default_assistant)),
+                                title = stringResource(R.string.label_prompt),
+                                subtitle = activePrompt?.name ?: stringResource(R.string.label_default_assistant),
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("prompts") },
                             )
                             ActionSheetRow(
                                 icon = Icons.Default.Compress,
-                                title = uiText(stringResource(R.string.action_auto_compression)),
+                                title = stringResource(R.string.action_auto_compression),
                                 subtitle = when (autoCompressionConfig.first) {
-                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS -> uiText(stringResource(R.string.auto_compression_turns_summary, autoCompressionConfig.second))
-                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS -> uiText(stringResource(R.string.auto_compression_tokens_summary, autoCompressionConfig.third))
-                                    else -> uiText(stringResource(R.string.status_off))
+                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TURNS -> stringResource(R.string.auto_compression_turns_summary, autoCompressionConfig.second)
+                                    com.yukisoffd.lyracode.data.ConversationStore.AUTO_COMPRESSION_TOKENS -> stringResource(R.string.auto_compression_tokens_summary, autoCompressionConfig.third)
+                                    else -> stringResource(R.string.status_off)
                                 },
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("auto_compression") },
@@ -934,11 +932,11 @@ internal fun AttachmentActionBottomSheet(
                             val hasSubAgents = settings.enabledSubAgents().isNotEmpty()
                             ActionSheetSwitchRow(
                                 icon = Icons.Default.AccountTree,
-                                title = uiText(stringResource(R.string.label_sub_agent_orchestration)),
+                                title = stringResource(R.string.label_sub_agent_orchestration),
                                 subtitle = if (hasSubAgents) {
-                                    uiText(stringResource(R.string.subtitle_sub_agent_orchestration))
+                                    stringResource(R.string.subtitle_sub_agent_orchestration)
                                 } else {
-                                    uiText(stringResource(R.string.subtitle_sub_agent_no_models))
+                                    stringResource(R.string.subtitle_sub_agent_no_models)
                                 },
                                 checked = settings.subAgentOrchestrationEnabled && hasSubAgents,
                                 enabled = hasSubAgents,
@@ -957,12 +955,12 @@ internal fun AttachmentActionBottomSheet(
 
 @Composable
 private fun reasoningDepthLabel(value: String): String = when (value) {
-    AppSettings.REASONING_LOW -> uiText(stringResource(R.string.reasoning_low))
-    AppSettings.REASONING_MEDIUM -> uiText(stringResource(R.string.reasoning_medium))
-    AppSettings.REASONING_HIGH -> uiText(stringResource(R.string.reasoning_high))
-    AppSettings.REASONING_XHIGH -> uiText(stringResource(R.string.reasoning_xhigh))
-    AppSettings.REASONING_MAX -> uiText(stringResource(R.string.reasoning_max))
-    else -> uiText(stringResource(R.string.reasoning_auto))
+    AppSettings.REASONING_LOW -> stringResource(R.string.reasoning_low)
+    AppSettings.REASONING_MEDIUM -> stringResource(R.string.reasoning_medium)
+    AppSettings.REASONING_HIGH -> stringResource(R.string.reasoning_high)
+    AppSettings.REASONING_XHIGH -> stringResource(R.string.reasoning_xhigh)
+    AppSettings.REASONING_MAX -> stringResource(R.string.reasoning_max)
+    else -> stringResource(R.string.reasoning_auto)
 }
 
 private fun reasoningDepthEnglishLabel(value: String): String = when (value) {
@@ -1149,7 +1147,7 @@ internal fun MediaThumb(name: String, uri: String, kind: String, onRemove: (() -
                 modifier = Modifier.align(Alignment.TopEnd).size(28.dp),
                 contentPadding = PaddingValues(0.dp),
             ) {
-                Icon(Icons.Default.Close, contentDescription = uiText("移除"), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Close, contentDescription = uiText(R.string.cd_remove), modifier = Modifier.size(16.dp))
             }
         }
     }
@@ -1176,12 +1174,12 @@ internal fun MediaPlaceholder(name: String, kind: String, source: String = "", o
             .padding(8.dp),
     ) {
         Column(Modifier.align(Alignment.CenterStart)) {
-            Text(if (kind == "video") uiText("视频") else uiText("音频"), style = MaterialTheme.typography.labelMedium)
+            Text(if (kind == "video") uiText(R.string.label_video) else uiText(R.string.media_preview_audio), style = MaterialTheme.typography.labelMedium)
             Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
         }
         if (onRemove != null) {
             TextButton(onClick = onRemove, modifier = Modifier.align(Alignment.TopEnd).size(28.dp), contentPadding = PaddingValues(0.dp)) {
-                Icon(Icons.Default.Close, contentDescription = uiText("移除"), modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Close, contentDescription = uiText(R.string.cd_remove), modifier = Modifier.size(16.dp))
             }
         }
     }

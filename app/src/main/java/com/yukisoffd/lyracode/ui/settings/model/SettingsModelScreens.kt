@@ -106,8 +106,8 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
             UserAvatar(settings.userAvatarPath, settings.userNickname.take(1).ifBlank { "L" }, Modifier.size(56.dp))
             Spacer(Modifier.width(12.dp))
             Column {
-                Text(settings.userNickname.ifBlank { uiText("Lyra 用户") }, style = MaterialTheme.typography.titleMedium)
-                Text(uiText("头像和昵称可在侧边栏顶部点击编辑。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(settings.userNickname.ifBlank { uiText(R.string.default_user_name) }, style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.profile_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -121,15 +121,15 @@ internal fun TopicSummaryModelSettings(
     KimiCardBox {
         KimiMenuRow(
             icon = Icons.Default.Topic,
-            title = uiText("话题总结模型"),
-            value = uiText("为新对话生成简短标题"),
+            title = uiText(R.string.ui_topic_summary_model),
+            value = uiText(R.string.ui_generate_short_titles_for_new_conversations),
             onClick = onOpenTopic,
         )
         KimiDivider()
         KimiMenuRow(
             icon = Icons.Default.Compress,
-            title = uiText("会话历史压缩模型"),
-            value = uiText("设置手动与自动压缩使用的模型"),
+            title = uiText(R.string.label_history_compression_model),
+            value = uiText(R.string.ui_choose_the_model_used_for_manual_and_automatic_compression),
             onClick = onOpenCompression,
         )
     }
@@ -148,15 +148,15 @@ internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatCont
     }
     var notice by remember { mutableStateOf("") }
     KimiCardBox {
-        Text(uiText("独立话题总结模型"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.ui_independent_topic_summary_model), style = MaterialTheme.typography.titleMedium)
         Text(
-            uiText("每次新对话首次发送消息后，由此模型单独生成会话标题，不再占用主对话模型的工具调用。可选择轻量模型以降低消耗。"),
+            uiText(R.string.ui_after_the_first_message_in_each_new_conversation_this),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         SubAgentDropdownPicker(
-            label = uiText("模型服务"),
-            value = selectedProfile?.name ?: uiText("未配置"),
+            label = uiText(R.string.detail_model),
+            value = selectedProfile?.name ?: uiText(R.string.label_not_configured_or_na),
             subtitle = selectedProfile?.selectedModel.orEmpty(),
             items = profiles,
             itemTitle = { it.name },
@@ -168,8 +168,8 @@ internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatCont
             },
         )
         SubAgentDropdownPicker(
-            label = uiText("话题总结模型"),
-            value = model.ifBlank { uiText("未选择") },
+            label = uiText(R.string.ui_topic_summary_model),
+            value = model.ifBlank { uiText(R.string.label_not_selected) },
             items = selectedProfile?.enabledModels.orEmpty(),
             itemTitle = { it },
             isSelected = { it == model },
@@ -179,7 +179,7 @@ internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatCont
             value = model,
             onValueChange = { model = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(uiText("话题总结模型")) },
+            label = { Text(uiText(R.string.ui_topic_summary_model)) },
             singleLine = true,
         )
         Button(
@@ -188,10 +188,10 @@ internal fun TopicSummaryModelEditor(settings: AppSettings, controller: ChatCont
                 settings.topicSummaryProfileId = selectedProfile?.id.orEmpty()
                 settings.topicSummaryModel = model
                 controller.settingsRevision.intValue++
-                notice = uiText("话题总结模型已保存")
+                notice = uiText(R.string.ui_topic_summary_model_saved)
             },
             shape = KimiPillShape,
-        ) { Text(uiText("保存")) }
+        ) { Text(uiText(R.string.file_editor_save)) }
         if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -215,17 +215,17 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
         )
     }
     KimiCardBox {
-        Text(uiText("会话历史压缩模型"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.label_history_compression_model), style = MaterialTheme.typography.titleMedium)
         Text(
-            uiText("用于手动或自动分段压缩会话历史，并逐级合并为结构化上下文。未单独设置时，由当前会话模型承担；压缩失败不会替换原上下文。"),
+            uiText(R.string.ui_used_to_segment_conversation_history_for_manual_or_automatic),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(uiText("使用独立压缩模型"), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.ui_use_a_separate_compression_model), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    if (compressionEnabled) uiText("已启用") else uiText("跟随当前会话模型"),
+                    if (compressionEnabled) uiText(R.string.skill_status_enabled) else uiText(R.string.ui_use_current_conversation_model),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -234,8 +234,8 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
         }
         if (compressionEnabled) {
             SubAgentDropdownPicker(
-                label = uiText("模型服务"),
-                value = compressionProfile?.name ?: uiText("未配置"),
+                label = uiText(R.string.detail_model),
+                value = compressionProfile?.name ?: uiText(R.string.label_not_configured_or_na),
                 subtitle = compressionProfile?.selectedModel.orEmpty(),
                 items = profiles,
                 itemTitle = { it.name },
@@ -247,8 +247,8 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
                 },
             )
             SubAgentDropdownPicker(
-                label = uiText("历史压缩模型"),
-                value = compressionModel.ifBlank { uiText("未选择") },
+                label = uiText(R.string.ui_history_compression_model),
+                value = compressionModel.ifBlank { uiText(R.string.label_not_selected) },
                 items = compressionProfile?.enabledModels.orEmpty(),
                 itemTitle = { it },
                 isSelected = { it == compressionModel },
@@ -258,7 +258,7 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
                 value = compressionModel,
                 onValueChange = { compressionModel = it },
                 modifier = Modifier.fillMaxWidth(),
-                label = { Text(uiText("历史压缩模型")) },
+                label = { Text(uiText(R.string.ui_history_compression_model)) },
                 singleLine = true,
             )
         }
@@ -268,10 +268,10 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
                 settings.historyCompressionProfileId = if (compressionEnabled) compressionProfile?.id.orEmpty() else ""
                 settings.historyCompressionModel = if (compressionEnabled) compressionModel else ""
                 controller.settingsRevision.intValue++
-                compressionNotice = uiText("额外功能模型已保存")
+                compressionNotice = uiText(R.string.ui_additional_feature_models_saved)
             },
             shape = KimiPillShape,
-        ) { Text(uiText("保存")) }
+        ) { Text(uiText(R.string.file_editor_save)) }
         if (compressionNotice.isNotBlank()) Text(compressionNotice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
@@ -384,10 +384,10 @@ internal fun ModelServiceSettings(
     val matchedPreset = ProviderCatalog.byId(current?.presetId ?: draftPresetId)
     val matchedPlan = matchedPreset?.resolvePlan(current?.presetPlanId, current?.baseUrl.orEmpty())
     val nestedTitle = when {
-        showProviderPicker -> uiText("选择服务商")
-        showReachabilityPage -> uiText("可达性检测")
-        editingProfileId != null -> current?.name?.ifBlank { uiText("新模型服务") } ?: uiText("新模型服务")
-        else -> uiText("模型服务")
+        showProviderPicker -> uiText(R.string.label_choose_provider)
+        showReachabilityPage -> uiText(R.string.ui_reachability_check)
+        editingProfileId != null -> current?.name?.ifBlank { uiText(R.string.title_new_model_service) } ?: uiText(R.string.title_new_model_service)
+        else -> uiText(R.string.detail_model)
     }
     LaunchedEffect(editingProfileId, showProviderPicker, showReachabilityPage, nestedTitle) {
         onNestedPageChanged(editingProfileId != null || showProviderPicker, nestedTitle)
@@ -418,7 +418,7 @@ internal fun ModelServiceSettings(
             id = current?.id ?: AppSettings.newId(),
             presetId = current?.presetId.orEmpty(),
             presetPlanId = current?.presetPlanId.orEmpty(),
-            name = name.ifBlank { uiText("未命名平台") },
+            name = name.ifBlank { uiText(R.string.label_unnamed_platform) },
             apiKey = key,
             baseUrl = baseUrl.ifBlank { defaultBaseUrlForApiFormat(apiFormat) },
             chatPath = ApiProfile.normalizedChatPath(apiFormat, chatPath),
@@ -442,12 +442,12 @@ internal fun ModelServiceSettings(
         controller.saveProfiles(updatedProfiles, updated.id)
         editingProfileId = updated.id
         status = ""
-        notice = uiText("模型服务已保存")
+        notice = uiText(R.string.notice_model_service_saved)
     }
     fun startReachabilityCheck(targetModels: List<String>) {
         val targets = targetModels.map { it.trim() }.filter { it.isNotBlank() }.distinct()
         if (targets.isEmpty()) {
-            status = uiText("请先选择要检测的模型")
+            status = uiText(R.string.ui_select_at_least_one_model_to_check)
             return
         }
         val draft = draftProfile(savedModelsOverride = targets)
@@ -455,7 +455,7 @@ internal fun ModelServiceSettings(
         modelReachabilityResults = emptyList()
         activeReachabilityModel = ""
         reachabilityChecking = true
-        status = uiText("正在检测模型可达性...")
+        status = uiText(R.string.ui_checking_model_reachability)
         controller.checkReachabilityForProfileIncremental(
             profile = draft,
             models = targets,
@@ -470,10 +470,10 @@ internal fun ModelServiceSettings(
                 result.fold(
                     onSuccess = {
                         status = ""
-                        notice = uiText("模型可达性检测完成")
+                        notice = uiText(R.string.ui_model_reachability_check_complete)
                     },
                     onFailure = { error ->
-                        status = error.message.orEmpty().ifBlank { uiText("模型可达性检测失败") }
+                        status = error.message.orEmpty().ifBlank { uiText(R.string.ui_model_reachability_check_failed) }
                     },
                 )
             },
@@ -481,8 +481,8 @@ internal fun ModelServiceSettings(
     }
     deleteTarget?.let { target ->
         ConfirmDeleteDialog(
-            title = uiText("删除模型服务配置"),
-            message = uiText("该操作会删除服务商、API Key、基础 URL 和预保存模型配置。"),
+            title = uiText(R.string.title_delete_model_service),
+            message = uiText(R.string.confirm_delete_model_service),
             targetName = target.name.ifBlank { target.baseUrl },
             onDismiss = { deleteTarget = null },
             onConfirm = {
@@ -493,7 +493,7 @@ internal fun ModelServiceSettings(
                     controller.saveProfiles(remaining, remaining.first().id)
                 }
                 status = ""
-                notice = uiText("已删除 ") + target.name.ifBlank { uiText("模型服务") }
+                notice = uiText(R.string.ui_deleted) + target.name.ifBlank { uiText(R.string.detail_model) }
             },
         )
     }
@@ -511,7 +511,7 @@ internal fun ModelServiceSettings(
             onDismiss = { showEnabledModelsDialog = false },
             onConfirm = {
                 if (enabledModels.isEmpty()) {
-                    status = uiText("请至少启用一个模型")
+                    status = uiText(R.string.enable_at_least_one_model)
                 } else {
                     showEnabledModelsDialog = false
                     if (model !in enabledModels) model = enabledModels.first()
@@ -547,7 +547,7 @@ internal fun ModelServiceSettings(
                         value = query,
                         onValueChange = { query = it },
                         modifier = Modifier.weight(1f),
-                        placeholder = uiText("搜索模型服务"),
+                        placeholder = uiText(R.string.search_models_placeholder),
                         leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
                     )
                     IconButton(
@@ -560,21 +560,21 @@ internal fun ModelServiceSettings(
                     ) {
                         Icon(
                             Icons.Default.Add,
-                            contentDescription = uiText("添加模型服务"),
+                            contentDescription = uiText(R.string.action_add_model_service),
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
                         )
                     }
                 }
                 if (filtered.isEmpty()) {
                     KimiCardBox {
-                        Text(uiText("没有匹配的模型服务"), color = KimiMuted)
+                        Text(uiText(R.string.notice_no_matching_models), color = KimiMuted)
                     }
                 } else {
                     filtered.forEach { profile ->
                         ModelProviderRow(
                             profile = profile,
                             onClick = { editingProfileId = profile.id },
-                            onDelete = { if (profiles.size > 1) deleteTarget = profile else notice = uiText("至少保留一个模型服务") },
+                            onDelete = { if (profiles.size > 1) deleteTarget = profile else notice = uiText(R.string.notice_keep_one_service) },
                         )
                     }
                 }
@@ -596,7 +596,7 @@ internal fun ModelServiceSettings(
                     onCustom = {
                         val newProfile = ApiProfile(
                             id = AppSettings.newId(),
-                            name = uiText("新平台"),
+                            name = uiText(R.string.ui_new_provider),
                             apiKey = "",
                             baseUrl = "https://api.openai.com/v1",
                             chatPath = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
@@ -618,7 +618,7 @@ internal fun ModelServiceSettings(
                     .verticalScroll(reachabilityScrollState),
             ) {
                 ReachabilitySelectionPage(
-                    providerName = current?.name?.ifBlank { uiText("模型服务") } ?: uiText("模型服务"),
+                    providerName = current?.name?.ifBlank { uiText(R.string.detail_model) } ?: uiText(R.string.detail_model),
                     models = reachabilityModels,
                     selectedModels = selectedReachabilityModels,
                     checking = reachabilityChecking,
@@ -670,13 +670,13 @@ internal fun ModelServiceSettings(
                             ) {
                                 Icon(
                                     Icons.Default.OpenInNew,
-                                    contentDescription = uiText("打开服务商官网"),
+                                    contentDescription = uiText(R.string.ui_open_provider_website),
                                     tint = MaterialTheme.colorScheme.primary,
                                 )
                             }
                         }
                     }
-                    OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("服务商名称")) }, singleLine = true)
+                    OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_service_name)) }, singleLine = true)
                     OutlinedTextField(value = key, onValueChange = { key = it }, modifier = Modifier.fillMaxWidth(), label = { Text(apiKeyLabel(apiFormat)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                     Surface(
                         modifier = Modifier
@@ -693,9 +693,9 @@ internal fun ModelServiceSettings(
                             Icon(Icons.Default.Tune, contentDescription = null, modifier = Modifier.size(19.dp))
                             Spacer(Modifier.width(9.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(uiText("高级配置"), style = MaterialTheme.typography.titleSmall)
+                                Text(uiText(R.string.ui_advanced), style = MaterialTheme.typography.titleSmall)
                                 Text(
-                                    uiText("接口地址与格式可随时修改"),
+                                    uiText(R.string.ui_endpoint_and_api_format_can_be_changed_at_any),
                                     color = KimiMuted,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -712,7 +712,7 @@ internal fun ModelServiceSettings(
                         exit = shrinkVertically(animationSpec = tween(180)) + fadeOut(animationSpec = tween(130)),
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                            Text(uiText("接口格式"), style = MaterialTheme.typography.titleSmall)
+                            Text(uiText(R.string.label_api_format), style = MaterialTheme.typography.titleSmall)
                             Row(
                                 Modifier.horizontalScroll(rememberScrollState()),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -752,7 +752,7 @@ internal fun ModelServiceSettings(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                             ) {
                                 Text(
-                                    uiText("使用 Responses API"),
+                                    uiText(R.string.responses_api_enabled),
                                     modifier = Modifier.weight(1f),
                                     style = MaterialTheme.typography.titleSmall,
                                 )
@@ -762,23 +762,23 @@ internal fun ModelServiceSettings(
                                     onCheckedChange = { useResponsesApi = it },
                                 )
                             }
-                            OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("基础 URL")) }, singleLine = true)
+                            OutlinedTextField(value = baseUrl, onValueChange = { baseUrl = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_base_url)) }, singleLine = true)
                             OutlinedTextField(
                                 value = chatPath,
                                 onValueChange = { chatPath = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text(uiText("请求路径")) },
+                                label = { Text(uiText(R.string.ui_request_path)) },
                                 placeholder = { Text(ApiProfile.defaultChatPath(apiFormat)) },
                                 singleLine = true,
                             )
                             Text(
-                                uiText("用于兼容非默认请求路径的服务商。留空时使用当前接口格式的默认请求路径。"),
+                                uiText(R.string.ui_for_providers_that_use_a_non_default_request_path),
                                 color = KimiMuted,
                                 style = MaterialTheme.typography.bodySmall,
                             )
                             if (baseUrl.trim().startsWith("http://", ignoreCase = true)) {
                                 Text(
-                                    uiText("安全提示：当前基础 URL 使用 HTTP 明文传输，API Key 和对话内容可能被同一网络中的第三方截获。"),
+                                    uiText(R.string.notice_http_warning),
                                     color = MaterialTheme.colorScheme.error,
                                     style = MaterialTheme.typography.bodySmall,
                                 )
@@ -790,8 +790,8 @@ internal fun ModelServiceSettings(
                             )
                         }
                     }
-                    OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("默认模型")) }, singleLine = true)
-                    OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("已探测模型，每行一个")) }, minLines = 3)
+                    OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_default_model)) }, singleLine = true)
+                    OutlinedTextField(value = savedModels, onValueChange = { savedModels = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.detected_models_one_per_line)) }, minLines = 3)
                     OutlinedButton(
                         enabled = savedModels.isNotBlank() || enabledModels.isNotEmpty(),
                         onClick = { showEnabledModelsDialog = true },
@@ -800,7 +800,7 @@ internal fun ModelServiceSettings(
                     ) {
                         Icon(Icons.Default.Checklist, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(uiText("管理启用模型（${enabledModels.size}）"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(uiText(R.string.ui_manage_enabled_models_1_s, enabledModels.size), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     OutlinedButton(
                         enabled = reachabilityModels.isNotEmpty(),
@@ -810,25 +810,25 @@ internal fun ModelServiceSettings(
                     ) {
                         Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text(uiText("选择模型检测可达性"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(uiText(R.string.ui_select_models_and_check_reachability), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Button(enabled = enabledModels.isNotEmpty(), onClick = { saveCurrentProfile() }, shape = KimiPillShape) { Text(uiText("保存")) }
+                        Button(enabled = enabledModels.isNotEmpty(), onClick = { saveCurrentProfile() }, shape = KimiPillShape) { Text(uiText(R.string.file_editor_save)) }
                         OutlinedButton(
                             modifier = Modifier.weight(1f),
                             onClick = {
                                 val draft = draftProfile()
-                                status = uiText("正在获取模型...")
+                                status = uiText(R.string.ui_fetching_models)
                                 controller.fetchModelsForProfile(draft) { result ->
                                     result.fold(
                                         onSuccess = { models ->
                                             val distinct = models.filter { it.isNotBlank() }.distinct()
                                             if (distinct.isEmpty()) {
-                                                status = uiText("未获取到可用模型")
+                                                status = uiText(R.string.notice_no_models_fetched)
                                             } else {
                                                 savedModels = distinct.joinToString("\n")
                                                 val updated = draftProfile(savedModelsOverride = distinct)
@@ -841,21 +841,21 @@ internal fun ModelServiceSettings(
                                                 draftNewProfile = null
                                                 controller.saveProfiles(updatedProfiles, updated.id)
                                                 status = ""
-                                                notice = uiText("已获取 ${distinct.size} 个模型，原启用选择已保留")
+                                                notice = uiText(R.string.ui_fetched_1_s_models_existing_enabled_selections_were_preserved, distinct.size)
                                                 showEnabledModelsDialog = true
                                             }
                                         },
-                                        onFailure = { status = it.message.orEmpty().ifBlank { uiText("获取模型失败") } },
+                                        onFailure = { status = it.message.orEmpty().ifBlank { uiText(R.string.notice_fetch_failed) } },
                                     )
                                 }
                             },
                             shape = KimiPillShape,
-                        ) { Text(uiText("刷新模型列表"), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                        ) { Text(uiText(R.string.refresh_model_list), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         IconButton(
                             enabled = profiles.size > 1,
                             onClick = { current?.let { deleteTarget = it } },
                         ) {
-                            Icon(Icons.Default.DeleteOutline, contentDescription = uiText("删除平台"))
+                            Icon(Icons.Default.DeleteOutline, contentDescription = uiText(R.string.cd_delete_platform))
                         }
                     }
                 }
@@ -921,14 +921,14 @@ internal fun EnabledModelsDialog(
     }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("选择启用模型")) },
+        title = { Text(uiText(R.string.choose_enabled_models)) },
         text = {
             Column(
                 Modifier.fillMaxWidth().heightIn(max = 520.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text(
-                    uiText("对话和设置中的模型选择器只显示启用模型。刷新模型列表不会覆盖这里的选择。"),
+                    uiText(R.string.enabled_models_description),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -936,15 +936,15 @@ internal fun EnabledModelsDialog(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("搜索模型")) },
+                    label = { Text(uiText(R.string.search_models)) },
                     singleLine = true,
                 )
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    TextButton(onClick = { onEnabledModelsChange(models.toSet()) }) { Text(uiText("全选")) }
-                    TextButton(onClick = { onEnabledModelsChange(emptySet()) }) { Text(uiText("清空选择")) }
+                    TextButton(onClick = { onEnabledModelsChange(models.toSet()) }) { Text(uiText(R.string.ui_select_all)) }
+                    TextButton(onClick = { onEnabledModelsChange(emptySet()) }) { Text(uiText(R.string.ui_clear_selection)) }
                 }
                 if (filtered.isEmpty()) {
-                    Text(uiText("没有匹配的模型"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.no_matching_models), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 } else {
                     LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
                         items(filtered, key = { it }) { modelName ->
@@ -972,7 +972,7 @@ internal fun EnabledModelsDialog(
                     }
                 }
                 Text(
-                    uiText("已启用 ${enabledModels.size} 个模型"),
+                    uiText(R.string.enabled_models_count, enabledModels.size),
                     color = MaterialTheme.colorScheme.primary,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -980,10 +980,10 @@ internal fun EnabledModelsDialog(
         },
         confirmButton = {
             Button(enabled = enabledModels.isNotEmpty(), onClick = onConfirm, shape = KimiPillShape) {
-                Text(uiText("保存启用模型"))
+                Text(uiText(R.string.save_enabled_models))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -1006,22 +1006,22 @@ internal fun ReachabilitySelectionPage(
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回模型服务"))
+                Icon(Icons.Default.ArrowBack, contentDescription = uiText(R.string.ui_back_to_model_service))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(uiText("可达性检测"), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(uiText(R.string.ui_reachability_check), style = MaterialTheme.typography.titleLarge, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(providerName, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
         }
         KimiCardBox {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${uiText("已选择")} ${selectedModels.size}/${models.size}",
+                    "${uiText(R.string.streaming_selected)} ${selectedModels.size}/${models.size}",
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
-                TextButton(onClick = { onSelectedModelsChange(models.toSet()) }) { Text(uiText("全选")) }
-                TextButton(onClick = { onSelectedModelsChange(emptySet()) }) { Text(uiText("清空选择")) }
+                TextButton(onClick = { onSelectedModelsChange(models.toSet()) }) { Text(uiText(R.string.ui_select_all)) }
+                TextButton(onClick = { onSelectedModelsChange(emptySet()) }) { Text(uiText(R.string.ui_clear_selection)) }
             }
             Button(
                 enabled = !checking && selectedModels.isNotEmpty(),
@@ -1031,14 +1031,14 @@ internal fun ReachabilitySelectionPage(
             ) {
                 Icon(Icons.Default.NetworkCheck, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (checking) uiText("检测中...") else uiText("开始检测"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(if (checking) uiText(R.string.ui_checking) else uiText(R.string.ui_start_check), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             val providerLine = when {
                 provider != null -> {
-                    val providerText = if (provider.available) uiText("服务商可用") else uiText("服务商不可用")
+                    val providerText = if (provider.available) uiText(R.string.ui_provider_available) else uiText(R.string.ui_provider_unavailable)
                     "$providerText · ${formatReachabilityLatency(provider.latencyMs)} · ${provider.message}"
                 }
-                checking -> uiText("服务商检测中...")
+                checking -> uiText(R.string.ui_checking_provider)
                 else -> ""
             }
             if (providerLine.isNotBlank()) {
@@ -1054,17 +1054,17 @@ internal fun ReachabilitySelectionPage(
             }
         }
         KimiCardBox {
-            Text(uiText("选择要检测的模型"), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.ui_select_models_to_check), style = MaterialTheme.typography.titleSmall)
             if (models.isEmpty()) {
-                Text(uiText("没有可检测的模型"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.ui_no_models_to_check), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             } else {
                 models.forEach { model ->
                     val selected = model in selectedModels
                     val result = resultByModel[model]
                     val detail = when {
                         result != null -> "${formatReachabilityLatency(result.latencyMs)} · ${result.message}"
-                        checking && selected && activeModel == model -> uiText("检测中...")
-                        checking && selected -> uiText("等待检测")
+                        checking && selected && activeModel == model -> uiText(R.string.ui_checking)
+                        checking && selected -> uiText(R.string.ui_waiting_to_check)
                         else -> ""
                     }
                     Row(
@@ -1165,8 +1165,8 @@ internal fun SubAgentSettings(settings: AppSettings, controller: ChatController)
             KimiCardBox {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(uiText(stringResource(R.string.title_sub_agent_orchestration)), style = MaterialTheme.typography.titleMedium)
-                        Text(uiText(stringResource(R.string.sub_agent_settings_desc)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.title_sub_agent_orchestration), style = MaterialTheme.typography.titleMedium)
+                        Text(stringResource(R.string.sub_agent_settings_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(
                         checked = settings.subAgentOrchestrationEnabled,
@@ -1180,17 +1180,17 @@ internal fun SubAgentSettings(settings: AppSettings, controller: ChatController)
             }
             KimiCardBox {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText(stringResource(R.string.label_sub_agent_models)), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.label_sub_agent_models), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     Button(
                         enabled = profiles.isNotEmpty(),
                         onClick = {
                             val profile = profiles.firstOrNull()
                             editing = SubAgentConfig(
                                 id = AppSettings.newId(),
-                                name = uiText(context.getString(R.string.label_sub_agent_default_name)),
+                                name = context.getString(R.string.label_sub_agent_default_name),
                                 profileId = profile?.id.orEmpty(),
                                 model = profile?.selectedModel.orEmpty(),
-                                description = uiText(context.getString(R.string.sub_agent_default_desc)),
+                                description = context.getString(R.string.sub_agent_default_desc),
                                 enabled = true,
                             )
                         },
@@ -1199,17 +1199,17 @@ internal fun SubAgentSettings(settings: AppSettings, controller: ChatController)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(uiText(stringResource(R.string.action_new)))
+                        Text(stringResource(R.string.action_new))
                     }
                 }
                 if (agents.isEmpty()) {
-                    Text(uiText(stringResource(R.string.sub_agent_empty_hint)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.sub_agent_empty_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 } else {
                     agents.forEach { agent ->
                         val profile = profiles.firstOrNull { it.id == agent.profileId }
                         SubAgentRow(
                             agent = agent,
-                            profileName = profile?.name ?: uiText(stringResource(R.string.label_not_configured)),
+                            profileName = profile?.name ?: stringResource(R.string.label_not_configured),
                             onEdit = { editing = agent },
                             onToggle = { enabled -> save(agents.map { if (it.id == agent.id) it.copy(enabled = enabled) else it }) },
                             onDelete = { deleteTarget = agent },
@@ -1228,25 +1228,25 @@ internal fun SubAgentSettings(settings: AppSettings, controller: ChatController)
                     val updated = if (agents.any { it.id == saved.id }) agents.map { if (it.id == saved.id) saved else it } else agents + saved
                     save(updated)
                     editing = null
-                    notice = uiText(context.getString(R.string.notice_sub_agent_saved))
+                    notice = context.getString(R.string.notice_sub_agent_saved)
                 },
             )
         }
         deleteTarget?.let { agent ->
             AlertDialog(
                 onDismissRequest = { deleteTarget = null },
-                title = { Text(uiText(stringResource(R.string.title_delete_sub_agent))) },
-                text = { Text(uiText(stringResource(R.string.confirm_delete_sub_agent, agent.name))) },
+                title = { Text(stringResource(R.string.title_delete_sub_agent)) },
+                text = { Text(stringResource(R.string.confirm_delete_sub_agent, agent.name)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
                             save(agents.filterNot { it.id == agent.id })
                             deleteTarget = null
-                            notice = uiText(context.getString(R.string.notice_sub_agent_deleted))
+                            notice = context.getString(R.string.notice_sub_agent_deleted)
                         },
-                    ) { Text(uiText(stringResource(R.string.action_delete))) }
+                    ) { Text(stringResource(R.string.action_delete)) }
                 },
-                dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(uiText(stringResource(R.string.action_cancel))) } },
+                dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(stringResource(R.string.action_cancel)) } },
             )
         }
         TransientNotice(message = notice, modifier = Modifier.align(Alignment.Center).padding(24.dp), onDismiss = { notice = "" })
@@ -1267,7 +1267,7 @@ internal fun SubAgentRow(agent: SubAgentConfig, profileName: String, onEdit: () 
             if (agent.description.isNotBlank()) Text(agent.description, color = KimiMuted, style = MaterialTheme.typography.labelSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
         }
         Switch(checked = agent.enabled, onCheckedChange = onToggle)
-        IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = uiText(stringResource(R.string.action_delete))) }
+        IconButton(onClick = onDelete) { Icon(Icons.Default.DeleteOutline, contentDescription = stringResource(R.string.action_delete)) }
     }
 }
 
@@ -1282,13 +1282,13 @@ internal fun SubAgentEditDialog(initial: SubAgentConfig, profiles: List<ApiProfi
     var enabled by remember(initial.id) { mutableStateOf(initial.enabled) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText(stringResource(R.string.title_edit_sub_agent))) },
+        title = { Text(stringResource(R.string.title_edit_sub_agent)) },
         text = {
             Column(Modifier.fillMaxWidth().heightIn(max = 520.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_sub_agent_name))) }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.label_sub_agent_name)) }, singleLine = true)
                 SubAgentDropdownPicker(
-                    label = uiText(stringResource(R.string.label_provider)),
-                    value = selectedProfile?.name ?: uiText(stringResource(R.string.label_not_configured)),
+                    label = stringResource(R.string.label_provider),
+                    value = selectedProfile?.name ?: stringResource(R.string.label_not_configured),
                     subtitle = selectedProfile?.selectedModel.orEmpty(),
                     items = profiles,
                     itemTitle = { it.name },
@@ -1300,17 +1300,17 @@ internal fun SubAgentEditDialog(initial: SubAgentConfig, profiles: List<ApiProfi
                     },
                 )
                 SubAgentDropdownPicker(
-                    label = uiText(stringResource(R.string.label_model)),
-                    value = model.ifBlank { uiText(stringResource(R.string.label_not_selected)) },
+                    label = stringResource(R.string.label_model),
+                    value = model.ifBlank { stringResource(R.string.label_not_selected) },
                     items = selectedProfile?.enabledModels.orEmpty(),
                     itemTitle = { it },
                     isSelected = { it == model },
                     onSelect = { model = it },
                 )
-                OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_model))) }, singleLine = true)
-                OutlinedTextField(value = description, onValueChange = { description = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(stringResource(R.string.label_sub_agent_desc))) }, minLines = 3, maxLines = 6)
+                OutlinedTextField(value = model, onValueChange = { model = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.label_model)) }, singleLine = true)
+                OutlinedTextField(value = description, onValueChange = { description = it }, modifier = Modifier.fillMaxWidth(), label = { Text(stringResource(R.string.label_sub_agent_desc)) }, minLines = 3, maxLines = 6)
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText(stringResource(R.string.action_enable)), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.action_enable), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleSmall)
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
             }
@@ -1318,11 +1318,11 @@ internal fun SubAgentEditDialog(initial: SubAgentConfig, profiles: List<ApiProfi
         confirmButton = {
             Button(
                 enabled = profileId.isNotBlank() && model.isNotBlank(),
-                onClick = { onSave(initial.copy(name = name.trim().ifBlank { uiText(context.getString(R.string.label_sub_agent_default_name)) }, profileId = profileId, model = model.trim(), description = description.trim(), enabled = enabled)) },
+                onClick = { onSave(initial.copy(name = name.trim().ifBlank { context.getString(R.string.label_sub_agent_default_name) }, profileId = profileId, model = model.trim(), description = description.trim(), enabled = enabled)) },
                 shape = KimiPillShape,
-            ) { Text(uiText(stringResource(R.string.action_save))) }
+            ) { Text(stringResource(R.string.action_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(stringResource(R.string.action_cancel))) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
     )
 }
 @Composable
@@ -1419,15 +1419,15 @@ internal fun ReachabilityReportCard(
     checking: Boolean,
 ) {
     KimiCardBox {
-        Text(uiText("可达性检测结果"), style = MaterialTheme.typography.titleSmall)
+        Text(uiText(R.string.ui_reachability_results), style = MaterialTheme.typography.titleSmall)
         if (provider == null) {
             Text(
-                uiText("服务商检测中..."),
+                uiText(R.string.ui_checking_provider),
                 color = KimiMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
         } else {
-            val providerText = if (provider.available) uiText("服务商可用") else uiText("服务商不可用")
+            val providerText = if (provider.available) uiText(R.string.ui_provider_available) else uiText(R.string.ui_provider_unavailable)
             Text(
                 "$providerText · ${formatReachabilityLatency(provider.latencyMs)} · ${provider.message}",
                 color = if (provider.available) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
@@ -1460,12 +1460,12 @@ internal fun ReachabilityReportCard(
         }
         if (checking) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            Text(uiText("检测中..."), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.ui_checking), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 }
 internal fun formatReachabilityLatency(latencyMs: Long): String {
-    return if (latencyMs > 0L) "${latencyMs}ms" else uiText("无延迟数据")
+    return if (latencyMs > 0L) "${latencyMs}ms" else uiText(R.string.ui_no_latency_data)
 }
 internal fun defaultBaseUrlForApiFormat(format: String): String = when (format) {
     ApiProfile.API_FORMAT_ANTHROPIC -> "https://api.anthropic.com/v1"
@@ -1488,18 +1488,23 @@ internal fun apiKeyLabel(format: String): String = when (format) {
 }
 
 internal fun apiFormatDescription(format: String): String = when (format) {
-    ApiProfile.API_FORMAT_ANTHROPIC -> uiText("适用于 Claude 官方 Messages API 或兼容 Anthropic Messages 格式的服务。请求、工具调用和图片输入会按 Anthropic 格式转换。")
-    ApiProfile.API_FORMAT_GEMINI -> uiText("适用于 Gemini 官方 GenerateContent API 或兼容 Gemini 格式的服务。图片、音频、视频会使用 inlineData 传输。")
-    else -> uiText("适用于 OpenAI Chat Completions SDK 兼容平台。原有工具调用、流式输出和多模态 image_url 路径保持不变。")
+    ApiProfile.API_FORMAT_ANTHROPIC -> uiText(R.string.format_anthropic_desc)
+    ApiProfile.API_FORMAT_GEMINI -> uiText(R.string.format_gemini_desc)
+    else -> uiText(R.string.format_openai_desc)
 }
 
 internal fun endpointHint(format: String, baseUrl: String, chatPath: String, useResponsesApi: Boolean = false): String {
     val root = baseUrl.trim().trimEnd('/').ifBlank { defaultBaseUrlForApiFormat(format) }
     val path = ApiProfile.normalizedChatPath(format, chatPath)
     return when (format) {
-        ApiProfile.API_FORMAT_GEMINI -> uiText("请求端点：$root$path；模型列表：$root/models")
-        ApiProfile.API_FORMAT_OPENAI -> uiText("请求端点：$root${if (useResponsesApi) "/responses" else path}；模型列表：$root/models")
-        else -> uiText("请求端点：$root$path；模型列表：$root/models")
+        ApiProfile.API_FORMAT_GEMINI -> uiText(R.string.ui_request_endpoint_1_s_2_s_model_list_3, root, path, root)
+        ApiProfile.API_FORMAT_OPENAI -> uiText(
+            R.string.ui_request_endpoint_1_s_2_s_model_list_3,
+            root,
+            if (useResponsesApi) "/responses" else path,
+            root,
+        )
+        else -> uiText(R.string.ui_request_endpoint_1_s_2_s_model_list_3, root, path, root)
     }
 }
 

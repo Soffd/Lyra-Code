@@ -545,8 +545,7 @@ internal fun ChatScreen(
             }
         }
         val statusLine = listOf(controller.status.value, controller.uploadingStatus.value, actionStatus)
-            .map(::uiText)
-            .filter { it.isNotBlank() && it != uiText("完成") }
+            .filter { it.isNotBlank() && it != uiText(R.string.status_done) }
             .joinToString(" ")
         if (statusLine.isNotBlank()) {
             AnimatedConversationStatus(statusLine)

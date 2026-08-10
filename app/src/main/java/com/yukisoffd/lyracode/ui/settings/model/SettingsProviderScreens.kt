@@ -65,7 +65,7 @@ internal fun ProviderPresetPicker(
     val uriHandler = LocalUriHandler.current
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text(
-            uiText("选择预设后只需填写 API Key，接口地址和格式会自动配置，并且仍可在高级配置中修改。"),
+            uiText(R.string.ui_choose_a_preset_to_configure_its_endpoint_and_api),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -115,7 +115,7 @@ internal fun ProviderPresetPicker(
                         ) {
                             Icon(
                                 Icons.Default.OpenInNew,
-                                contentDescription = uiText("打开服务商官网"),
+                                contentDescription = uiText(R.string.ui_open_provider_website),
                                 tint = MaterialTheme.colorScheme.primary,
                             )
                         }
@@ -155,9 +155,9 @@ private fun CustomProviderPresetRow(onClick: () -> Unit) {
                 )
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Text(uiText("自定义服务商"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.ui_custom_provider), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("自行设置接口格式、基础 URL 和请求路径"),
+                    uiText(R.string.ui_configure_the_api_format_base_url_and_request_path),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -189,12 +189,12 @@ internal fun ModelProviderRow(
         ) {
             ProviderLogoBadge(profile)
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
-                Text(profile.name.ifBlank { uiText("未命名平台") }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(profile.name.ifBlank { uiText(R.string.label_unnamed_platform) }, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (profile.baseUrl.isNotBlank()) {
                     Text(profile.baseUrl, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 Text(
-                    uiText("${profile.enabledModels.size} 个模型"),
+                    uiText(R.string.label_models_count, profile.enabledModels.size),
                     modifier = Modifier
                         .clip(KimiPillShape)
                         .background(MaterialTheme.colorScheme.secondaryContainer)
@@ -204,7 +204,7 @@ internal fun ModelProviderRow(
                 )
             }
             IconButton(onClick = onDelete) {
-                Icon(Icons.Default.DeleteOutline, contentDescription = uiText("删除"), tint = KimiMuted)
+                Icon(Icons.Default.DeleteOutline, contentDescription = uiText(R.string.file_action_delete), tint = KimiMuted)
             }
         }
     }
@@ -256,9 +256,9 @@ internal fun WebSearchSettings(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Icon(Icons.Default.Search, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Column(Modifier.weight(1f)) {
-                Text(uiText("网站黑名单"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(uiText(R.string.title_domain_blacklist), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text(
-                    uiText("AI 联网搜索和网页读取会跳过这些域名。普通域名精确匹配，* 通配符匹配子域名。"),
+                    uiText(R.string.blacklist_desc),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -272,14 +272,14 @@ internal fun WebSearchSettings(
                 notice = ""
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(uiText("每行一个域名或 URL")) },
+            label = { Text(uiText(R.string.label_one_domain_per_line)) },
             placeholder = { Text("x.com\nwww.x.com\n*.example.com\nhttps://baijiahao.baidu.com/") },
             minLines = 8,
             maxLines = 14,
             textStyle = MaterialTheme.typography.bodyMedium.copy(fontFamily = FontFamily.Monospace),
         )
         Text(
-            uiText("保存后会自动归一化：移除协议、路径和尾部斜杠，但保留 www.。例如 x.com 只匹配 x.com；*.x.com 匹配 www.x.com、news.x.com 等子域名；如需同时拦截根域名和全部子域名，请同时填写 x.com 与 *.x.com。"),
+            uiText(R.string.blacklist_normalize_hint),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -288,30 +288,30 @@ internal fun WebSearchSettings(
                 onClick = {
                     settings.webSearchBlacklistText = blacklist
                     blacklist = settings.webSearchBlacklistText
-                    notice = uiText("已保存 ${settings.webSearchBlockedHosts().size} 个黑名单域名")
+                    notice = uiText(R.string.blocked_hosts_saved_count, settings.webSearchBlockedHosts().size)
                     onChanged()
                 },
                 shape = KimiPillShape,
             ) {
                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(uiText("保存"))
+                Text(uiText(R.string.file_editor_save))
             }
             OutlinedButton(
                 onClick = {
                     blacklist = ""
                     settings.webSearchBlacklistText = ""
-                    notice = uiText("已清空联网搜索黑名单")
+                    notice = uiText(R.string.notice_blacklist_cleared)
                     onChanged()
                 },
                 shape = KimiPillShape,
             ) {
                 Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(uiText("清空"))
+                Text(uiText(R.string.action_clear))
             }
         }
-        val summary = if (notice.isNotBlank()) notice else uiText("当前将保存 $blockedCount 个域名")
+        val summary = if (notice.isNotBlank()) notice else uiText(R.string.ui_will_save_1_s_domains, blockedCount)
         Text(summary, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
     }
 }

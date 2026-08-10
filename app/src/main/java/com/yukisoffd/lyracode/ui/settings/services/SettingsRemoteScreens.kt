@@ -87,19 +87,19 @@ internal fun WebDavSettings(settings: AppSettings, webDavClient: WebDavClient, e
                 if (index >= 0) updated[index] = saved else updated += saved
                 saveServers(updated)
                 editing = null
-                status = uiText("WebDAV 已保存")
+                status = uiText(R.string.notice_webdav_saved)
             },
         )
     }
     deleteTarget?.let { server ->
         ConfirmDeleteDialog(
-            title = uiText("删除 WebDAV 配置"),
-            message = uiText("该操作会删除此 WebDAV 服务器配置和保存的认证信息。"),
+            title = uiText(R.string.title_delete_webdav),
+            message = uiText(R.string.confirm_delete_webdav),
             targetName = server.name.ifBlank { server.url },
             onDismiss = { deleteTarget = null },
             onConfirm = {
                 saveServers(servers.filterNot { it.id == server.id })
-                status = uiText("已删除 ${server.name}")
+                status = uiText(R.string.notice_deleted_service, server.name)
             },
         )
     }
@@ -108,17 +108,17 @@ internal fun WebDavSettings(settings: AppSettings, webDavClient: WebDavClient, e
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("WebDAV", style = MaterialTheme.typography.titleMedium)
-                Text(uiText("用于远程文件搜索、上传下载和云端备份。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.webdav_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = { editing = defaultWebDavServer() }, shape = KimiPillShape) { Text(uiText("添加")) }
+            Button(onClick = { editing = defaultWebDavServer() }, shape = KimiPillShape) { Text(uiText(R.string.action_add)) }
         }
         if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 
     if (servers.isEmpty()) {
         KimiCardBox {
-            Text(uiText("暂无 WebDAV 服务器"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("添加后，AI 可在用户确认后把 WebDAV 文件下载到工作区，或把工作区文件上传到 WebDAV。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_webdav), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.webdav_empty_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -127,10 +127,10 @@ internal fun WebDavSettings(settings: AppSettings, webDavClient: WebDavClient, e
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(server.name, style = MaterialTheme.typography.titleMedium)
-                    Text(if (server.hideAddressInDrawer) uiText("地址已隐藏") else server.url, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
-                    Text(server.username.ifBlank { uiText("匿名") } + " · " + server.initialPath.ifBlank { "/" }, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                    Text(if (server.hideAddressInDrawer) uiText(R.string.label_address_hidden) else server.url, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodySmall)
+                    Text(server.username.ifBlank { uiText(R.string.label_anonymous) } + " · " + server.initialPath.ifBlank { "/" }, color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     if (server.url.startsWith("http://", ignoreCase = true)) {
-                        Text(uiText("安全提示：HTTP 明文连接可能泄露账号、密码和文件内容。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_http_warning_webdav), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Switch(
@@ -143,23 +143,23 @@ internal fun WebDavSettings(settings: AppSettings, webDavClient: WebDavClient, e
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        status = uiText("正在测试 ${server.name}...")
+                        status = uiText(R.string.server_testing_name, server.name)
                         scope.launch {
                             status = withContext(Dispatchers.IO) {
                                 webDavClient.test(server).fold(
-                                    onSuccess = { uiText("WebDAV 测试成功，当前目录 ${it.size} 项") },
-                                    onFailure = { uiText("WebDAV 测试失败：${it.message}") },
+                                    onSuccess = { uiText(R.string.webdav_test_success_count, it.size) },
+                                    onFailure = { uiText(R.string.webdav_test_failed, it.message) },
                                 )
                             }
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("测试连接")) }
+                ) { Text(uiText(R.string.action_test_connection)) }
                 IconButton(onClick = { editing = server }) {
-                    Icon(Icons.Default.Edit, contentDescription = uiText("编辑 WebDAV"))
+                    Icon(Icons.Default.Edit, contentDescription = uiText(R.string.cd_edit_webdav))
                 }
                 IconButton(onClick = { deleteTarget = server }) {
-                    Icon(Icons.Default.Delete, contentDescription = uiText("删除 WebDAV"))
+                    Icon(Icons.Default.Delete, contentDescription = uiText(R.string.cd_delete_webdav))
                 }
             }
         }
@@ -194,20 +194,20 @@ internal fun WebDavServerDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("服务名")) }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_webdav_service_name)) }, singleLine = true)
                 OutlinedTextField(value = url, onValueChange = { url = it }, modifier = Modifier.fillMaxWidth(), label = { Text("URL") }, singleLine = true)
                 if (url.startsWith("http://", ignoreCase = true)) {
-                    Text(uiText("HTTP 明文连接不安全，可能泄露账号密码和文件内容。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.notice_http_insecure), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("用户名，可空")) }, singleLine = true)
-                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("密码，可空")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
-                OutlinedTextField(value = userAgent, onValueChange = { userAgent = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("自定义 UA，可空")) }, singleLine = true)
-                OutlinedTextField(value = initialPath, onValueChange = { initialPath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("初始路径")) }, singleLine = true)
-                OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("备注")) }, minLines = 2)
-                WebDavSwitchRow(uiText("信任所有 HTTPS 证书"), uiText("仅用于自签名证书服务器；不建议在公网服务开启。"), trustAll) { trustAll = it }
-                WebDavSwitchRow(uiText("启用多线程传输"), uiText("保存此偏好，后续大文件传输可按此策略扩展。"), multiThread) { multiThread = it }
-                WebDavSwitchRow(uiText("在侧栏隐藏地址"), uiText("隐藏 URL 以避免旁人看到服务器地址。"), hideAddress) { hideAddress = it }
-                WebDavSwitchRow(uiText("启用此服务器"), uiText("禁用后 AI 无法看到或调用该服务器。"), enabled) { enabled = it }
+                OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_username_optional)) }, singleLine = true)
+                OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_password_optional)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                OutlinedTextField(value = userAgent, onValueChange = { userAgent = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_custom_ua)) }, singleLine = true)
+                OutlinedTextField(value = initialPath, onValueChange = { initialPath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_initial_path)) }, singleLine = true)
+                OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_note)) }, minLines = 2)
+                WebDavSwitchRow(uiText(R.string.switch_trust_all_certs), uiText(R.string.switch_trust_all_certs_desc), trustAll) { trustAll = it }
+                WebDavSwitchRow(uiText(R.string.switch_multi_thread), uiText(R.string.switch_multi_thread_desc), multiThread) { multiThread = it }
+                WebDavSwitchRow(uiText(R.string.switch_hide_ft_address), uiText(R.string.switch_hide_address_desc), hideAddress) { hideAddress = it }
+                WebDavSwitchRow(uiText(R.string.switch_enable_ft_server), uiText(R.string.enable_connection_desc), enabled) { enabled = it }
             }
         },
         confirmButton = {
@@ -230,9 +230,9 @@ internal fun WebDavServerDialog(
                         ),
                     )
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -287,19 +287,19 @@ internal fun FileTransferSettings(settings: AppSettings, fileTransferClient: Fil
                 if (index >= 0) updated[index] = saved else updated += saved
                 saveServers(updated)
                 editing = null
-                status = uiText("文件传输配置已保存")
+                status = uiText(R.string.notice_file_transfer_saved)
             },
         )
     }
     deleteTarget?.let { server ->
         ConfirmDeleteDialog(
-            title = uiText("删除文件传输配置"),
-            message = uiText("该操作会删除此 ${server.protocol.uppercase(Locale.US)} 服务器配置和保存的认证信息。"),
+            title = uiText(R.string.title_delete_file_transfer),
+            message = uiText(R.string.confirm_delete_file_transfer, server.protocol.uppercase(Locale.US)),
             targetName = server.name.ifBlank { server.host },
             onDismiss = { deleteTarget = null },
             onConfirm = {
                 saveServers(servers.filterNot { it.id == server.id })
-                status = uiText("已删除 ${server.name}")
+                status = uiText(R.string.notice_deleted_service, server.name)
             },
         )
     }
@@ -308,17 +308,17 @@ internal fun FileTransferSettings(settings: AppSettings, fileTransferClient: Fil
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("FTP / FTPS / SFTP", style = MaterialTheme.typography.titleMedium)
-                Text(uiText("用于远程文件搜索、上传和下载；AI 执行上传下载前仍需用户确认。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.file_transfer_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = { editing = defaultFileTransferServer(AppSettings.FILE_TRANSFER_SFTP) }, shape = KimiPillShape) { Text(uiText("添加")) }
+            Button(onClick = { editing = defaultFileTransferServer(AppSettings.FILE_TRANSFER_SFTP) }, shape = KimiPillShape) { Text(uiText(R.string.action_add)) }
         }
         if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 
     if (servers.isEmpty()) {
         KimiCardBox {
-            Text(uiText("暂无文件传输服务器"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("添加 FTP、FTPS 或 SFTP 后，AI 可列出远程目录、搜索文件，并在用户确认后下载到工作区或从工作区上传。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_file_transfer), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.file_transfer_empty_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -328,16 +328,16 @@ internal fun FileTransferSettings(settings: AppSettings, fileTransferClient: Fil
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(server.name, style = MaterialTheme.typography.titleMedium)
                     Text(
-                        if (server.hideAddressInDrawer) uiText("地址已隐藏") else "${server.protocol.uppercase(Locale.US)}://${server.host}:${server.port}",
+                        if (server.hideAddressInDrawer) uiText(R.string.label_address_hidden) else "${server.protocol.uppercase(Locale.US)}://${server.host}:${server.port}",
                         color = KimiMuted,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.bodySmall,
                     )
-                    val auth = if (server.protocol == AppSettings.FILE_TRANSFER_SFTP && server.usePrivateKey) uiText("密钥登录") else server.username.ifBlank { uiText("匿名") }
+                    val auth = if (server.protocol == AppSettings.FILE_TRANSFER_SFTP && server.usePrivateKey) uiText(R.string.label_key_login) else server.username.ifBlank { uiText(R.string.label_anonymous) }
                     Text("$auth · ${server.initialPath.ifBlank { "/" }}", color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                     if (server.protocol == AppSettings.FILE_TRANSFER_FTP) {
-                        Text(uiText("安全提示：FTP 明文连接可能泄露账号、密码和文件内容。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_ftp_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Switch(
@@ -350,23 +350,23 @@ internal fun FileTransferSettings(settings: AppSettings, fileTransferClient: Fil
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        status = uiText("正在测试 ${server.name}...")
+                        status = uiText(R.string.server_testing_name, server.name)
                         scope.launch {
                             status = withContext(Dispatchers.IO) {
                                 fileTransferClient.test(server).fold(
-                                    onSuccess = { uiText("${server.protocol.uppercase(Locale.US)} 测试成功，当前目录 ${it.size} 项") },
-                                    onFailure = { uiText("${server.protocol.uppercase(Locale.US)} 测试失败：${it.message}") },
+                                    onSuccess = { uiText(R.string.file_transfer_test_success_count, server.protocol.uppercase(Locale.US), it.size) },
+                                    onFailure = { uiText(R.string.file_transfer_test_failed, server.protocol.uppercase(Locale.US), it.message) },
                                 )
                             }
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("测试连接")) }
+                ) { Text(uiText(R.string.action_test_connection)) }
                 IconButton(onClick = { editing = server }) {
-                    Icon(Icons.Default.Edit, contentDescription = uiText("编辑文件传输"))
+                    Icon(Icons.Default.Edit, contentDescription = uiText(R.string.cd_edit_file_transfer))
                 }
                 IconButton(onClick = { deleteTarget = server }) {
-                    Icon(Icons.Default.Delete, contentDescription = uiText("删除文件传输"))
+                    Icon(Icons.Default.Delete, contentDescription = uiText(R.string.cd_delete_file_transfer))
                 }
             }
         }
@@ -400,7 +400,7 @@ internal fun FileTransferServerDialog(
     var protocolMenu by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("文件传输")) },
+        title = { Text(uiText(R.string.detail_file_transfer)) },
         text = {
             Column(
                 Modifier
@@ -429,35 +429,35 @@ internal fun FileTransferServerDialog(
                         }
                     }
                 }
-                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("服务名")) }, singleLine = true)
-                OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("主机")) }, singleLine = true)
-                OutlinedTextField(value = portText, onValueChange = { portText = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("端口")) }, singleLine = true)
-                OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(if (protocol == AppSettings.FILE_TRANSFER_SFTP) uiText("用户名") else uiText("用户名，可空")) }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_webdav_service_name)) }, singleLine = true)
+                OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_host)) }, singleLine = true)
+                OutlinedTextField(value = portText, onValueChange = { portText = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_port)) }, singleLine = true)
+                OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(if (protocol == AppSettings.FILE_TRANSFER_SFTP) uiText(R.string.label_username) else uiText(R.string.label_username_optional)) }, singleLine = true)
                 if (protocol == AppSettings.FILE_TRANSFER_SFTP) {
-                    WebDavSwitchRow(uiText("使用密钥登录"), uiText("开启后使用私钥和可选口令登录 SFTP。"), usePrivateKey) { usePrivateKey = it }
+                    WebDavSwitchRow(uiText(R.string.switch_use_key_login), uiText(R.string.switch_use_key_login_desc), usePrivateKey) { usePrivateKey = it }
                 }
                 if (protocol == AppSettings.FILE_TRANSFER_SFTP && usePrivateKey) {
-                    OutlinedTextField(value = privateKey, onValueChange = { privateKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("私钥内容")) }, minLines = 4)
-                    OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("私钥口令，可空")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                    OutlinedTextField(value = privateKey, onValueChange = { privateKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_private_key)) }, minLines = 4)
+                    OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_passphrase_optional)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 } else {
-                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("密码，可空")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_password_optional)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 }
                 if (protocol == AppSettings.FILE_TRANSFER_FTP) {
-                    Text(uiText("FTP 是明文协议，建议只在可信局域网使用；公网或敏感文件请优先使用 SFTP/FTPS。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.ftp_warning_detail), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
-                OutlinedTextField(value = initialPath, onValueChange = { initialPath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("初始路径")) }, singleLine = true)
-                OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("备注")) }, minLines = 2)
-                OutlinedTextField(value = encoding, onValueChange = { encoding = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("编码")) }, singleLine = true)
+                OutlinedTextField(value = initialPath, onValueChange = { initialPath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_initial_path)) }, singleLine = true)
+                OutlinedTextField(value = note, onValueChange = { note = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_note)) }, minLines = 2)
+                OutlinedTextField(value = encoding, onValueChange = { encoding = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_encoding)) }, singleLine = true)
                 if (protocol != AppSettings.FILE_TRANSFER_SFTP) {
-                    WebDavSwitchRow(uiText("被动模式"), uiText("FTP/FTPS 推荐开启被动模式，兼容 NAT 和多数服务器。"), passiveMode) { passiveMode = it }
+                    WebDavSwitchRow(uiText(R.string.switch_passive_mode), uiText(R.string.switch_passive_mode_desc), passiveMode) { passiveMode = it }
                 }
                 if (protocol == AppSettings.FILE_TRANSFER_FTPS) {
-                    WebDavSwitchRow(uiText("显式 FTPS"), uiText("使用 AUTH TLS 升级连接；关闭后尝试隐式 FTPS。"), explicitFtps) { explicitFtps = it }
+                    WebDavSwitchRow(uiText(R.string.switch_explicit_ftps), uiText(R.string.switch_explicit_ftps_desc), explicitFtps) { explicitFtps = it }
                 }
-                WebDavSwitchRow(uiText("启用多线程传输"), uiText("保存此偏好，后续大文件传输可按此策略扩展。"), multiThread) { multiThread = it }
-                WebDavSwitchRow(uiText("传输时同步文件权限"), uiText("仅部分 SFTP 服务器支持。"), syncPermissions) { syncPermissions = it }
-                WebDavSwitchRow(uiText("在侧栏隐藏地址"), uiText("隐藏主机地址以避免旁人看到服务器信息。"), hideAddress) { hideAddress = it }
-                WebDavSwitchRow(uiText("启用此服务器"), uiText("禁用后 AI 无法看到或调用该服务器。"), enabled) { enabled = it }
+                WebDavSwitchRow(uiText(R.string.switch_multi_thread), uiText(R.string.switch_multi_thread_desc), multiThread) { multiThread = it }
+                WebDavSwitchRow(uiText(R.string.switch_sync_permissions), uiText(R.string.switch_sync_permissions_desc), syncPermissions) { syncPermissions = it }
+                WebDavSwitchRow(uiText(R.string.switch_hide_ft_address), uiText(R.string.switch_hide_ft_address_desc), hideAddress) { hideAddress = it }
+                WebDavSwitchRow(uiText(R.string.switch_enable_ft_server), uiText(R.string.enable_connection_desc), enabled) { enabled = it }
             }
         },
         confirmButton = {
@@ -488,9 +488,9 @@ internal fun FileTransferServerDialog(
                         ),
                     )
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -566,65 +566,65 @@ internal fun BackupSettings(
     )
 
     KimiCardBox {
-        Text(uiText("导出内容"), style = MaterialTheme.typography.titleMedium)
-        Text(uiText("可单独选择导出范围；跨版本导入时会跳过不兼容结构并导入可兼容部分。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
-        BackupIncludeRow(uiText("个人资料"), includeProfile) { includeProfile = it }
-        BackupIncludeRow(uiText("对话历史"), includeConversations) { includeConversations = it }
+        Text(uiText(R.string.title_export_content), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.backup_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        BackupIncludeRow(uiText(R.string.backup_include_profile), includeProfile) { includeProfile = it }
+        BackupIncludeRow(uiText(R.string.backup_include_conversations), includeConversations) { includeConversations = it }
 
-        BackupIncludeRow(uiText("模型服务配置"), includeModelProfiles) { includeModelProfiles = it }
-        BackupIncludeRow(uiText("MCP 服务器配置"), includeMcp) { includeMcp = it }
-        BackupIncludeRow(uiText("SSH 连接配置"), includeSsh) { includeSsh = it }
-        BackupIncludeRow(uiText("邮件服务器配置"), includeEmail) { includeEmail = it }
-        BackupIncludeRow(uiText("系统提示词"), includePrompts) { includePrompts = it }
-        BackupIncludeRow(uiText("个性化记忆"), includeMemories) { includeMemories = it }
+        BackupIncludeRow(uiText(R.string.backup_include_model_profiles), includeModelProfiles) { includeModelProfiles = it }
+        BackupIncludeRow(uiText(R.string.backup_include_mcp), includeMcp) { includeMcp = it }
+        BackupIncludeRow(uiText(R.string.backup_include_ssh), includeSsh) { includeSsh = it }
+        BackupIncludeRow(uiText(R.string.ui_email_server_configuration), includeEmail) { includeEmail = it }
+        BackupIncludeRow(uiText(R.string.title_system_prompt), includePrompts) { includePrompts = it }
+        BackupIncludeRow(uiText(R.string.backup_include_memories), includeMemories) { includeMemories = it }
         BackupIncludeRow("Skills", includeSkills) { includeSkills = it }
-        BackupIncludeRow(uiText("WebDAV 配置"), includeWebDav) { includeWebDav = it }
-        BackupIncludeRow(uiText("文件传输配置"), includeFileTransfer) { includeFileTransfer = it }
+        BackupIncludeRow(uiText(R.string.backup_include_webdav), includeWebDav) { includeWebDav = it }
+        BackupIncludeRow(uiText(R.string.backup_include_file_transfer), includeFileTransfer) { includeFileTransfer = it }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(uiText("包含 API Key / 密码 / 私钥"), style = MaterialTheme.typography.titleSmall)
-                Text(uiText("包含密钥的备份可直接导入使用，但必须妥善保管，不要分享给他人。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.title_include_secrets), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.backup_secrets_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
             Switch(checked = includeSecrets, onCheckedChange = { includeSecrets = it })
         }
         Button(
             onClick = {
                 scope.launch {
-                    onStatusChange(uiText("正在导出到 Download/LyraCode..."))
+                    onStatusChange(uiText(R.string.ui_exporting_to_download_lyracode))
                     onStatusChange(withContext(Dispatchers.IO) {
                         runCatching { backupManager.exportToDownloads(options()) }
-                            .fold({ it }, { uiText("导出失败：${it.message}") })
+                            .fold({ it }, { uiText(R.string.error_export_failed, it.message) })
                     })
                 }
             },
             shape = KimiPillShape,
-        ) { Text(uiText("导出到本地")) }
+        ) { Text(uiText(R.string.action_export_local)) }
     }
 
     KimiCardBox {
-        Text(uiText("导入备份"), style = MaterialTheme.typography.titleMedium)
-        Text(uiText("补充模式会在现有数据上新增并去重，推荐使用。覆盖模式会替换已有兼容配置，存在数据丢失风险。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(uiText(R.string.title_import_backup), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.import_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onImportBackup("supplement") }, shape = KimiPillShape) { Text(uiText("补充导入")) }
-            OutlinedButton(onClick = { onImportBackup("replace") }, shape = KimiPillShape) { Text(uiText("覆盖导入")) }
+            OutlinedButton(onClick = { onImportBackup("supplement") }, shape = KimiPillShape) { Text(uiText(R.string.action_supplement_import)) }
+            OutlinedButton(onClick = { onImportBackup("replace") }, shape = KimiPillShape) { Text(uiText(R.string.action_replace_import)) }
         }
         if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 
     KimiCardBox {
-        Text(uiText("WebDAV 云备份"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_webdav_backup), style = MaterialTheme.typography.titleMedium)
         if (webDavServers.isEmpty()) {
-            Text(uiText("暂无启用的 WebDAV 服务器。先在 WebDAV 设置中添加服务器后，可直接上传或下载备份。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_webdav_for_backup), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         } else {
             WebDavServerPicker(webDavServers, selectedServerId) { selectedServerId = it }
-            OutlinedTextField(value = remotePath, onValueChange = { remotePath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("远程备份路径")) }, singleLine = true)
+            OutlinedTextField(value = remotePath, onValueChange = { remotePath = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_remote_backup_path)) }, singleLine = true)
             if (transferStatus.isNotBlank()) Text(transferStatus, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
                         val server = selectedServer ?: return@OutlinedButton
                         scope.launch {
-                            onStatusChange(uiText("正在导出并上传 WebDAV..."))
+                            onStatusChange(uiText(R.string.ui_exporting_and_uploading_to_webdav))
                             val result = withContext(Dispatchers.IO) {
                                 runCatching {
                                     val bytes = backupManager.exportZip(options())
@@ -632,20 +632,20 @@ internal fun BackupSettings(
                                     webDavClient.upload(server, targetPath, bytes) { progress ->
                                         scope.launch { transferStatus = formatTransferProgress(progress) }
                                     }
-                                    uiText("已上传到 ${server.name}:$targetPath")
-                                }.fold({ it }, { uiText("上传失败：${it.message}") })
+                                    uiText(R.string.notice_uploaded_to, server.name, targetPath)
+                                }.fold({ it }, { uiText(R.string.error_upload_failed, it.message) })
                             }
                             transferStatus = ""
                             onStatusChange(result)
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("上传备份")) }
+                ) { Text(uiText(R.string.action_upload_backup)) }
                 OutlinedButton(
                     onClick = {
                         val server = selectedServer ?: return@OutlinedButton
                         scope.launch {
-                            onStatusChange(uiText("正在从 WebDAV 下载并补充导入..."))
+                            onStatusChange(uiText(R.string.ui_downloading_from_webdav_and_importing_in_supplement_mode))
                             val result = withContext(Dispatchers.IO) {
                                 runCatching {
                                     val requested = remotePath.trim().ifBlank { DEFAULT_WEBDAV_BACKUP_PATH }
@@ -660,8 +660,8 @@ internal fun BackupSettings(
                                             scope.launch { transferStatus = formatTransferProgress(progress) }
                                         }
                                     }
-                                    uiText("从 ") + usedPath + uiText(" 补充导入：") + backupManager.importZip(bytes, "supplement")
-                                }.fold({ uiText("导入完成：$it") }, { uiText("导入失败：${it.message}") })
+                                    uiText(R.string.ui_from) + usedPath + uiText(R.string.ui_supplemental_import) + backupManager.importZip(bytes, "supplement")
+                                }.fold({ uiText(R.string.notice_import_complete, it) }, { uiText(R.string.notice_import_failed, it.message) })
                             }
                             transferStatus = ""
                             onStatusChange(result)
@@ -669,7 +669,7 @@ internal fun BackupSettings(
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("从云端导入")) }
+                ) { Text(uiText(R.string.action_import_from_cloud)) }
             }
         }
     }
@@ -703,7 +703,7 @@ internal fun WebDavServerPicker(servers: List<WebDavServerConfig>, selectedId: S
     val selected = servers.firstOrNull { it.id == selectedId } ?: servers.firstOrNull()
     Box {
         OutlinedButton(onClick = { expanded = true }, shape = KimiPillShape) {
-            Text(selected?.name ?: uiText("选择 WebDAV"))
+            Text(selected?.name ?: uiText(R.string.ui_choose_webdav))
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             servers.forEach { server ->
@@ -720,7 +720,7 @@ internal fun WebDavServerPicker(servers: List<WebDavServerConfig>, selectedId: S
 }
 
 internal fun formatTransferProgress(progress: TransferProgress): String {
-    val total = if (progress.totalBytes > 0) formatBytes(progress.totalBytes) else uiText("未知大小")
+    val total = if (progress.totalBytes > 0) formatBytes(progress.totalBytes) else uiText(R.string.label_unknown_size)
     val percent = if (progress.totalBytes > 0) " · ${(progress.doneBytes * 100 / progress.totalBytes).coerceIn(0, 100)}%" else ""
     return "${progress.title}: ${formatBytes(progress.doneBytes)} / $total$percent · ${formatBytes(progress.bytesPerSecond)}/s"
 }
@@ -750,19 +750,19 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
                 if (index >= 0) updated[index] = saved else updated += saved
                 saveServers(updated)
                 editing = null
-                status = uiText("SSH 连接已保存")
+                status = uiText(R.string.notice_ssh_saved)
             },
         )
     }
     deleteTarget?.let { server ->
         ConfirmDeleteDialog(
-            title = uiText("删除 SSH 连接"),
-            message = uiText("该操作会删除服务器地址、用户名、密码或私钥配置。"),
+            title = uiText(R.string.title_delete_ssh),
+            message = uiText(R.string.confirm_delete_ssh),
             targetName = "${server.name} · ${server.stableId}",
             onDismiss = { deleteTarget = null },
             onConfirm = {
                 saveServers(servers.filterNot { it.id == server.id })
-                status = uiText("已删除 ${server.name}")
+                status = uiText(R.string.notice_deleted_service, server.name)
             },
         )
     }
@@ -770,18 +770,18 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
     KimiCardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(uiText("SSH 连接"), style = MaterialTheme.typography.titleMedium)
-                Text(uiText("用于连接可执行远程命令的 Linux/Windows 服务器。命令执行前会弹出确认。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.detail_ssh), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.ssh_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = { editing = defaultSshServer() }, shape = KimiPillShape) { Text(uiText("添加")) }
+            Button(onClick = { editing = defaultSshServer() }, shape = KimiPillShape) { Text(uiText(R.string.action_add)) }
         }
         if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 
     if (servers.isEmpty()) {
         KimiCardBox {
-            Text(uiText("暂无 SSH 连接"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("可使用密码或私钥连接 VPS、云主机或局域网主机。配置会加密保存。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_ssh), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.ssh_empty_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
 
@@ -803,7 +803,7 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
                     onClick = {
-                        status = uiText("正在测试 ${server.name}...")
+                        status = uiText(R.string.server_testing_name, server.name)
                         scope.launch {
                             val result = sshExecutor.execute(
                                 server = server,
@@ -812,25 +812,25 @@ internal fun SshSettings(settings: AppSettings, sshExecutor: SshExecutor, extern
                                 inputLines = emptyList(),
                                 timeoutSeconds = 15,
                             )
-                            status = if (result.ok) uiText("SSH 测试成功: ${server.stableId}") else result.message.take(200)
+                            status = if (result.ok) uiText(R.string.ssh_test_success_id, server.stableId) else result.message.take(200)
                         }
                     },
                     shape = KimiPillShape,
-                ) { Text(uiText("测试连接")) }
+                ) { Text(uiText(R.string.action_test_connection)) }
                 IconButton(onClick = { editing = server }) {
-                    Icon(Icons.Default.Edit, contentDescription = uiText("编辑 SSH"))
+                    Icon(Icons.Default.Edit, contentDescription = uiText(R.string.cd_edit_ssh))
                 }
                 IconButton(onClick = { deleteTarget = server }) {
-                    Icon(Icons.Default.Delete, contentDescription = uiText("删除 SSH"))
+                    Icon(Icons.Default.Delete, contentDescription = uiText(R.string.cd_delete_ssh))
                 }
             }
         }
     }
 
     KimiCardBox {
-        Text(uiText("使用约束"), style = MaterialTheme.typography.titleSmall)
+        Text(uiText(R.string.title_ssh_usage), style = MaterialTheme.typography.titleSmall)
         Text(
-            uiText("AI 使用 SSH 执行命令会像文件修改一样请求确认。安装软件或修改服务器前，AI 应先检查系统、CPU/GPU、内存、磁盘和权限。复杂交互式 shell（如 vim/top/交互 ssh）不适合由内置 SSH 工具执行。"),
+            uiText(R.string.ssh_usage_desc),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
@@ -855,7 +855,7 @@ internal fun SshServerDialog(
     var enabled by rememberSaveable(initial.id) { mutableStateOf(initial.enabled) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("SSH 连接")) },
+        title = { Text(uiText(R.string.detail_ssh)) },
         text = {
             Column(
                 Modifier
@@ -864,32 +864,32 @@ internal fun SshServerDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("显示名称")) }, singleLine = true)
-                OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("主机/IP")) }, singleLine = true)
+                OutlinedTextField(value = name, onValueChange = { name = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_display_name)) }, singleLine = true)
+                OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_host_ip)) }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.weight(1f), label = { Text(uiText("端口")) }, singleLine = true)
-                    OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.weight(2f), label = { Text(uiText("用户名")) }, singleLine = true)
+                    OutlinedTextField(value = port, onValueChange = { port = it.filter(Char::isDigit).take(5) }, modifier = Modifier.weight(1f), label = { Text(uiText(R.string.label_port)) }, singleLine = true)
+                    OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.weight(2f), label = { Text(uiText(R.string.label_username)) }, singleLine = true)
                 }
-                Text(uiText("认证方式"), style = MaterialTheme.typography.labelMedium)
+                Text(uiText(R.string.label_auth_method), style = MaterialTheme.typography.labelMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MaterialChoiceButton(uiText("密码"), authType == AppSettings.SSH_AUTH_PASSWORD) { authType = AppSettings.SSH_AUTH_PASSWORD }
-                    MaterialChoiceButton(uiText("私钥"), authType == AppSettings.SSH_AUTH_KEY) { authType = AppSettings.SSH_AUTH_KEY }
+                    MaterialChoiceButton(uiText(R.string.auth_password), authType == AppSettings.SSH_AUTH_PASSWORD) { authType = AppSettings.SSH_AUTH_PASSWORD }
+                    MaterialChoiceButton(uiText(R.string.auth_private_key), authType == AppSettings.SSH_AUTH_KEY) { authType = AppSettings.SSH_AUTH_KEY }
                 }
                 if (authType == AppSettings.SSH_AUTH_PASSWORD) {
-                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("密码")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                    OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.auth_password)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 } else {
-                    OutlinedTextField(value = privateKey, onValueChange = { privateKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("私钥内容")) }, minLines = 5, maxLines = 10)
-                    OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("私钥口令（可空）")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+                    OutlinedTextField(value = privateKey, onValueChange = { privateKey = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_private_key)) }, minLines = 5, maxLines = 10)
+                    OutlinedTextField(value = passphrase, onValueChange = { passphrase = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_passphrase_optional_with_parens)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
                 }
-                OutlinedTextField(value = timeout, onValueChange = { timeout = it.filter(Char::isDigit).take(3) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("默认超时秒数")) }, singleLine = true)
+                OutlinedTextField(value = timeout, onValueChange = { timeout = it.filter(Char::isDigit).take(3) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_default_timeout)) }, singleLine = true)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text(uiText("启用此连接"), style = MaterialTheme.typography.titleSmall)
-                        Text(uiText("禁用后 AI 无法看到或调用该服务器。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(uiText(R.string.title_enable_connection), style = MaterialTheme.typography.titleSmall)
+                        Text(uiText(R.string.enable_connection_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(checked = enabled, onCheckedChange = { enabled = it })
                 }
-                Text(uiText("固定标识将使用 ") + host.ifBlank { "host" } + ":" + port.ifBlank { "22" } + uiText("，AI 调用 SSH 工具时会使用这个标识。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.ui_stable_identifier_will_use) + host.ifBlank { "host" } + ":" + port.ifBlank { "22" } + uiText(R.string.ui_the_ai_uses_this_identifier_when_calling_ssh_tools), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
         },
         confirmButton = {
@@ -911,9 +911,9 @@ internal fun SshServerDialog(
                         ),
                     )
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -932,7 +932,7 @@ internal fun defaultSshServer(): SshServerConfig = SshServerConfig(
 )
 
 internal fun sshAuthLabel(authType: String): String = when (authType) {
-    AppSettings.SSH_AUTH_KEY -> uiText("私钥")
-    else -> uiText("密码")
+    AppSettings.SSH_AUTH_KEY -> uiText(R.string.auth_private_key)
+    else -> uiText(R.string.auth_password)
 }
 

@@ -2232,6 +2232,7 @@ class AppSettings(context: Context) {
         }
         const val LANGUAGE_SYSTEM = "system"
         const val LANGUAGE_ZH_CN = "zh-CN"
+        const val LANGUAGE_ZH_TW = "zh-TW"
         const val LANGUAGE_EN = "en"
         const val REFRESH_RATE_SYSTEM = "system"
         const val REFRESH_RATE_30 = "30"
@@ -2290,6 +2291,7 @@ class AppSettings(context: Context) {
 
         fun normalizeLanguageMode(value: String): String = when (value.trim()) {
             LANGUAGE_ZH_CN -> LANGUAGE_ZH_CN
+            LANGUAGE_ZH_TW -> LANGUAGE_ZH_TW
             LANGUAGE_EN -> LANGUAGE_EN
             else -> LANGUAGE_SYSTEM
         }

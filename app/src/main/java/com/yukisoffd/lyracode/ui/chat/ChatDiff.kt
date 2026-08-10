@@ -34,16 +34,16 @@ internal fun FileChangeDetail(change: FileChangeView) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(uiText("差异"), style = MaterialTheme.typography.labelMedium)
-        DiffView(change.diff.ifBlank { uiText("(无行级差异)") })
+        Text(uiText(R.string.label_diff), style = MaterialTheme.typography.labelMedium)
+        DiffView(change.diff.ifBlank { uiText(R.string.ui_no_line_level_diff) })
         CodeSnapshot(
-            title = uiText("变更前"),
+            title = uiText(R.string.label_before_change),
             content = change.before,
             color = Color(0xFFD93025),
             modifier = Modifier.fillMaxWidth(),
         )
         CodeSnapshot(
-            title = uiText("变更后"),
+            title = uiText(R.string.label_after_change),
             content = change.after,
             color = Color(0xFF188038),
             modifier = Modifier.fillMaxWidth(),
@@ -62,7 +62,7 @@ internal fun CodeSnapshot(title: String, content: String, color: Color, modifier
         Text(title, color = color, style = MaterialTheme.typography.labelMedium)
         SelectionContainer {
             Text(
-                content.ifBlank { uiText("(空)") },
+                content.ifBlank { uiText(R.string.ui_empty) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 220.dp)

@@ -69,21 +69,21 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             KimiCardBox {
-                Text(uiText("系统提示词"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.title_system_prompt), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("未选择自定义提示词时使用应用原生提示词；你仍可新增并切换自己的提示词。"),
+                    uiText(R.string.ui_the_app_native_prompt_is_used_when_no_custom),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             KimiCardBox {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Text(uiText("提示词配置"), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
+                    Text(uiText(R.string.title_prompt_config), modifier = Modifier.weight(1f), style = MaterialTheme.typography.titleMedium)
                     Button(
                         onClick = {
                             editing = SystemPromptPreset(
                                 id = AppSettings.newId(),
-                                name = uiText("自定义提示词"),
+                                name = uiText(R.string.label_custom_prompt),
                                 prompt = "",
                                 builtIn = false,
                             )
@@ -93,7 +93,7 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text(uiText("新增"))
+                        Text(uiText(R.string.action_new))
                     }
                 }
                 Row(
@@ -103,7 +103,7 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                         .clickable {
                             selectedId = AppSettings.NATIVE_SYSTEM_PROMPT_ID
                             settings.selectedSystemPromptId = AppSettings.NATIVE_SYSTEM_PROMPT_ID
-                            notice = uiText("已切换到应用原生提示词")
+                            notice = uiText(R.string.ui_switched_to_the_app_native_prompt)
                         }
                         .padding(vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -111,9 +111,9 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                     Icon(Icons.Default.SmartToy, contentDescription = null, modifier = Modifier.size(26.dp))
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(uiText("应用原生提示词"), style = MaterialTheme.typography.titleSmall)
+                        Text(uiText(R.string.ui_app_native_prompt), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            uiText("由 Lyra Code 内置维护，适配当前工具和 Android 运行环境"),
+                            uiText(R.string.ui_maintained_by_lyra_code_and_adapted_to_the_current),
                             color = KimiMuted,
                             style = MaterialTheme.typography.bodySmall,
                             maxLines = 1,
@@ -121,7 +121,7 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                         )
                     }
                     if (presets.none { it.id == selectedId }) {
-                        Icon(Icons.Default.Check, contentDescription = uiText("已选择"))
+                        Icon(Icons.Default.Check, contentDescription = uiText(R.string.streaming_selected))
                     }
                 }
                 if (presets.isNotEmpty()) KimiDivider()
@@ -133,7 +133,7 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                             .clickable {
                                 selectedId = preset.id
                                 settings.selectedSystemPromptId = preset.id
-                                notice = uiText("已切换到 ${preset.name}")
+                                notice = uiText(R.string.notice_prompt_switched, preset.name)
                             }
                             .padding(vertical = 12.dp),
                         verticalAlignment = Alignment.CenterVertically,
@@ -144,16 +144,16 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                             Text(preset.name, style = MaterialTheme.typography.titleSmall)
                             val desc = preset.prompt.lineSequence().firstOrNull { it.isNotBlank() }.orEmpty()
                             Text(
-                                if (preset.exampleConversation.isBlank()) desc else uiText("$desc · 含示例对话"),
+                                if (preset.exampleConversation.isBlank()) desc else uiText(R.string.prompt_description_with_example, desc),
                                 color = KimiMuted,
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
-                        if (preset.id == selectedId) Icon(Icons.Default.Check, contentDescription = uiText("已选择"))
+                        if (preset.id == selectedId) Icon(Icons.Default.Check, contentDescription = uiText(R.string.streaming_selected))
                         IconButton(onClick = { editing = preset }) {
-                            Icon(Icons.Default.Edit, contentDescription = uiText("编辑"))
+                            Icon(Icons.Default.Edit, contentDescription = uiText(R.string.ui_edit))
                         }
                     }
                     if (preset != presets.last()) KimiDivider()
@@ -170,20 +170,20 @@ internal fun PromptSettingsScreen(settings: AppSettings) {
                     presets = visiblePresets()
                     selectedId = settings.selectedSystemPromptId
                     editing = null
-                    notice = uiText("提示词已保存")
+                    notice = uiText(R.string.notice_prompt_saved)
                 },
                 onRestore = {
                     settings.restoreSystemPrompt(preset.id)
                     presets = visiblePresets()
                     editing = null
-                    notice = uiText("已恢复预设")
+                    notice = uiText(R.string.notice_preset_restored)
                 },
                 onDelete = {
                     settings.deleteSystemPromptConfig(preset.id)
                     presets = visiblePresets()
                     selectedId = settings.selectedSystemPromptId
                     editing = null
-                    notice = uiText("提示词已删除")
+                    notice = uiText(R.string.notice_prompt_deleted)
                 },
             )
         }
@@ -210,7 +210,7 @@ internal fun PromptEditDialog(
     var example by remember(preset.id) { mutableStateOf(preset.exampleConversation) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (preset.builtIn) uiText("编辑内置提示词") else uiText("编辑自定义提示词")) },
+        title = { Text(if (preset.builtIn) uiText(R.string.title_edit_builtin_prompt) else uiText(R.string.title_edit_custom_prompt)) },
         text = {
             Column(
                 Modifier
@@ -223,14 +223,14 @@ internal fun PromptEditDialog(
                     value = name,
                     onValueChange = { name = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("提示词名称")) },
+                    label = { Text(uiText(R.string.label_prompt_name)) },
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = prompt,
                     onValueChange = { prompt = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("提示词内容")) },
+                    label = { Text(uiText(R.string.label_prompt_content)) },
                     minLines = 8,
                     maxLines = 16,
                 )
@@ -238,7 +238,7 @@ internal fun PromptEditDialog(
                     value = example,
                     onValueChange = { example = it },
                     modifier = Modifier.fillMaxWidth(),
-                    label = { Text(uiText("示例对话（可选）")) },
+                    label = { Text(uiText(R.string.label_example_conversation)) },
                     minLines = 3,
                     maxLines = 8,
                 )
@@ -250,23 +250,23 @@ internal fun PromptEditDialog(
                 onClick = {
                     onSave(
                         preset.copy(
-                            name = name.trim().ifBlank { uiText("自定义提示词") },
+                            name = name.trim().ifBlank { uiText(R.string.label_custom_prompt) },
                             prompt = prompt,
                             exampleConversation = example,
                         ),
                     )
                 },
                 shape = KimiPillShape,
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (preset.builtIn) {
-                    TextButton(onClick = onRestore) { Text(uiText("恢复预设")) }
+                    TextButton(onClick = onRestore) { Text(uiText(R.string.action_restore_preset)) }
                 } else {
-                    TextButton(onClick = onDelete) { Text(uiText("删除")) }
+                    TextButton(onClick = onDelete) { Text(uiText(R.string.file_action_delete)) }
                 }
-                TextButton(onClick = onDismiss) { Text(uiText("取消")) }
+                TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) }
             }
         },
     )

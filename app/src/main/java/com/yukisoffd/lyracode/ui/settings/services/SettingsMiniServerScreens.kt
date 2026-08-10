@@ -104,10 +104,10 @@ internal fun MiniServerSettings(
             runCatching {
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tlsKeyStoreBase64 = Base64.encodeToString(input.readBytes(), Base64.NO_WRAP)
-                } ?: error(uiText("无法读取证书库文件"))
+                } ?: error(uiText(R.string.error_read_keystore_failed))
             }.fold(
-                { statusText = uiText("已读取证书库文件") },
-                { statusText = uiText("读取证书库失败：${it.message}") },
+                { statusText = uiText(R.string.notice_keystore_read) },
+                { statusText = uiText(R.string.notice_keystore_read_failed, it.message) },
             )
         }
     }
@@ -116,10 +116,10 @@ internal fun MiniServerSettings(
             runCatching {
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tlsCertificateChain = input.bufferedReader(Charsets.UTF_8).readText()
-                } ?: error(uiText("无法读取证书链文件"))
+                } ?: error(uiText(R.string.error_read_cert_chain_failed))
             }.fold(
-                { statusText = uiText("已读取证书链文件") },
-                { statusText = uiText("读取证书链失败：${it.message}") },
+                { statusText = uiText(R.string.notice_cert_chain_read) },
+                { statusText = uiText(R.string.notice_cert_chain_read_failed, it.message) },
             )
         }
     }
@@ -128,10 +128,10 @@ internal fun MiniServerSettings(
             runCatching {
                 context.contentResolver.openInputStream(uri)?.use { input ->
                     tlsPrivateKey = input.bufferedReader(Charsets.UTF_8).readText()
-                } ?: error(uiText("无法读取私钥文件"))
+                } ?: error(uiText(R.string.error_read_private_key_failed))
             }.fold(
-                { statusText = uiText("已读取私钥文件") },
-                { statusText = uiText("读取私钥失败：${it.message}") },
+                { statusText = uiText(R.string.notice_private_key_read) },
+                { statusText = uiText(R.string.notice_private_key_read_failed, it.message) },
             )
         }
     }
@@ -183,25 +183,25 @@ internal fun MiniServerSettings(
             Icon(Icons.Default.Language, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(uiText("工作区微型服务器"), style = MaterialTheme.typography.titleMedium)
-                Text(uiText("以当前工作目录作为静态站点根目录，适合调试 Vue/Vite 文档站或普通 HTML/CSS/JS。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.title_workspace_mini_server), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.mini_server_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
-            Text(if (status.running) uiText("运行中") else uiText("已停止"), color = if (status.running) MaterialTheme.colorScheme.primary else KimiMuted)
+            Text(if (status.running) uiText(R.string.label_server_running) else uiText(R.string.notice_server_stopped), color = if (status.running) MaterialTheme.colorScheme.primary else KimiMuted)
         }
         KimiDivider()
         Text(
-            uiText(stringResource(R.string.label_local_address, status.url)),
+            stringResource(R.string.label_local_address, status.url),
             color = KimiMuted,
             style = MaterialTheme.typography.bodySmall,
         )
         if (lanUrls.isNotEmpty()) {
-            Text(uiText("局域网地址：") + lanUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.ui_lan_address) + lanUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         if (customUrls.isNotEmpty()) {
-            Text(uiText("绑定域名：") + customUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.ui_bound_domains) + customUrls.joinToString("  "), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         if (status.message.isNotBlank()) {
-            Text(uiText(status.message), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(status.message, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         if (statusText.isNotBlank()) {
             Text(statusText, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
@@ -213,12 +213,12 @@ internal fun MiniServerSettings(
         ) {
             Icon(Icons.Default.Article, contentDescription = null)
             Spacer(Modifier.width(8.dp))
-            Text(uiText("查看终端日志"))
+            Text(uiText(R.string.action_view_logs))
         }
     }
 
     KimiCardBox {
-        Text(uiText("监听配置"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_listen_config), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
@@ -233,116 +233,116 @@ internal fun MiniServerSettings(
             ) { Text(if (protocol == AppSettings.MINI_SERVER_PROTOCOL_HTTPS) "HTTPS ✓" else "HTTPS") }
         }
         if (protocol == AppSettings.MINI_SERVER_PROTOCOL_HTTPS) {
-            Text(uiText("HTTPS 使用内置自签名证书，浏览器会提示不受信任；公网或正式分享建议使用内网穿透/反向代理提供可信 TLS。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_https_self_signed), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
-        OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("监听主机")) }, singleLine = true)
-        Text(uiText("127.0.0.1 仅本机访问；0.0.0.0 可被局域网、内网穿透或公网映射访问。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
-        OutlinedTextField(value = portText, onValueChange = { portText = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("端口")) }, singleLine = true)
-        OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("访问用户名")) }, singleLine = true)
-        OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("访问密码，可空")) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
+        OutlinedTextField(value = host, onValueChange = { host = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_listen_host)) }, singleLine = true)
+        Text(uiText(R.string.listen_host_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        OutlinedTextField(value = portText, onValueChange = { portText = it.filter(Char::isDigit).take(5) }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_port)) }, singleLine = true)
+        OutlinedTextField(value = username, onValueChange = { username = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_access_username)) }, singleLine = true)
+        OutlinedTextField(value = password, onValueChange = { password = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_access_password_optional)) }, visualTransformation = PasswordVisualTransformation(), singleLine = true)
         OutlinedTextField(
             value = customDomainsText,
             onValueChange = { customDomainsText = it },
             modifier = Modifier.fillMaxWidth().heightIn(min = 96.dp),
-            label = { Text(uiText("绑定域名，每行一个")) },
+            label = { Text(uiText(R.string.label_bind_domains)) },
             placeholder = { Text("docs.example.com\nhttps://preview.example.com") },
         )
-        WebDavSwitchRow(uiText("强制 HTTPS 连接"), uiText("HTTP 访问会返回 308 跳转到 HTTPS；适合反向代理或同端口 HTTPS 调试。"), forceHttps) { forceHttps = it }
+        WebDavSwitchRow(uiText(R.string.switch_force_https), uiText(R.string.switch_force_https_desc), forceHttps) { forceHttps = it }
         if (host.trim() == "0.0.0.0" || password.isBlank()) {
-            Text(uiText("安全提示：面向局域网或公网映射时建议设置用户名和密码；HTTP 明文会暴露访问内容和账号密码。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_server_security), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }
 
     KimiCardBox {
-        Text(uiText("HTTPS 证书"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_https_cert), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
-        Text(uiText("未配置自定义证书时会使用内置自签名证书。证书库支持 PKCS12/JKS；PEM 私钥需为未加密 PKCS#8 格式。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(uiText(R.string.https_cert_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             OutlinedButton(
                 onClick = { keyStoreLauncher.launch("*/*") },
                 shape = KimiPillShape,
                 modifier = Modifier.weight(1f),
-            ) { Text(if (tlsKeyStoreBase64.isBlank()) uiText("上传证书库") else uiText("替换证书库")) }
+            ) { Text(if (tlsKeyStoreBase64.isBlank()) uiText(R.string.action_upload_keystore) else uiText(R.string.action_replace_keystore)) }
             OutlinedButton(
                 onClick = { tlsKeyStoreBase64 = "" },
                 shape = KimiPillShape,
                 enabled = tlsKeyStoreBase64.isNotBlank(),
                 modifier = Modifier.weight(1f),
-            ) { Text(uiText("清除证书库")) }
+            ) { Text(uiText(R.string.action_clear_keystore)) }
         }
         OutlinedTextField(
             value = tlsKeyStorePassword,
             onValueChange = { tlsKeyStorePassword = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(uiText("证书库/私钥密码，可空")) },
+            label = { Text(uiText(R.string.label_keystore_password)) },
             visualTransformation = PasswordVisualTransformation(),
             singleLine = true,
         )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            OutlinedButton(onClick = { certChainLauncher.launch("*/*") }, shape = KimiPillShape, modifier = Modifier.weight(1f)) { Text(uiText("上传证书链")) }
-            OutlinedButton(onClick = { privateKeyLauncher.launch("*/*") }, shape = KimiPillShape, modifier = Modifier.weight(1f)) { Text(uiText("上传私钥")) }
+            OutlinedButton(onClick = { certChainLauncher.launch("*/*") }, shape = KimiPillShape, modifier = Modifier.weight(1f)) { Text(uiText(R.string.action_upload_cert_chain)) }
+            OutlinedButton(onClick = { privateKeyLauncher.launch("*/*") }, shape = KimiPillShape, modifier = Modifier.weight(1f)) { Text(uiText(R.string.action_upload_private_key)) }
         }
         OutlinedTextField(
             value = tlsCertificateChain,
             onValueChange = { tlsCertificateChain = it },
             modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-            label = { Text(uiText("证书链 PEM，可粘贴")) },
+            label = { Text(uiText(R.string.label_cert_chain_pem)) },
             placeholder = { Text("-----BEGIN CERTIFICATE-----") },
         )
         OutlinedTextField(
             value = tlsPrivateKey,
             onValueChange = { tlsPrivateKey = it },
             modifier = Modifier.fillMaxWidth().heightIn(min = 120.dp),
-            label = { Text(uiText("私钥 PEM，可粘贴")) },
+            label = { Text(uiText(R.string.label_private_key_pem)) },
             placeholder = { Text("-----BEGIN PRIVATE KEY-----") },
             visualTransformation = PasswordVisualTransformation(),
         )
     }
 
     KimiCardBox {
-        Text(uiText("站点行为"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_site_behavior), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
-        WebDavSwitchRow(uiText("SPA 回退到 index.html"), uiText("适合 Vue Router / VitePress / 单页应用刷新路径。"), spaFallback) { spaFallback = it }
-        WebDavSwitchRow(uiText("允许目录列表"), uiText("没有 index.html 时显示目录文件；公网环境不建议开启。"), directoryListing) { directoryListing = it }
-        WebDavSwitchRow(uiText("发布 mDNS"), uiText("在局域网内尝试发布 _http._tcp 服务，便于支持 mDNS 的设备发现。"), mdnsEnabled) { mdnsEnabled = it }
+        WebDavSwitchRow(uiText(R.string.switch_spa_fallback), uiText(R.string.switch_spa_fallback_desc), spaFallback) { spaFallback = it }
+        WebDavSwitchRow(uiText(R.string.switch_directory_listing), uiText(R.string.switch_directory_listing_desc), directoryListing) { directoryListing = it }
+        WebDavSwitchRow(uiText(R.string.switch_mdns), uiText(R.string.switch_mdns_desc), mdnsEnabled) { mdnsEnabled = it }
         if (mdnsEnabled) {
-            OutlinedTextField(value = mdnsName, onValueChange = { mdnsName = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText("mDNS 名称")) }, singleLine = true)
+            OutlinedTextField(value = mdnsName, onValueChange = { mdnsName = it }, modifier = Modifier.fillMaxWidth(), label = { Text(uiText(R.string.label_mdns_name)) }, singleLine = true)
         }
     }
 
     KimiCardBox {
-        Text(uiText("操作"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_operations), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = {
                     settings.saveMiniServerConfig(currentConfig())
-                    refresh(uiText("微型服务器配置已保存"))
+                    refresh(uiText(R.string.notice_mini_server_config_saved))
                 },
                 shape = KimiPillShape,
                 modifier = Modifier.weight(1f),
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
             Button(
                 onClick = {
-                    statusText = uiText("正在启动...")
+                    statusText = uiText(R.string.ui_starting)
                     scope.launch {
                         val result = withContext(Dispatchers.IO) {
                             runCatching { miniServerManager.start(currentConfig(enabled = true)) }
-                                .fold({ uiText("已启动：${it.url}") }, { uiText("启动失败：${it.message}") })
+                                .fold({ uiText(R.string.notice_server_started, it.url) }, { uiText(R.string.notice_server_start_failed, it.message) })
                         }
                         refresh(result)
                     }
                 },
                 shape = KimiPillShape,
                 modifier = Modifier.weight(1f),
-            ) { Text(if (status.running) uiText("重启") else uiText("启动")) }
+            ) { Text(if (status.running) uiText(R.string.action_restart) else uiText(R.string.action_start)) }
         }
         OutlinedButton(
             onClick = {
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         runCatching { miniServerManager.stop() }
-                            .fold({ uiText("已停止") }, { uiText("停止失败：${it.message}") })
+                            .fold({ uiText(R.string.notice_server_stopped) }, { uiText(R.string.notice_server_stop_failed, it.message) })
                     }
                     refresh(result)
                 }
@@ -350,7 +350,7 @@ internal fun MiniServerSettings(
             shape = KimiPillShape,
             enabled = status.running,
             modifier = Modifier.fillMaxWidth(),
-        ) { Text(uiText("停止服务")) }
+        ) { Text(uiText(R.string.action_stop_service)) }
     }
 }
 
@@ -389,9 +389,9 @@ internal fun MiniServerLogSettings(miniServerManager: MiniServerManager) {
             Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(uiText("终端日志"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.title_terminal_log), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("自动跟随连接、资源加载、认证失败、404 和页面 JavaScript 报错。"),
+                    uiText(R.string.terminal_log_desc),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -402,7 +402,7 @@ internal fun MiniServerLogSettings(miniServerManager: MiniServerManager) {
                     revision++
                 },
             ) {
-                Icon(Icons.Default.DeleteSweep, contentDescription = uiText("清空日志"), tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Default.DeleteSweep, contentDescription = uiText(R.string.cd_clear_logs), tint = MaterialTheme.colorScheme.primary)
             }
         }
         KimiDivider()
@@ -453,7 +453,7 @@ internal fun MiniServerLogSettings(miniServerManager: MiniServerManager) {
             ) {
                 if (logs.isEmpty()) {
                     Text(
-                        uiText("$ lyra mini-server logs --follow\n# 暂无日志。启动微型服务器并访问站点后，这里会自动显示请求记录和客户端错误。"),
+                        uiText(R.string.mini_server_empty_log_placeholder),
                         color = Color(0xFF8BE9FD),
                         fontFamily = FontFamily.Monospace,
                         style = MaterialTheme.typography.labelMedium,

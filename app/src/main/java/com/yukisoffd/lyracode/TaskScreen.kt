@@ -122,7 +122,7 @@ internal fun TaskScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         item {
-            KimiSectionLabel(uiText("任务通知"))
+            KimiSectionLabel(uiText(R.string.ui_task_notifications))
             KimiCardBox {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -131,9 +131,9 @@ internal fun TaskScreen(
                 ) {
                     Icon(Icons.Default.Notifications, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                     Column(Modifier.weight(1f)) {
-                        Text(uiText("任务完成通知"), style = MaterialTheme.typography.titleMedium)
+                        Text(uiText(R.string.notification_channel_name), style = MaterialTheme.typography.titleMedium)
                         Text(
-                            uiText("下载和定时任务完成或失败后推送系统通知"),
+                            uiText(R.string.ui_send_system_notifications_when_downloads_or_scheduled_tasks_complete),
                             color = KimiMuted,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -161,7 +161,7 @@ internal fun TaskScreen(
 
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                KimiSectionLabel(uiText("定时任务"))
+                KimiSectionLabel(uiText(R.string.tool_manage_tasks))
                 Spacer(Modifier.weight(1f))
                 IconButton(
                     onClick = {
@@ -171,7 +171,7 @@ internal fun TaskScreen(
                 ) {
                     Icon(
                         Icons.Default.Add,
-                        contentDescription = uiText("添加定时任务"),
+                        contentDescription = uiText(R.string.ui_add_scheduled_task),
                         tint = MaterialTheme.colorScheme.primary,
                     )
                 }
@@ -180,9 +180,9 @@ internal fun TaskScreen(
         if (scheduledTasks.isEmpty()) {
             item {
                 KimiCardBox {
-                    Text(uiText("暂无定时任务"), style = MaterialTheme.typography.titleMedium)
+                    Text(uiText(R.string.ui_no_scheduled_tasks), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        uiText("可在这里手动添加，或在对话中用自然语言让 AI 创建。系统会通过 WorkManager 延期唤醒执行，受省电策略影响时不保证秒级准时。"),
+                        uiText(R.string.ui_add_tasks_manually_here_or_ask_the_ai_to),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -205,11 +205,11 @@ internal fun TaskScreen(
 
         item {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                KimiSectionLabel(uiText("下载任务"))
+                KimiSectionLabel(uiText(R.string.ui_download_tasks))
                 Spacer(Modifier.weight(1f))
                 if (downloads.any { it.status == DownloadTaskStatus.COMPLETED || it.status == DownloadTaskStatus.FAILED }) {
                     IconButton(onClick = downloadTaskManager::clearFinished) {
-                        Icon(Icons.Default.ClearAll, contentDescription = uiText("清除已完成下载"))
+                        Icon(Icons.Default.ClearAll, contentDescription = uiText(R.string.ui_clear_finished_downloads))
                     }
                 }
             }
@@ -217,9 +217,9 @@ internal fun TaskScreen(
         if (downloads.isEmpty()) {
             item {
                 KimiCardBox {
-                    Text(uiText("暂无下载任务"), style = MaterialTheme.typography.titleMedium)
+                    Text(uiText(R.string.ui_no_download_tasks), style = MaterialTheme.typography.titleMedium)
                     Text(
-                        uiText("AI 使用下载文件工具后，可在这里查看进度、速度和结果。"),
+                        uiText(R.string.ui_when_the_ai_uses_the_download_tool_progress_speed),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodyMedium,
                     )
@@ -243,15 +243,15 @@ private fun ScheduledTaskCard(
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
-            title = { Text(uiText("删除定时任务")) },
-            text = { Text(uiText("确定删除“${task.title}”吗？")) },
+            title = { Text(uiText(R.string.ui_delete_scheduled_task)) },
+            text = { Text(uiText(R.string.ui_delete_1_s, task.title)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDelete = false
                     onDelete()
-                }) { Text(uiText("删除")) }
+                }) { Text(uiText(R.string.file_action_delete)) }
             },
-            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(uiText("取消")) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(uiText(R.string.action_cancel)) } },
         )
     }
     val detail = task.detailText()
@@ -282,14 +282,14 @@ private fun ScheduledTaskCard(
                     style = MaterialTheme.typography.bodySmall,
                 )
                 if (task.nextRunAt > 0L) {
-                    Text(uiText("下次执行：${formatTaskTime(task.nextRunAt)}"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.ui_next_run_1_s, formatTaskTime(task.nextRunAt)), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 if (task.lastRunAt > 0L) {
                     Text(
                         when (task.status) {
-                            ScheduledTaskStatus.FAILED -> uiText("最近失败：") + task.error.ifBlank { uiText("未知错误") }
-                            ScheduledTaskStatus.RUNNING -> task.error.ifBlank { uiText("正在执行") }
-                            else -> uiText("最近结果：") + task.result.ifBlank { uiText("已完成") }
+                            ScheduledTaskStatus.FAILED -> uiText(R.string.ui_last_failure) + task.error.ifBlank { uiText(R.string.label_unknown_error) }
+                            ScheduledTaskStatus.RUNNING -> task.error.ifBlank { uiText(R.string.ui_running) }
+                            else -> uiText(R.string.ui_last_result) + task.result.ifBlank { uiText(R.string.ui_completed) }
                         },
                         color = if (task.status == ScheduledTaskStatus.FAILED) MaterialTheme.colorScheme.error else KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
@@ -298,7 +298,7 @@ private fun ScheduledTaskCard(
                     )
                     if (detail.length > 160) {
                         Text(
-                            uiText("点击查看完整结果"),
+                            uiText(R.string.ui_tap_to_view_full_result),
                             color = MaterialTheme.colorScheme.primary,
                             style = MaterialTheme.typography.labelMedium,
                         )
@@ -307,8 +307,8 @@ private fun ScheduledTaskCard(
             }
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Switch(checked = task.enabled, onCheckedChange = onToggle)
-                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = uiText("编辑")) }
-                IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, contentDescription = uiText("删除")) }
+                IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, contentDescription = uiText(R.string.ui_edit)) }
+                IconButton(onClick = { confirmDelete = true }) { Icon(Icons.Default.Delete, contentDescription = uiText(R.string.file_action_delete)) }
             }
         }
     }
@@ -329,30 +329,30 @@ private fun ScheduledTaskDetailDialog(
             ) {
                 item {
                     Text(
-                        uiText("状态：${taskStatusLabel(task.status)}\n") +
-                            uiText("频率：${scheduleLabel(task)}\n") +
-                            uiText("模型：${task.model}\n") +
-                            if (task.lastRunAt > 0L) uiText("最近执行：${formatTaskTime(task.lastRunAt)}") else uiText("尚未执行"),
+                        uiText(R.string.ui_status_1_s, taskStatusLabel(task.status)) +
+                            uiText(R.string.task_schedule_format, scheduleLabel(task)) +
+                            uiText(R.string.task_model_format, task.model) +
+                            if (task.lastRunAt > 0L) uiText(R.string.task_last_run_format, formatTaskTime(task.lastRunAt)) else uiText(R.string.ui_not_run_yet),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
                 if (task.result.isNotBlank()) {
                     item {
-                        Text(uiText("输出结果"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(uiText(R.string.ui_output), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(task.result, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
                 if (task.error.isNotBlank()) {
                     item {
-                        Text(uiText("错误信息"), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Text(uiText(R.string.ui_error), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
                         Text(task.error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
         },
         confirmButton = {
-            TextButton(onClick = onDismiss) { Text(uiText("关闭")) }
+            TextButton(onClick = onDismiss) { Text(uiText(R.string.cd_close)) }
         },
     )
 }
@@ -395,20 +395,20 @@ private fun ScheduledTaskEditorDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) uiText("添加定时任务") else uiText("编辑定时任务")) },
+        title = { Text(if (initial == null) uiText(R.string.ui_add_scheduled_task) else uiText(R.string.ui_edit_scheduled_task)) },
         text = {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
-                    OutlinedTextField(title, { title = it }, label = { Text(uiText("任务名称")) }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(title, { title = it }, label = { Text(uiText(R.string.ui_task_name)) }, modifier = Modifier.fillMaxWidth())
                 }
                 item {
                     OutlinedTextField(
                         prompt,
                         { prompt = it },
-                        label = { Text(uiText("任务说明")) },
+                        label = { Text(uiText(R.string.ui_task_description)) },
                         minLines = 3,
                         maxLines = 8,
                         modifier = Modifier.fillMaxWidth(),
@@ -417,7 +417,7 @@ private fun ScheduledTaskEditorDialog(
                 item {
                     Column {
                         OutlinedButton(onClick = { typeMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(uiText("执行频率：${typeLabel(type)}"))
+                            Text(uiText(R.string.ui_frequency_1_s, typeLabel(type)))
                         }
                         DropdownMenu(expanded = typeMenu, onDismissRequest = { typeMenu = false }) {
                             ScheduledTaskType.entries.forEach { option ->
@@ -438,8 +438,8 @@ private fun ScheduledTaskEditorDialog(
                         OutlinedTextField(
                             runAt,
                             { runAt = it },
-                            label = { Text(uiText("执行时间")) },
-                            supportingText = { Text(uiText("格式：yyyy-MM-dd HH:mm")) },
+                            label = { Text(uiText(R.string.ui_run_time)) },
+                            supportingText = { Text(uiText(R.string.ui_format_yyyy_mm_dd_hh_mm)) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -448,8 +448,8 @@ private fun ScheduledTaskEditorDialog(
                         OutlinedTextField(
                             time,
                             { time = it },
-                            label = { Text(uiText("执行时间")) },
-                            supportingText = { Text(uiText("格式：HH:mm")) },
+                            label = { Text(uiText(R.string.ui_run_time)) },
+                            supportingText = { Text(uiText(R.string.ui_format_hh_mm)) },
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -458,7 +458,7 @@ private fun ScheduledTaskEditorDialog(
                             OutlinedTextField(
                                 dayValue,
                                 { dayValue = it.filter(Char::isDigit) },
-                                label = { Text(if (type == ScheduledTaskType.WEEKLY) uiText("星期（1=周一，7=周日）") else uiText("每月日期（1-31）")) },
+                                label = { Text(if (type == ScheduledTaskType.WEEKLY) uiText(R.string.ui_weekday_1_mon_7_sun) else uiText(R.string.ui_day_of_month_1_31)) },
                                 modifier = Modifier.fillMaxWidth(),
                             )
                         }
@@ -467,7 +467,7 @@ private fun ScheduledTaskEditorDialog(
                 item {
                     Column {
                         OutlinedButton(onClick = { profileMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                            Text(uiText("服务商：${selectedProfile.name}"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(uiText(R.string.ui_provider_1_s, selectedProfile.name), maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                         DropdownMenu(expanded = profileMenu, onDismissRequest = { profileMenu = false }) {
                             profiles.forEach { profile ->
@@ -485,9 +485,9 @@ private fun ScheduledTaskEditorDialog(
                 }
                 item {
                     Column {
-                        OutlinedTextField(model, { model = it }, label = { Text(uiText("执行模型")) }, modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(model, { model = it }, label = { Text(uiText(R.string.ui_execution_model)) }, modifier = Modifier.fillMaxWidth())
                         if (selectedProfile.enabledModels.isNotEmpty()) {
-                            TextButton(onClick = { modelMenu = true }) { Text(uiText("从预保存模型选择")) }
+                            TextButton(onClick = { modelMenu = true }) { Text(uiText(R.string.ui_choose_from_saved_models)) }
                             DropdownMenu(expanded = modelMenu, onDismissRequest = { modelMenu = false }) {
                                 selectedProfile.enabledModels.forEach { savedModel ->
                                     DropdownMenuItem(
@@ -511,25 +511,25 @@ private fun ScheduledTaskEditorDialog(
             Button(
                 onClick = {
                     runCatching {
-                        require(prompt.isNotBlank()) { uiText("任务说明不能为空") }
+                        require(prompt.isNotBlank()) { uiText(R.string.ui_task_description_cannot_be_empty) }
                         val timeParts = time.split(":")
                         val hour = timeParts.getOrNull(0)?.toIntOrNull() ?: 9
                         val minute = timeParts.getOrNull(1)?.toIntOrNull() ?: 0
                         val runAtMillis = if (type == ScheduledTaskType.ONCE) {
                             SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).apply { isLenient = false }
-                                .parse(runAt)?.time ?: kotlin.error(uiText("执行时间格式不正确"))
+                                .parse(runAt)?.time ?: kotlin.error(uiText(R.string.ui_invalid_run_time_format))
                         } else {
                             initial?.runAtMillis ?: 0L
                         }
                         if (type == ScheduledTaskType.ONCE) {
-                            require(runAtMillis > System.currentTimeMillis()) { uiText("一次性任务时间必须晚于当前时间") }
+                            require(runAtMillis > System.currentTimeMillis()) { uiText(R.string.ui_one_time_task_must_be_scheduled_in_the_future) }
                         }
-                        require(hour in 0..23 && minute in 0..59) { uiText("执行时间格式不正确") }
+                        require(hour in 0..23 && minute in 0..59) { uiText(R.string.ui_invalid_run_time_format) }
                         if (type == ScheduledTaskType.WEEKLY) {
-                            require((dayValue.toIntOrNull() ?: 0) in 1..7) { uiText("星期必须为 1 到 7") }
+                            require((dayValue.toIntOrNull() ?: 0) in 1..7) { uiText(R.string.ui_weekday_must_be_1_to_7) }
                         }
                         if (type == ScheduledTaskType.MONTHLY) {
-                            require((dayValue.toIntOrNull() ?: 0) in 1..31) { uiText("每月日期必须为 1 到 31") }
+                            require((dayValue.toIntOrNull() ?: 0) in 1..31) { uiText(R.string.ui_day_of_month_must_be_1_to_31) }
                         }
                         onSave(
                             ScheduledTask(
@@ -553,11 +553,11 @@ private fun ScheduledTaskEditorDialog(
                                 error = initial?.error.orEmpty(),
                             ),
                         )
-                    }.onFailure { validationError = it.message.orEmpty().ifBlank { uiText("保存失败") } }
+                    }.onFailure { validationError = it.message.orEmpty().ifBlank { uiText(R.string.notice_save_failed) } }
                 },
-            ) { Text(uiText("保存")) }
+            ) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
@@ -611,9 +611,9 @@ private fun DownloadTaskCard(task: DownloadTask) {
                 } else {
                     Text(
                         when (task.status) {
-                            DownloadTaskStatus.QUEUED -> uiText("等待下载")
-                            DownloadTaskStatus.COMPLETED -> uiText("已完成 · ${formatTaskBytes(task.downloadedBytes)}")
-                            DownloadTaskStatus.FAILED -> uiText("失败：") + task.error.ifBlank { uiText("未知错误") }
+                            DownloadTaskStatus.QUEUED -> uiText(R.string.ui_waiting_to_download)
+                            DownloadTaskStatus.COMPLETED -> uiText(R.string.download_completed_size, formatTaskBytes(task.downloadedBytes))
+                            DownloadTaskStatus.FAILED -> uiText(R.string.ui_failed) + task.error.ifBlank { uiText(R.string.label_unknown_error) }
                             DownloadTaskStatus.RUNNING -> ""
                         },
                         color = if (task.status == DownloadTaskStatus.FAILED) MaterialTheme.colorScheme.error else KimiMuted,
@@ -627,24 +627,24 @@ private fun DownloadTaskCard(task: DownloadTask) {
 }
 
 private fun typeLabel(type: ScheduledTaskType): String = when (type) {
-    ScheduledTaskType.ONCE -> uiText("一次性")
-    ScheduledTaskType.DAILY -> uiText("每天")
-    ScheduledTaskType.WEEKLY -> uiText("每周")
-    ScheduledTaskType.MONTHLY -> uiText("每月")
+    ScheduledTaskType.ONCE -> uiText(R.string.ui_once)
+    ScheduledTaskType.DAILY -> uiText(R.string.ui_daily)
+    ScheduledTaskType.WEEKLY -> uiText(R.string.ui_weekly)
+    ScheduledTaskType.MONTHLY -> uiText(R.string.ui_monthly)
 }
 
 private fun scheduleLabel(task: ScheduledTask): String = when (task.type) {
-    ScheduledTaskType.ONCE -> uiText("一次性 · ${formatTaskTime(task.runAtMillis)}")
-    ScheduledTaskType.DAILY -> String.format(Locale.getDefault(), uiText("每天 %02d:%02d"), task.hour, task.minute)
-    ScheduledTaskType.WEEKLY -> String.format(Locale.getDefault(), uiText("每周%s %02d:%02d"), listOf(uiText("一"), uiText("二"), uiText("三"), uiText("四"), uiText("五"), uiText("六"), uiText("日"))[task.dayOfWeek.coerceIn(1, 7) - 1], task.hour, task.minute)
-    ScheduledTaskType.MONTHLY -> String.format(Locale.getDefault(), uiText("每月%d日 %02d:%02d"), task.dayOfMonth, task.hour, task.minute)
+    ScheduledTaskType.ONCE -> uiText(R.string.task_one_time_at, formatTaskTime(task.runAtMillis))
+    ScheduledTaskType.DAILY -> String.format(Locale.getDefault(), uiText(R.string.ui_daily_02d_02d), task.hour, task.minute)
+    ScheduledTaskType.WEEKLY -> String.format(Locale.getDefault(), uiText(R.string.ui_every_s_02d_02d), listOf(uiText(R.string.ui_mon), uiText(R.string.ui_tue), uiText(R.string.ui_wed), uiText(R.string.ui_thu), uiText(R.string.ui_fri), uiText(R.string.ui_sat), uiText(R.string.stat_period_day))[task.dayOfWeek.coerceIn(1, 7) - 1], task.hour, task.minute)
+    ScheduledTaskType.MONTHLY -> String.format(Locale.getDefault(), uiText(R.string.ui_monthly_on_day_d_02d_02d), task.dayOfMonth, task.hour, task.minute)
 }
 
 private fun taskStatusLabel(status: ScheduledTaskStatus): String = when (status) {
-    ScheduledTaskStatus.IDLE -> uiText("等待执行")
-    ScheduledTaskStatus.RUNNING -> uiText("正在执行")
-    ScheduledTaskStatus.COMPLETED -> uiText("已完成")
-    ScheduledTaskStatus.FAILED -> uiText("失败")
+    ScheduledTaskStatus.IDLE -> uiText(R.string.ui_waiting)
+    ScheduledTaskStatus.RUNNING -> uiText(R.string.ui_running)
+    ScheduledTaskStatus.COMPLETED -> uiText(R.string.ui_completed)
+    ScheduledTaskStatus.FAILED -> uiText(R.string.ui_failed_2)
 }
 
 private fun ScheduledTask.detailText(): String = error.ifBlank { result }
@@ -652,7 +652,7 @@ private fun ScheduledTask.detailText(): String = error.ifBlank { result }
 private fun formatTaskTime(time: Long): String =
     DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT, Locale.getDefault()).format(Date(time))
 
-private fun formatTaskTotal(bytes: Long): String = if (bytes < 0L) uiText("未知大小") else formatTaskBytes(bytes)
+private fun formatTaskTotal(bytes: Long): String = if (bytes < 0L) uiText(R.string.label_unknown_size) else formatTaskBytes(bytes)
 
 private fun formatTaskBytes(bytes: Long): String {
     if (bytes < 1024L) return "$bytes B"

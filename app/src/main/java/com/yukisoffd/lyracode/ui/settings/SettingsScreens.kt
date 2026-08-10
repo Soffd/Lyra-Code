@@ -137,7 +137,7 @@ internal fun SettingsScreen(
         "font_library" -> "font"
         "topic_summary_model_topic",
         "topic_summary_model_compression" -> "topic_summary_model"
-        "theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
+        "theme_mode", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
         "mini_server_logs" -> "mini_server"
         else -> null
     }
@@ -219,7 +219,7 @@ internal fun SettingsScreen(
                 ) pageContent@{
             if (target != null) {
                 SettingsDetailPage(
-                    scroll = target !in setOf("model", "prompts", "memories", "licenses", "about", "device", "font_library"),
+                    scroll = target !in setOf("model", "prompts", "memories", "licenses", "about", "device", "font", "font_library"),
                 ) {
                     when (target) {
                     "profile" -> ProfileSettingsSummary(settings)
@@ -251,13 +251,11 @@ internal fun SettingsScreen(
                         onDynamicColorChange = onDynamicColorChange,
                         predictiveBackEnabled = predictiveBackEnabled,
                         onPredictiveBackChange = onPredictiveBackChange,
-                        languageMode = languageMode,
                         refreshRateMode = refreshRateMode,
                         onRefreshRateModeChange = onRefreshRateModeChange,
                         fontScaleMode = fontScaleMode,
                         customFontScale = customFontScale,
                         onOpenThemeModeSettings = { detail = "theme_mode" },
-                        onOpenLanguageSettings = { detail = "language" },
                         onOpenFontSettings = { detail = "font" },
                         onOpenRefreshRateSettings = { detail = "refresh_rate" },
                         onOpenChatBackgroundSettings = { detail = "chat_background" },
@@ -374,13 +372,18 @@ internal fun SettingsScreen(
                 Icons.Default.Palette,
                 context.getString(R.string.menu_theme),
                 context.getString(
-                    R.string.menu_theme_current_full,
-                    if (settings.customThemeColorEnabled) uiText("自定义 ${settings.customThemeColor}") else themeName(themeMode),
-                    languageName(languageMode),
+                    R.string.menu_theme_current,
+                    if (settings.customThemeColorEnabled) uiText(R.string.custom_theme_color_value, settings.customThemeColor) else themeName(themeMode),
                     refreshRateName(refreshRateMode),
                     fontScaleName(fontScaleMode, customFontScale),
                 ),
                 "theme",
+            ),
+            SettingsMenuEntry(
+                Icons.Default.Language,
+                context.getString(R.string.detail_language),
+                languageName(languageMode),
+                "language",
             ),
             SettingsMenuEntry(Icons.Default.EditNote, context.getString(R.string.menu_system_prompt), context.getString(R.string.menu_system_prompt_desc), "prompts"),
             SettingsMenuEntry(Icons.Default.Psychology, context.getString(R.string.menu_memory), context.getString(R.string.menu_memory_desc, settings.memories().count { it.enabled }), "memories"),
@@ -493,8 +496,8 @@ internal fun SettingsScreen(
                             initialState == "font" && targetState == "font_library" -> true
                             initialState in setOf("topic_summary_model_topic", "topic_summary_model_compression") && targetState == "topic_summary_model" -> false
                             initialState == "topic_summary_model" && targetState in setOf("topic_summary_model_topic", "topic_summary_model_compression") -> true
-                            initialState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
-                            initialState == "theme" && targetState in setOf("theme_mode", "language", "font", "refresh_rate", "chat_background", "streaming_output") -> true
+                            initialState in setOf("theme_mode", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
+                            initialState == "theme" && targetState in setOf("theme_mode", "font", "refresh_rate", "chat_background", "streaming_output") -> true
                             initialState == "mini_server_logs" && targetState == "mini_server" -> false
                             initialState == "mini_server" && targetState == "mini_server_logs" -> true
                             targetState == null -> false
@@ -543,17 +546,17 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "profile" -> context.getString(R.string.detail_profile)
     "model" -> context.getString(R.string.detail_model)
     "topic_summary_model" -> context.getString(R.string.detail_topic_summary_model)
-    "topic_summary_model_topic" -> uiText("话题总结模型")
-    "topic_summary_model_compression" -> uiText("会话历史压缩模型")
+    "topic_summary_model_topic" -> uiText(R.string.ui_topic_summary_model)
+    "topic_summary_model_compression" -> uiText(R.string.label_history_compression_model)
     "sub_agents" -> context.getString(R.string.detail_sub_agents)
     "web_search" -> context.getString(R.string.detail_web_search)
     "workspace" -> context.getString(R.string.detail_workspace)
     "theme" -> context.getString(R.string.detail_theme)
-    "custom_theme_color" -> uiText("设置自定义主题色")
+    "custom_theme_color" -> uiText(R.string.ui_set_custom_theme_color)
     "theme_mode" -> context.getString(R.string.detail_theme_mode)
     "language" -> context.getString(R.string.detail_language)
-    "font" -> uiText("字体与大小")
-    "font_library" -> uiText("字体库")
+    "font" -> uiText(R.string.ui_fonts_and_size)
+    "font_library" -> uiText(R.string.ui_font_library)
     "refresh_rate" -> context.getString(R.string.detail_refresh_rate)
     "chat_background" -> context.getString(R.string.detail_chat_background)
     "streaming_output" -> context.getString(R.string.detail_streaming_output)
@@ -595,10 +598,10 @@ internal fun WorkspaceSettings(
     onPickWorkspace: () -> Unit,
 ) {
     KimiCardBox {
-        KimiMenuRow(Icons.Default.Folder, uiText("当前目录"), workspaceDisplayName, onPickWorkspace)
+        KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_current_directory), workspaceDisplayName, onPickWorkspace)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Terminal, uiText("Termux 路径"), workspaceManager.termuxRootPath() ?: uiText("仅 primary"))
-        Text(uiText("右上角加号选择目录后会立即刷新对话页顶部的小字目录名。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        KimiMenuRow(Icons.Default.Terminal, uiText(R.string.menu_termux_path), workspaceManager.termuxRootPath() ?: uiText(R.string.termux_path_primary))
+        Text(uiText(R.string.workspace_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
 

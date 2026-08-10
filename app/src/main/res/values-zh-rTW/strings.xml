@@ -1,0 +1,2063 @@
+<resources>
+    <string name="app_name">Lyra Code</string>
+
+    <!-- ==================== AppShell.kt ==================== -->
+    <string name="nav_tab_ai_chat">AI 對話</string>
+    <string name="nav_tab_log">日誌</string>
+    <string name="nav_tab_statistics">統計</string>
+    <string name="nav_tab_tasks">任務</string>
+    <string name="nav_tab_archive">歸檔</string>
+    <string name="nav_tab_settings">設定</string>
+    <string name="notice_already_in_new_chat">你已在新對話中，無需重複操作</string>
+    <string name="notice_cannot_open_installer">無法開啟安裝器</string>
+    <string name="notice_auth_pending_install_later">授權未完成，可稍後在關於軟體中繼續安裝</string>
+    <string name="notice_grant_install_permission">請授權安裝未知來源應用，返回後將繼續安裝</string>
+    <string name="notice_skill_imported">已匯入 %1$s</string>
+    <string name="notice_skill_import_failed">匯入失敗</string>
+    <string name="notice_importing_backup">正在匯入備份…</string>
+    <string name="notice_import_complete">匯入完成：%1$s</string>
+    <string name="notice_import_failed">匯入失敗：%1$s</string>
+    <string name="notice_download_complete_prepare_install">下載完成，準備安裝</string>
+    <string name="notice_download_failed">下載失敗</string>
+    <string name="notice_preparing_download">準備下載</string>
+    <string name="skill_downloading">正在下載 Skills 倉庫…</string>
+    <string name="label_functions">功能</string>
+    <string name="label_current">當前</string>
+    <string name="label_history_sessions">歷史會話</string>
+    <string name="history_mode_sessions">會話</string>
+    <string name="history_mode_projects">專案</string>
+    <string name="search_history_placeholder">搜尋歷史對話</string>
+    <string name="search_projects_placeholder">搜尋專案或專案對話</string>
+    <string name="notice_no_projects">暫無專案。選擇一個工作區資料夾來建立專案。</string>
+    <string name="notice_no_project_sessions">此專案暫無對話</string>
+    <string name="action_create_project">建立專案</string>
+    <string name="action_new_project_session">在專案中新建對話</string>
+    <string name="action_expand_project">展開專案</string>
+    <string name="action_collapse_project">收起專案</string>
+    <string name="project_session_count">%1$d 個對話</string>
+    <string name="notice_project_created">已建立專案“%1$s”</string>
+    <string name="notice_already_in_new_project_chat">你已在此專案的新對話中</string>
+    <string name="default_project_name">未命名專案</string>
+    <string name="label_selected_count">已選擇 %1$d</string>
+    <string name="action_pin">置頂</string>
+    <string name="action_delete">刪除</string>
+    <string name="action_cancel_select">取消選擇</string>
+    <string name="notice_no_sessions">暫無會話</string>
+    <string name="archive_page_description">歸檔的對話和專案仍會完整保留，可隨時恢復。</string>
+    <string name="search_archived_placeholder">搜尋已歸檔對話或專案</string>
+    <string name="notice_no_archived_chats">暫無已歸檔對話或專案</string>
+    <string name="label_pinned">置頂</string>
+    <string name="label_today">今天</string>
+    <string name="label_yesterday">昨天</string>
+    <string name="label_this_week">一週內</string>
+    <string name="label_this_month">一月內</string>
+    <string name="label_profile">個人資料</string>
+    <string name="label_nickname">暱稱</string>
+    <string name="action_select_avatar">選擇頭像圖片</string>
+    <string name="label_crop_zoom">裁剪縮放</string>
+    <string name="label_horizontal_position">水平位置</string>
+    <string name="label_vertical_position">垂直位置</string>
+    <string name="action_save">儲存</string>
+    <string name="action_cancel">取消</string>
+    <string name="label_files_count_enabled">%1$d 個檔案 · %2$s</string>
+    <string name="skill_status_enabled">已啟用</string>
+    <string name="skill_status_disabled">已禁用</string>
+    <string name="action_disable">禁用</string>
+    <string name="action_enable">啟用</string>
+    <string name="action_delete_skill">刪除 Skill</string>
+    <string name="confirm_delete_skill">該操作會刪除此 Skill 包及其本地檔案。</string>
+    <string name="label_skills_capability">Skills 能力包</string>
+    <string name="skills_description">支援從檔案、倉庫連結或手動編輯 SKILL.md 匯入。AI 會先檢視 name/description 判斷是否需要，再按需讀取包內檔案。</string>
+    <string name="action_import_skills">匯入 Skills</string>
+    <string name="label_installed_count">%1$d 個已安裝</string>
+    <string name="notice_no_skills">暫無 Skills</string>
+    <string name="skills_empty_hint">匯入 zip、單個 SKILL.md 或倉庫後會在這裡顯示，可啟用、禁用或刪除。</string>
+    <string name="label_installed">已安裝</string>
+    <string name="action_import_from_file">從檔案匯入</string>
+    <string name="label_import_file_hint">選擇 zip 或單個 SKILL.md</string>
+    <string name="action_import_from_repo">從倉庫匯入</string>
+    <string name="label_import_repo_hint">GitHub / Gitee / GitLab</string>
+    <string name="action_manual_add">手動新增</string>
+    <string name="label_manual_add_hint">直接編輯 SKILL.md</string>
+    <string name="title_import_from_repo">從倉庫匯入</string>
+    <string name="repo_import_description">輸入 GitHub、Gitee 或 GitLab 倉庫連結，Lyra Code 會自動下載倉庫檔案並識別 SKILL.md。</string>
+    <string name="label_repo_link">GitHub / Gitee / GitLab 連結</string>
+    <string name="action_import">匯入</string>
+    <string name="title_manual_add">手動新增</string>
+    <string name="manual_add_description">直接編輯 SKILL.md 內容，儲存後會作為一個獨立 Skill 安裝。</string>
+    <string name="action_save_skill">儲存 Skill</string>
+    <string name="label_files_and_id">%1$d 個檔案 · %2$s</string>
+    <string name="action_undo">撤銷</string>
+    <string name="action_redo">重做</string>
+    <string name="notice_cannot_preview_image">無法預覽圖片</string>
+    <string name="action_upload_original">原圖上傳</string>
+    <string name="action_done">完成</string>
+    <string name="label_crop">裁剪</string>
+    <string name="label_brush">畫筆</string>
+    <string name="label_mosaic">馬賽克</string>
+    <string name="action_rotate">旋轉</string>
+    <string name="action_reset">還原</string>
+    <string name="label_thickness">粗細</string>
+    <string name="label_pinned_icon">已置頂</string>
+    <string name="title_session_actions">會話操作</string>
+    <string name="title_project_actions">專案操作</string>
+    <string name="label_project_name">專案名稱</string>
+    <string name="action_save_project_name">儲存專案名稱</string>
+    <string name="action_pin_project">置頂專案</string>
+    <string name="action_unpin_project">取消置頂專案</string>
+    <string name="action_archive_project">歸檔專案</string>
+    <string name="action_delete_project">刪除專案及其對話</string>
+    <string name="title_delete_project">刪除專案？</string>
+    <string name="confirm_delete_project">將刪除“%1$s”及專案內的所有對話。此操作無法撤銷。</string>
+    <string name="action_restore_project">恢復專案</string>
+    <string name="title_delete_archived_project">徹底刪除專案？</string>
+    <string name="confirm_delete_archived_project">將永久刪除“%1$s”及專案內的所有對話，此操作無法撤銷。</string>
+    <string name="label_chat_title">對話標題</string>
+    <string name="action_save_title">儲存標題</string>
+    <string name="action_unpin">取消置頂</string>
+    <string name="action_pin_chat">置頂對話</string>
+    <string name="action_multi_select">進入多選</string>
+    <string name="action_archive_chat">歸檔對話</string>
+    <string name="action_restore_chat">恢復對話</string>
+    <string name="action_delete_permanently">徹底刪除</string>
+    <string name="title_delete_archived_chat">徹底刪除對話？</string>
+    <string name="confirm_delete_archived_chat">將永久刪除“%1$s”及其所有訊息，此操作無法撤銷。</string>
+    <string name="action_delete_chat">刪除對話</string>
+    <string name="action_close">關閉</string>
+    <string name="label_new_chat">新聊天</string>
+
+    <!-- ==================== ChatScreen.kt ==================== -->
+    <string name="label_fetched_models">已獲取 %1$d 個模型</string>
+    <string name="cd_scroll_to_bottom">回到底部</string>
+    <string name="cd_add_attachment">新增附件</string>
+    <string name="placeholder_input_message">輸入訊息</string>
+    <string name="cd_stop">停止</string>
+    <string name="cd_send">傳送</string>
+    <string name="cd_add">新增</string>
+    <string name="label_choose_provider">選擇服務商</string>
+    <string name="search_provider_placeholder">搜尋服務商</string>
+    <string name="label_choose_model">選擇模型</string>
+    <string name="search_model_placeholder">搜尋模型</string>
+    <string name="label_switch_prompt">切換提示詞</string>
+    <string name="search_prompt_placeholder">搜尋提示詞</string>
+    <string name="label_reasoning_depth">推理深度</string>
+    <string name="reasoning_depth_hint">並非對所有模型生效。自動模式不會額外傳入引數。</string>
+    <string name="action_album">相簿</string>
+    <string name="action_camera">相機</string>
+    <string name="action_file">檔案</string>
+    <string name="notice_camera_permission_required">未授予相機許可權，無法開啟相機。請在系統設定中允許相機許可權。</string>
+    <string name="notice_camera_unavailable">無法開啟相機，請確認裝置已安裝可用的相機應用。</string>
+    <string name="notice_album_unavailable">無法開啟系統照片選擇器。</string>
+    <string name="notice_file_picker_unavailable">無法開啟系統檔案選擇器。</string>
+    <string name="label_provider">服務商</string>
+    <string name="label_not_configured">未配置</string>
+    <string name="label_model">模型</string>
+    <string name="label_not_selected">未選擇</string>
+    <string name="label_workspace_session">當前會話工作區</string>
+    <string name="label_no_workspace">未選擇工作目錄</string>
+    <string name="notice_workspace_selected_current_chat">已為當前會話選擇工作區：%1$s</string>
+    <string name="label_auto_approve">無審批</string>
+    <string name="subtitle_auto_approve_off">僅當前會話生效，開啟前需要確認風險</string>
+    <string name="subtitle_auto_approve_on">已開啟：需要審批的操作將自動同意</string>
+    <string name="title_enable_auto_approve">開啟無審批</string>
+    <string name="auto_approve_warning">開啟後，AI 執行需要使用者審批的操作時將自動同意。可能導致檔案被修改、命令被執行或遠端服務被呼叫，請只在信任當前任務時開啟。該設定僅對當前會話生效。</string>
+    <string name="action_enable_auto_approve">確認開啟</string>
+    <string name="label_prompt">提示詞</string>
+    <string name="label_default_assistant">預設助手</string>
+    <string name="label_reasoning">推理深度</string>
+    <string name="label_sub_agent_orchestration">子代理編排</string>
+    <string name="subtitle_sub_agent_orchestration">複雜任務允許主模型分派獨立子代理</string>
+    <string name="subtitle_sub_agent_no_models">請先在設定中新增並啟用子代理模型</string>
+    <string name="reasoning_low">低</string>
+    <string name="reasoning_medium">中</string>
+    <string name="reasoning_high">高</string>
+    <string name="reasoning_xhigh">極高</string>
+    <string name="reasoning_max">最大檔</string>
+    <string name="reasoning_auto">自動</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_remove">移除</string>
+    <string name="label_video">影片</string>
+    <string name="label_audio">音訊</string>
+    <string name="process_record_expanded">過程記錄已展開</string>
+    <string name="process_record_collapsed">過程記錄已收起 · thinking %1$d / 工具 %2$d</string>
+    <string name="label_task_processing">任務處理中 · </string>
+    <string name="label_task_duration">任務耗時 · </string>
+    <string name="title_confirm_tool_call">確認工具呼叫</string>
+    <string name="label_reject_feedback">拒絕時給 AI 的修改要求</string>
+    <string name="action_session_no_confirm">本會話無需確認</string>
+    <string name="action_approve">同意</string>
+    <string name="action_reject">不同意</string>
+    <string name="action_expand">展開</string>
+    <string name="action_collapse">收納</string>
+    <string name="label_file_changes">檔案變更 %1$d</string>
+    <string name="cd_expand_collapse">收起變更詳情</string>
+    <string name="cd_expand_collapse_alt">點選審視變更前後程式碼</string>
+    <string name="title_edit_regenerate">編輯並重新生成</string>
+    <string name="action_regenerate">重新生成</string>
+    <string name="label_tool_result">工具結果</string>
+    <string name="thinking_details_expanded">思考詳情已展開</string>
+    <string name="label_thinking">thinking…</string>
+    <string name="label_thinking_done">思考完畢</string>
+    <string name="cd_copy">複製</string>
+    <string name="label_composing">正在組織輸出…</string>
+    <string name="action_copy">複製</string>
+    <string name="action_select_text">選擇文字</string>
+    <string name="action_edit_regenerate">修改並重新生成</string>
+    <string name="label_time_hours">%1$d小時%2$d分%3$d秒</string>
+    <string name="label_time_minutes">%1$d分%2$d秒</string>
+    <string name="label_time_seconds">%1$d秒</string>
+    <string name="cd_expand">收起</string>
+    <string name="cd_expand_alt">展開</string>
+    <string name="action_continue_chat">繼續對話</string>
+    <string name="label_unnamed_file">未命名檔案</string>
+    <string name="label_empty_result">空結果</string>
+    <string name="label_tool_truncated">… 已截斷預覽，完整工具結果共 %1$d 字元。</string>
+    <string name="tool_details_expanded">工具呼叫詳情已展開</string>
+    <string name="tool_details_collapsed">使用工具中… / 工具結果已收起</string>
+    <string name="label_tool_return_chars">工具返回 %1$d 字元：%2$s</string>
+    <string name="action_review_change">審視變更</string>
+    <string name="action_collapse_change">收起變更</string>
+    <string name="label_diff">差異</string>
+    <string name="label_no_diff">（無行級差異）</string>
+    <string name="label_before_change">變更前</string>
+    <string name="label_after_change">變更後</string>
+    <string name="label_empty_content">（空）</string>
+    <string name="label_file_generic">檔案</string>
+    <string name="label_file_text">%1$s 文字</string>
+    <string name="label_file_code">%1$s 程式碼</string>
+    <string name="label_file_archive">%1$s 壓縮包</string>
+    <string name="label_file_pdf">PDF 文件</string>
+    <string name="label_file_doc">%1$s 文件</string>
+    <string name="label_file_other">%1$s 檔案</string>
+    <string name="label_platform">平臺</string>
+
+    <!-- ==================== ChatController.kt ==================== -->
+    <string name="title_new_chat">新對話</string>
+    <string name="status_running">執行中</string>
+    <string name="status_reading_file">正在閱讀檔案：%1$s</string>
+    <string name="status_modifying_file">正在修改檔案：%1$s</string>
+    <string name="status_moving_file">正在移動檔案：%1$s → %2$s</string>
+    <string name="status_sub_agent_progress">子代理任務：已完成 %1$d/%2$d</string>
+    <string name="status_sub_agent_progress_running">子代理任務：已完成 %1$d/%2$d · 正在執行 %3$s</string>
+    <string name="status_sub_agent_progress_detail">子代理任務：已完成 %1$d/%2$d · 正在執行 %3$s · %4$s</string>
+    <string name="status_interrupted">已中斷</string>
+    <string name="status_continue">繼續執行</string>
+    <string name="status_regenerate">重新生成</string>
+    <string name="status_done">完成</string>
+    <string name="status_reading_upload">讀取上傳檔案</string>
+    <string name="status_uploaded">已上傳 %1$s</string>
+    <string name="status_processing_photo">處理拍照圖片</string>
+    <string name="label_pending_attachments">待傳送 %1$d 個附件</string>
+    <string name="label_upload_file_header">使用者上傳檔案：</string>
+    <string name="label_size_bytes">大小：%1$d bytes</string>
+    <string name="label_upload_media_header">使用者上傳媒體：</string>
+    <string name="label_type">型別：</string>
+    <string name="label_mime">MIME：</string>
+    <string name="label_uri">URI：</string>
+    <string name="label_size">大小：</string>
+    <string name="label_bytes"> bytes</string>
+    <string name="status_fetching_models">獲取模型列表</string>
+    <string name="status_checking_reachability">檢測模型可達性</string>
+    <string name="status_approved_tool">已批准工具呼叫</string>
+    <string name="status_rejected_tool">已拒絕工具呼叫</string>
+    <string name="status_waiting_confirm">等待確認：%1$s</string>
+    <string name="status_waiting_user_answer">等待使用者回答追問</string>
+    <string name="status_user_answer_submitted">追問回答已提交</string>
+    <string name="status_user_question_timed_out">追問因 10 分鐘無操作已撤回，AI 將自行繼續</string>
+    <string name="ask_user_multi_select_hint">可選擇多個選項，也可以在下方補充其他內容。</string>
+    <string name="ask_user_free_text_label">補充回答</string>
+    <string name="ask_user_free_text_support">可填寫選項中沒有的答案，或補充已選內容。</string>
+    <string name="ask_user_idle_timeout_hint">連續 10 分鐘沒有點選、滾動、選擇或輸入時，此追問會自動撤回。</string>
+    <string name="ask_user_submit">提交回答</string>
+    <string name="ask_user_confirm_title">確認提交回答？</string>
+    <string name="ask_user_confirm_body">提交後 AI 會依據這些內容繼續當前任務。</string>
+    <string name="ask_user_confirm_selected">已選：%1$s</string>
+    <string name="ask_user_confirm_extra">補充：%1$s</string>
+    <string name="ask_user_confirm_submit">確認提交</string>
+    <string name="status_request_retry">請求失敗，5 秒後重試（%1$d/%2$d）</string>
+    <string name="todo_list_set">TODO 列表已設定，共 %1$d 項。</string>
+    <string name="todo_item_default_name">未命名步驟</string>
+    <string name="todo_status_completed">completed</string>
+    <string name="label_new_conversation">新對話</string>
+    <string name="label_user_interrupted">使用者中斷了當前任務。</string>
+
+    <!-- ==================== LogScreen.kt ==================== -->
+    <string name="title_audit_log">審查日誌</string>
+    <string name="cd_refresh_log">重新整理日誌</string>
+    <string name="cd_clear_log">清空日誌</string>
+    <string name="notice_no_log">暫無日誌</string>
+    <string name="log_empty_hint">模型請求、工具審查和關鍵執行記錄會顯示在這裡。</string>
+    <string name="title_log_detail">日誌詳情</string>
+    <string name="cd_close">關閉</string>
+
+    <!-- ==================== DeviceInfoCollector.kt ==================== -->
+    <string name="device_section_system">系統</string>
+    <string name="device_manufacturer">廠商</string>
+    <string name="device_brand">品牌</string>
+    <string name="device_model">型號</string>
+    <string name="device_codename">裝置代號</string>
+    <string name="device_android_version">Android 版本</string>
+    <string name="device_sdk">Android SDK</string>
+    <string name="device_build">構建版本</string>
+    <string name="device_security_patch">安全補丁</string>
+    <string name="device_not_supported">不支援</string>
+    <string name="device_section_hardware">硬體</string>
+    <string name="device_cpu">CPU</string>
+    <string name="device_cpu_cores">CPU 核心數</string>
+    <string name="device_abi">ABI</string>
+    <string name="device_memory">記憶體</string>
+    <string name="device_resolution">解析度</string>
+    <string name="device_density">螢幕密度</string>
+    <string name="device_section_storage">儲存</string>
+    <string name="device_internal_storage">內部儲存</string>
+    <string name="device_shared_storage">共享儲存</string>
+    <string name="device_primary_storage">主儲存</string>
+    <string name="device_removable_storage">外部儲存</string>
+    <string name="device_storage_volume">儲存卷</string>
+    <string name="device_path_not_readable">路徑不可直接讀取；uuid=%1$s，removable=%2$s</string>
+    <string name="device_none">無</string>
+    <string name="device_section_connection">連線</string>
+    <string name="device_network">網路</string>
+    <string name="device_bluetooth">藍芽</string>
+    <string name="device_network_none">未連線或無網路狀態許可權</string>
+    <string name="device_network_wifi">Wi-Fi</string>
+    <string name="device_network_cellular">行動網路</string>
+    <string name="device_network_ethernet">乙太網</string>
+    <string name="device_network_bluetooth">藍芽網路</string>
+    <string name="device_network_other">其他</string>
+    <string name="device_bluetooth_not_supported">裝置不支援藍芽</string>
+    <string name="device_bluetooth_on">已開啟</string>
+    <string name="device_bluetooth_off">未開啟</string>
+    <string name="device_read_error">無法讀取：%1$s</string>
+    <string name="device_section_battery">電池</string>
+    <string name="device_battery_level">電量</string>
+    <string name="device_battery_status">狀態</string>
+    <string name="device_battery_power">供電</string>
+    <string name="device_battery_unknown">未知</string>
+    <string name="device_battery_charging">充電中</string>
+    <string name="device_battery_discharging">放電中</string>
+    <string name="device_battery_full">已充滿</string>
+    <string name="device_battery_not_charging">未充電</string>
+    <string name="device_plugged_wireless">無線</string>
+    <string name="device_plugged_none">未連線</string>
+    <string name="device_memory_format">%1$s 可用 / %2$s 總計</string>
+    <string name="device_storage_format">%1$s 可用 / %2$s 總計 · %3$s</string>
+
+    <!-- ==================== MarkdownMedia.kt ==================== -->
+    <string name="label_media_file">媒體檔案</string>
+    <string name="action_copy_link">複製</string>
+    <string name="action_save_media">儲存</string>
+    <string name="notice_saving">正在儲存…</string>
+    <string name="notice_save_failed">儲存失敗</string>
+    <string name="status_loading_media">載入媒體…</string>
+    <string name="notice_image_load_failed">圖片載入失敗，可複製連結到瀏覽器開啟。</string>
+    <string name="title_image_preview">圖片預覽</string>
+    <string name="notice_cannot_parse_media">無法識別媒體地址：%1$s</string>
+    <string name="action_fullscreen">全屏</string>
+    <string name="title_video_preview">影片預覽</string>
+    <string name="notice_image_decode_failed">圖片解碼失敗</string>
+    <string name="action_fullscreen_play">全屏播放</string>
+    <string name="action_play">播放</string>
+    <string name="title_media_preview">媒體預覽</string>
+    <string name="notice_cannot_preview_media">無法預覽此媒體</string>
+    <string name="action_save_file">儲存檔案</string>
+    <string name="cd_close_preview">關閉預覽</string>
+    <string name="status_loading_image">載入媒體…</string>
+    <string name="notice_image_load_error">圖片載入失敗</string>
+    <string name="notice_cannot_open_media">無法開啟媒體</string>
+    <string name="action_copy_code">複製程式碼</string>
+    <string name="title_base64_file">Base64 檔案</string>
+    <string name="notice_cannot_parse_data_url">無法解析 data URL。</string>
+    <string name="notice_decoded_bytes">已解碼 %1$d bytes。音訊、影片或其他檔案可儲存後用外部應用開啟。</string>
+    <string name="action_copy_raw">複製原始值</string>
+    <string name="action_save_to_download">儲存到下載</string>
+    <string name="notice_saved_to_download">已儲存到 Download/LyraCode/%1$s</string>
+    <string name="notice_saved_to_path">已儲存到 %1$s</string>
+    <string name="error_cannot_create_download">無法建立下載檔案</string>
+    <string name="error_cannot_write_download">無法寫入下載檔案</string>
+    <string name="error_cannot_open_media">無法開啟媒體</string>
+    <string name="error_media_too_large">媒體超過 %1$d MB</string>
+
+    <!-- ==================== RichMarkdown.kt ==================== -->
+    <string name="cd_copy_code">複製程式碼</string>
+    <string name="notice_exported_to">已匯出到 Download/%1$s</string>
+    <string name="notice_export_failed">匯出失敗：%1$s</string>
+    <string name="cd_export_csv">匯出 CSV</string>
+
+    <!-- ==================== UsageStatistics.kt ==================== -->
+    <string name="stat_period_day">日</string>
+    <string name="stat_period_week">周</string>
+    <string name="stat_period_month">月</string>
+    <string name="stat_period_year">年</string>
+    <string name="stat_period_total">總共</string>
+
+    <!-- ==================== ConversationStore.kt ==================== -->
+    <string name="default_conversation_title">新對話</string>
+    <string name="notice_no_compatible_data">沒有相容的對話資料</string>
+    <string name="default_import_title">匯入對話</string>
+    <string name="import_result_conversations">對話 %1$d 個，訊息 %2$d 條</string>
+    <string name="import_result_skipped">，跳過重複對話 %1$d 個</string>
+
+    <!-- ==================== UpdateManager.kt ==================== -->
+    <string name="error_no_manifest_url">未配置更新清單地址，請在 gradle.properties 設定 lyra.updateManifestUrl</string>
+    <string name="error_update_check_failed">版本檢測失敗：HTTP %1$d</string>
+    <string name="error_invalid_apk_url">安裝包下載地址無效</string>
+    <string name="error_download_failed">下載安裝包失敗：HTTP %1$d</string>
+    <string name="error_download_empty">下載安裝包失敗：響應為空</string>
+    <string name="status_downloading">正在下載</string>
+    <string name="status_download_complete">下載完成</string>
+    <string name="error_download_empty_file">下載安裝包失敗：檔案為空</string>
+    <string name="error_not_apk">下載到的不是 APK 檔案。contentType=%1$s，size=%2$d，head=%3$s</string>
+    <string name="error_invalid_sha256_format">更新清單中的 apkSha256 格式無效</string>
+    <string name="error_sha256_mismatch">安裝包校驗失敗：SHA-256 不一致\n期望：%1$s\n實際：%2$s\nsize=%3$d，contentType=%4$s</string>
+    <string name="error_save_apk_failed">儲存安裝包失敗</string>
+    <string name="continue_install_label">繼續安裝 %1$s</string>
+    <string name="continue_install_default">繼續安裝已下載更新</string>
+    <string name="error_missing_version_code">更新清單缺少 versionCode</string>
+    <string name="default_release_notes">發現新版本，暫無更新說明。</string>
+
+    <!-- ==================== MiniServerManager.kt ==================== -->
+    <string name="server_status_not_started">未啟動</string>
+    <string name="server_status_running">執行中</string>
+    <string name="server_status_start_failed">啟動失敗</string>
+    <string name="server_status_stopped">已停止</string>
+    <string name="server_log_cleared">微型伺服器日誌已清空</string>
+    <string name="error_no_workspace">請先選擇工作目錄，微型伺服器會以工作目錄作為站點根目錄。</string>
+    <string name="server_serving">正在服務 %1$s</string>
+    <string name="server_started">微型伺服器已啟動，工作區：%1$s</string>
+    <string name="server_listen_failed">監聽失敗：%1$s</string>
+    <string name="server_stopped_log">微型伺服器已停止</string>
+    <string name="server_log_client_accepted">客戶端日誌已接收</string>
+    <string name="server_error_method_not_allowed">只支援 GET / HEAD。</string>
+    <string name="server_log_unsupported_method">不支援的請求方法</string>
+    <string name="server_log_redirected_https">已重定向到 HTTPS</string>
+    <string name="server_error_auth_required">需要密碼認證。</string>
+    <string name="server_log_auth_failed">認證失敗或未提供密碼</string>
+    <string name="server_error_bad_path">路徑非法。</string>
+    <string name="server_log_bad_path">路徑非法</string>
+    <string name="server_error_internal">伺服器內部錯誤：%1$s</string>
+    <string name="server_log_request_failed">請求處理失敗：%1$s</string>
+    <string name="label_client">客戶端：</string>
+    <string name="label_unknown_error">未知錯誤</string>
+    <string name="server_error_no_workspace">未選擇工作目錄。</string>
+    <string name="server_result_no_workspace">未選擇工作目錄</string>
+    <string name="server_result_directory_listing">目錄列表：/%1$s</string>
+    <string name="server_error_dir_browsing_disabled">目錄瀏覽未啟用。</string>
+    <string name="server_result_dir_browsing_disabled">目錄瀏覽未啟用</string>
+    <string name="server_error_file_not_found">檔案不存在。</string>
+    <string name="server_result_file_not_found">檔案不存在</string>
+    <string name="server_result_resource_loaded">資源載入：%1$s (%2$s)</string>
+    <string name="server_redirect_body">請使用 HTTPS 訪問：%1$s</string>
+    <string name="server_mdns_published">已透過 mDNS 釋出 %1$s.local</string>
+    <string name="server_mdns_failed">mDNS 釋出失敗：%1$d</string>
+
+    <!-- ==================== FileTransferClient.kt ==================== -->
+    <string name="error_ft_unsupported_protocol">不支援的檔案傳輸協議：%1$s</string>
+    <string name="error_ft_search_keyword_empty">搜尋關鍵詞不能為空</string>
+    <string name="ft_downloading">下載 %1$s</string>
+    <string name="ft_uploading">上傳 %1$s</string>
+    <string name="error_ftp_connect_failed">FTP 連線失敗：%1$s</string>
+    <string name="error_ftp_login_failed">FTP 登入失敗：%1$s</string>
+    <string name="error_ftp_list_failed">FTP 列目錄失敗：%1$s</string>
+    <string name="error_ftp_download_failed">FTP 下載失敗：%1$s</string>
+    <string name="error_ftp_upload_failed">FTP 上傳失敗：%1$s</string>
+    <string name="error_ftp_passive_only">當前客戶端僅支援 FTP/FTPS 被動模式傳輸</string>
+    <string name="error_ftp_pasv_parse_failed">FTP PASV 響應無法解析：%1$s</string>
+    <string name="error_ftp_command_failed">FTP 命令失敗 %1$s：%2$s</string>
+    <string name="error_ftp_disconnected">FTP 連線已斷開</string>
+    <string name="error_ftp_response_parse_failed">FTP 響應無法解析：%1$s</string>
+
+    <!-- ==================== McpClientManager.kt ==================== -->
+    <string name="error_mcp_method_failed">MCP %1$s %2$s 失敗：%3$s</string>
+    <string name="error_mcp_url_invalid">MCP URL 必須是 http:// 或 https://</string>
+    <string name="error_mcp_parse_failed">無法解析 MCP 響應：%1$s</string>
+
+    <!-- ==================== LocalMcpServerManager.kt ==================== -->
+
+    <!-- ==================== SshExecutor.kt ==================== -->
+    <string name="error_ssh_command_empty">SSH 命令不能為空</string>
+    <string name="error_ssh_log_read_forbidden">為避免上下文爆炸和誤讀日誌，禁止直接讀取 /var/log 或 *.log。請先用 ls/stat/du/wc -l 檢視檔案屬性，確認範圍安全後再讀取小片段。</string>
+    <string name="error_ssh_key_empty">SSH 私鑰為空</string>
+
+    <!-- ==================== BackupManager.kt ==================== -->
+    <string name="backup_exported_to">已匯出到 Download/LyraCode/%1$s</string>
+    <string name="error_cannot_read_backup">無法讀取備份檔案</string>
+    <string name="backup_import_skills">Skills 檔案 %1$d 個</string>
+    <string name="backup_no_compatible_data">沒有匯入相容資料</string>
+    <string name="error_cannot_create_export">無法建立匯出檔案</string>
+    <string name="error_cannot_write_export">無法寫入匯出檔案</string>
+
+    <!-- ==================== WebViewWebAgent.kt ==================== -->
+    <string name="error_search_keyword_empty">搜尋關鍵詞不能為空</string>
+    <string name="notice_blocked_domains"> 已過濾黑名單域名：%1$s。</string>
+    <string name="search_no_results">未找到可用搜尋結果。</string>
+    <string name="search_guidance">已按關鍵詞匹配度、來源質量和垃圾/聚合頁訊號排序。優先讀取高分、官方/原始/權威來源；低分結果僅作補充，不要把搜尋摘要當最終事實。</string>
+    <string name="error_only_http_url">只支援 http/https 網頁 URL</string>
+    <string name="search_engine_bing">必應</string>
+    <string name="search_engine_baidu">百度</string>
+    <string name="web_page_blocked">WEB_PAGE_READ_RESULT schema=lyra_web_page_v2\nstatus: blocked_by_user\ntitle: \nurl: %1$s\nnote: 該網站已在聯網搜尋黑名單中，禁止讀取: %2$s\n\n頁面未讀取。</string>
+    <string name="web_page_timeout">網頁讀取超時。</string>
+    <string name="web_page_blocked_dynamic">note: 頁面疑似有人機驗證、訪問防護、登入牆、403/Cloudflare 或正文與真人瀏覽不一致；不要把該頁面作為唯一事實來源。</string>
+    <string name="web_page_limited">note: 頁面可讀文字較少，可能是動態渲染、摘要頁或正文抽取不完整；建議讀取其他來源交叉核對。</string>
+    <string name="web_page_ok">note: 頁面正文可讀取。</string>
+    <string name="web_page_no_text">頁面沒有可讀取文字。</string>
+    <string name="search_keyword_match">關鍵詞匹配 %1$d/%2$d</string>
+    <string name="search_source_trusted">來源較可信 +%1$d</string>
+    <string name="search_low_quality">低質量/聚合訊號 -%1$d</string>
+    <string name="search_weak_relevance">標題摘要與關鍵詞弱相關</string>
+    <string name="search_default_candidate">普通候選結果</string>
+    <string name="search_ad_signals">廣告</string>
+    <string name="search_promotion_signals">推廣</string>
+    <string name="search_latest_address_signals">最新地址</string>
+    <string name="search_repost_signals">轉載</string>
+    <string name="search_scraper_signals">採集</string>
+    <string name="search_captcha_enable_js">enable javascript</string>
+    <string name="search_captcha_complete">請完成安全驗證</string>
+    <string name="search_captcha_human">人機驗證</string>
+    <string name="search_login_required">登入後檢視</string>
+    <string name="search_page_timeout">網頁讀取超時</string>
+
+    <!-- ==================== ScheduledTaskWorker.kt ==================== -->
+    <string name="scheduled_task_feedback_rejected">後臺定時任務可以使用只讀 Agent 工具；當前工具需要實時授權，後臺無法彈窗確認。請把修改檔案、執行命令、SSH、Root、MCP 寫操作或上傳下載步驟改為前臺確認後執行。</string>
+    <string name="scheduled_task_header">這是後臺定時任務。你可以呼叫可用的只讀 Agent 工具，例如搜尋和讀取普通曆史對話、聯網搜尋、讀取網頁、檢視配置、列出 WebDAV 檔案等。</string>
+    <string name="scheduled_task_tool_rejected_hint">需要實時確認的高風險工具會被拒絕；若因此無法完成，請在最終結果中說明需要使用者回到前臺確認哪些步驟。</string>
+    <string name="task_name_label">任務名稱：%1$s</string>
+    <string name="task_interrupted">任務執行中斷</string>
+    <string name="task_completed">任務已完成</string>
+    <string name="task_failed_title">任務失敗</string>
+    <string name="task_completed_title">任務完成</string>
+    <string name="network_retry_notice">網路暫不可用，將自動重試（%1$d/%2$d）：%3$s</string>
+    <string name="network_preflight_notice">等待網路和 DNS 可用（%1$d/%2$d）：%3$s %4$s</string>
+    <string name="network_unavailable_notice">網路或 DNS 仍不可用，將交給系統稍後重試：%1$s %2$s</string>
+    <string name="network_not_available">系統暫未報告可用網路</string>
+    <string name="dns_not_resolvable">暫不可解析</string>
+
+    <!-- ==================== TaskCompletionNotifier.kt ==================== -->
+    <string name="notification_channel_name">任務完成通知</string>
+
+    <!-- ==================== SettingsScreens.kt ==================== -->
+    <string name="settings_not_available">該設定項暫未開放。</string>
+    <string name="settings_search_hint">搜尋設定</string>
+    <string name="settings_search_no_results">沒有匹配的設定</string>
+    <string name="title_settings">設定</string>
+    <string name="section_model_service">模型與服務</string>
+    <string name="menu_profile">個人資料</string>
+    <string name="menu_profile_desc">暱稱、頭像與使用者顯示資訊</string>
+    <string name="menu_model_service">模型服務</string>
+    <string name="menu_model_service_desc">配置 AI 服務商、API Key 與預設模型</string>
+    <string name="menu_topic_summary_model">額外功能模型</string>
+    <string name="menu_topic_summary_model_desc">配置話題總結與會話歷史壓縮模型</string>
+    <string name="menu_sub_agents">子代理編排</string>
+    <string name="menu_sub_agents_desc">選擇子代理模型並描述各自擅長的任務</string>
+    <string name="menu_web_search">聯網搜尋</string>
+    <string name="menu_web_search_desc">配置網站黑名單，過濾垃圾或不可信來源</string>
+    <string name="menu_workspace">工作目錄</string>
+    <string name="menu_workspace_current">當前：%1$s</string>
+    <string name="menu_termux">Termux</string>
+    <string name="menu_termux_desc">配置本地命令執行與路徑對映</string>
+    <string name="menu_mcp_server">MCP 伺服器</string>
+    <string name="menu_mcp_server_desc">配置遠端 MCP 工具伺服器</string>
+    <string name="menu_local_mcp">MCP 服務端</string>
+    <string name="menu_local_mcp_desc">將本機工具提供給其他 MCP 客戶端</string>
+    <string name="menu_ssh">SSH 連線</string>
+    <string name="menu_ssh_desc">配置可由 AI 呼叫的遠端伺服器</string>
+    <string name="menu_webdav">WebDAV</string>
+    <string name="menu_webdav_desc">配置雲端檔案與備份伺服器</string>
+    <string name="menu_file_transfer">檔案傳輸</string>
+    <string name="menu_file_transfer_desc">配置 FTP/FTPS/SFTP 儲存伺服器</string>
+    <string name="menu_mini_server">微型伺服器</string>
+    <string name="menu_mini_server_desc">工作區 HTTP 靜態站點除錯</string>
+    <string name="section_personalization">個性化</string>
+    <string name="menu_theme">主題設定</string>
+    <string name="menu_theme_current">當前：%1$s · %2$s · %3$s</string>
+    <string name="menu_theme_current_full">當前：%1$s · %2$s · %3$s · %4$s</string>
+    <string name="menu_system_prompt">系統提示詞</string>
+    <string name="menu_system_prompt_desc">配置不同用途的預設提示詞</string>
+    <string name="menu_memory">記憶</string>
+    <string name="menu_memory_desc">已啟用 %1$d 條跨對話個性化記憶</string>
+    <string name="status_on">已開啟</string>
+    <string name="status_off">已關閉</string>
+    <string name="menu_skills">Skills</string>
+    <string name="menu_skills_desc">已安裝 %1$d 個能力包</string>
+    <string name="section_general">通用</string>
+    <string name="menu_agent_tools">AI Agent 工具</string>
+    <string name="menu_agent_tools_desc">檢視工具說明並啟用或禁用</string>
+    <string name="menu_storage">快取與儲存</string>
+    <string name="menu_storage_desc">掃描佔用空間並清理安全快取</string>
+    <string name="menu_backup">資料匯出匯入</string>
+    <string name="menu_backup_desc">本地或 WebDAV 備份與恢復</string>
+    <string name="menu_system_permissions">系統許可權</string>
+    <string name="menu_system_permissions_desc">配置 Root、Shizuku Shell 與 su 命令</string>
+    <string name="menu_app_permissions">應用許可權</string>
+    <string name="menu_app_permissions_desc">檢視媒體、攝像頭、位置與 Termux 許可權</string>
+    <string name="menu_licenses">開源許可證</string>
+    <string name="menu_licenses_desc">檢視第三方元件許可證</string>
+    <string name="menu_about">關於軟體</string>
+    <string name="menu_about_desc">版本、包名和安全說明</string>
+
+    <!-- Settings Detail Titles -->
+    <string name="detail_profile">個人資料</string>
+    <string name="detail_model">模型服務</string>
+    <string name="detail_topic_summary_model">額外功能模型</string>
+
+    <!-- Context window and history compression -->
+    <string name="cd_context_window_usage">上下文視窗使用資訊</string>
+    <string name="title_context_window_usage">上下文視窗</string>
+    <string name="context_tokens_used">約 %1$d tokens</string>
+    <string name="context_usage_details">當前 API 上下文包含 %1$d 條訊息；距上次壓縮 %2$d 輪</string>
+    <string name="context_contains_summary">當前上下文已包含壓縮歷史摘要</string>
+    <string name="context_estimate_warning">Token 數為本地估算值，不同模型與服務商的分詞方式可能不同，請預留安全餘量。</string>
+    <string name="label_history_compression_model">會話歷史壓縮模型</string>
+    <string name="current_conversation_model">當前會話模型：%1$s</string>
+    <string name="label_compression_chunk_count">分段塊數</string>
+    <string name="compression_chunk_count_hint">範圍 %1$d–%2$d。塊數越多，單次輸入越短，但請求次數和耗時越多；分段結果會逐級合併為結構化上下文。</string>
+    <string name="label_custom_compression_instruction">自定義壓縮指令（可選）</string>
+    <string name="custom_compression_instruction_hint">例如：重點保留程式碼改動與未完成事項。預設結果會按目標、事實、任務、注意事項等欄位整理。</string>
+    <string name="action_compress_history">壓縮歷史</string>
+    <string name="status_compressing_history">正在分段壓縮併合並會話歷史，完成前暫時無法傳送訊息…</string>
+    <string name="status_auto_compressing_history">已達到自動壓縮條件，正在分段壓縮併合並會話歷史…</string>
+    <string name="status_history_compressed">會話歷史壓縮完成</string>
+    <string name="error_history_compression_failed">會話歷史壓縮失敗，原上下文已保留</string>
+    <string name="error_no_history_to_compress">當前會話沒有可壓縮的歷史</string>
+    <string name="title_auto_compression">自動壓縮</string>
+    <string name="action_auto_compression">自動壓縮</string>
+    <string name="auto_compression_session_hint">僅對當前會話生效</string>
+    <string name="label_compression_mode">觸發模式</string>
+    <string name="mode_fixed_turns">固定輪次</string>
+    <string name="mode_fixed_turns_desc">每完成指定數量的使用者與 AI 對話後壓縮</string>
+    <string name="mode_context_threshold">上下文視窗閾值</string>
+    <string name="mode_context_threshold_desc">估算 token 數達到閾值後壓縮</string>
+    <string name="label_turn_threshold">壓縮間隔（輪）</string>
+    <string name="turn_definition_hint">1 輪 = 使用者傳送 1 條訊息，AI 返回若干訊息並結束。</string>
+    <string name="label_token_threshold">Token 閾值</string>
+    <string name="token_threshold_hint">直接輸入 token 數，例如 131072（128K）、262144（256K）或 1048576（1M）。</string>
+    <string name="auto_compression_limit_warning">閾值過高可能在自動壓縮觸發前先超過當前 API 模型的上下文上限。應用無法可靠獲知所有模型的真實上限。</string>
+    <string name="auto_compression_turns_summary">每 %1$d 輪</string>
+    <string name="auto_compression_tokens_summary">達到 %1$d tokens</string>
+    <string name="detail_sub_agents">子代理編排</string>
+    <string name="detail_web_search">聯網搜尋</string>
+    <string name="detail_workspace">工作目錄</string>
+    <string name="detail_theme">主題設定</string>
+    <string name="detail_theme_mode">主題模式</string>
+    <string name="detail_language">文字語言</string>
+    <string name="detail_font">字型大小</string>
+    <string name="detail_refresh_rate">重新整理率</string>
+    <string name="detail_chat_background">聊天背景</string>
+    <string name="detail_permissions">應用許可權</string>
+    <string name="detail_system_permissions">系統許可權</string>
+    <string name="detail_tools">AI Agent 工具</string>
+    <string name="detail_storage">快取與儲存</string>
+    <string name="detail_termux">Termux</string>
+    <string name="detail_mcp">MCP 伺服器</string>
+    <string name="detail_local_mcp">MCP 服務端</string>
+    <string name="detail_ssh">SSH 連線</string>
+    <string name="detail_webdav">WebDAV</string>
+    <string name="detail_file_transfer">檔案傳輸</string>
+    <string name="detail_mini_server">微型伺服器</string>
+    <string name="detail_mini_server_logs">終端日誌</string>
+    <string name="detail_backup">資料匯出匯入</string>
+    <string name="detail_prompts">系統提示詞</string>
+    <string name="detail_memories">記憶</string>
+    <string name="detail_skills">Skills</string>
+    <string name="memory_page_title">個性化記憶</string>
+    <string name="memory_page_description">記憶會作為額外提示詞在每次對話中提供給 AI，用於理解你的長期偏好、程式碼或寫作風格、溝通方式和工作習慣。你可以隨時檢視、修改、停用或刪除 AI 儲存的內容。</string>
+    <string name="memory_page_privacy">請勿在記憶中儲存 API Key、密碼、私鑰或其他秘密。記憶預設納入資料備份，也可在匯出時單獨取消。</string>
+    <string name="memory_add">新增記憶</string>
+    <string name="memory_edit">編輯記憶</string>
+    <string name="memory_empty_title">暫無記憶</string>
+    <string name="memory_empty_description">你可以手動新增，或在對話中讓 AI 記錄長期偏好。AI 只應儲存未來跨對話仍有幫助的穩定資訊。</string>
+    <string name="memory_content_label">記憶內容</string>
+    <string name="memory_content_help">用簡潔、明確的陳述描述一項長期偏好或工作習慣。</string>
+    <string name="memory_category_label">分類</string>
+    <string name="memory_category_preference">個人偏好</string>
+    <string name="memory_category_work_style">工作風格</string>
+    <string name="memory_category_communication">溝通方式</string>
+    <string name="memory_category_personal">個人資訊</string>
+    <string name="memory_category_other">其他</string>
+    <string name="memory_enabled_label">用於個性化</string>
+    <string name="memory_enabled_description">關閉後保留該記憶，但不會傳送給 AI。</string>
+    <string name="memory_metadata">%1$s · 更新於 %2$s</string>
+    <string name="memory_saved">記憶已儲存</string>
+    <string name="memory_deleted">記憶已刪除</string>
+    <string name="detail_licenses">開源許可證</string>
+    <string name="detail_about">關於軟體</string>
+    <string name="detail_device">手機資訊</string>
+    <string name="detail_default">設定</string>
+
+    <!-- Profile -->
+    <string name="profile_hint">頭像和暱稱可在側邊欄頂部點選編輯。</string>
+    <string name="default_user_name">Lyra 使用者</string>
+
+
+    <!-- Model Service -->
+    <string name="search_models_placeholder">搜尋模型服務</string>
+    <string name="action_add_model_service">新增模型服務</string>
+    <string name="notice_no_matching_models">沒有匹配的模型服務</string>
+    <string name="notice_keep_one_service">至少保留一個模型服務</string>
+    <string name="title_new_model_service">新模型服務</string>
+    <string name="label_api_format">介面格式</string>
+    <string name="label_service_name">服務商名稱</string>
+    <string name="label_base_url">基礎 URL</string>
+    <string name="notice_http_warning">安全提示：當前基礎 URL 使用 HTTP 明文傳輸，API Key 和對話內容可能被同一網路中的第三方截獲。</string>
+    <string name="label_default_model">預設模型</string>
+    <string name="label_saved_models">預儲存模型，每行一個</string>
+    <string name="action_fetch_and_replace">獲取並替換模型</string>
+    <string name="status_fetching_models_generic">正在獲取模型…</string>
+    <string name="notice_no_models_fetched">未獲取到可用模型</string>
+    <string name="notice_models_fetched_saved">已獲取 %1$d 個模型並儲存</string>
+    <string name="notice_fetch_failed">獲取模型失敗</string>
+    <string name="cd_delete_platform">刪除平臺</string>
+    <string name="title_delete_model_service">刪除模型服務配置</string>
+    <string name="confirm_delete_model_service">該操作會刪除服務商、API Key、基礎 URL 和預儲存模型配置。</string>
+    <string name="notice_model_service_saved">模型服務已儲存</string>
+    <string name="notice_deleted_service">已刪除 %1$s</string>
+    <string name="label_unnamed_platform">未命名平臺</string>
+    <string name="label_enabled">啟用</string>
+    <string name="label_models_count">%1$d 個模型</string>
+    <string name="cd_current">當前</string>
+    <string name="cd_delete">刪除</string>
+    <string name="cd_return_list">返回列表</string>
+    <string name="format_anthropic_desc">適用於 Claude 官方 Messages API 或相容 Anthropic Messages 格式的服務。請求、工具呼叫和圖片輸入會按 Anthropic 格式轉換。</string>
+    <string name="format_gemini_desc">適用於 Gemini 官方 GenerateContent API 或相容 Gemini 格式的服務。圖片、音訊、影片會使用 inlineData 傳輸。</string>
+    <string name="format_openai_desc">適用於 OpenAI Chat Completions SDK 相容平臺。原有工具呼叫、流式輸出和多模態 image_url 路徑保持不變。</string>
+    <string name="endpoint_hint_format">請求端點：%1$s；模型列表：%2$s</string>
+
+    <!-- Workspace -->
+    <string name="menu_current_directory">當前目錄</string>
+    <string name="menu_termux_path">Termux 路徑</string>
+    <string name="termux_path_primary">僅 primary</string>
+    <string name="workspace_hint">右上角加號選擇目錄後會立即重新整理對話頁頂部的小字目錄名。</string>
+
+    <!-- Theme -->
+    <string name="label_dynamic_color">Material You 動態配色</string>
+    <string name="predictive_back_title">預測性返回手勢</string>
+    <string name="menu_theme_mode">主題模式</string>
+    <string name="menu_font_size">字型大小</string>
+    <string name="menu_refresh_rate">重新整理率</string>
+    <string name="menu_chat_background">聊天背景</string>
+    <string name="background_set">已設定自定義背景</string>
+    <string name="background_solid">純色背景</string>
+    <string name="title_background_preview">聊天背景預覽</string>
+    <string name="label_mask_opacity">蒙版透明度 %1$d%%</string>
+    <string name="mask_opacity_hint">越低越接近純色背景，越高背景圖越清晰。</string>
+    <string name="action_remove_background">移除聊天背景</string>
+    <string name="remove_background_hint">恢復純色背景</string>
+    <string name="notice_background_saved">聊天背景已儲存</string>
+    <string name="notice_restored_solid">已恢復純色背景</string>
+
+    <!-- Theme Mode -->
+    <string name="title_theme_mode">主題模式</string>
+    <string name="theme_mode_desc">選擇跟隨系統、淺色或深色模式。返回主題設定後，其他外觀選項會保持當前位置。</string>
+    <string name="theme_follow_system">跟隨系統</string>
+    <string name="theme_light">淺色</string>
+    <string name="theme_dark">深色</string>
+    <string name="cd_selected">已選擇</string>
+
+    <!-- Refresh Rate -->
+    <string name="title_refresh_rate">重新整理率</string>
+    <string name="refresh_rate_desc">跟隨系統會交給裝置自行在省電和流暢之間切換；固定重新整理率會向系統請求指定幀率，實際是否生效取決於螢幕和系統策略。</string>
+    <string name="refresh_rate_follow_system">跟隨系統智慧重新整理率</string>
+    <string name="refresh_rate_smart">智慧重新整理率</string>
+
+    <!-- Font Size -->
+    <string name="title_preview_font">預覽文字大小</string>
+    <string name="font_preview_text">你可以拖動滑塊來調整字型大小。</string>
+    <string name="font_preview_hint">如果在使用過程中存在問題或建議，可在關於軟體頁面檢視倉庫連結並反饋。</string>
+    <string name="label_follow_system">跟隨系統</string>
+    <string name="font_scale_minimum">最小 %1$d%%</string>
+    <string name="font_scale_extra_small">極小 %1$d%%</string>
+    <string name="font_scale_small">小 %1$d%%</string>
+    <string name="font_scale_normal">標準 %1$d%%</string>
+    <string name="font_scale_large">大 %1$d%%</string>
+    <string name="font_scale_extra_large">超大 %1$d%%</string>
+    <string name="font_scale_huge">極大 %1$d%%</string>
+    <string name="font_scale_maximum">最大 %1$d%%</string>
+    <string name="theme_name_light">淺色</string>
+    <string name="theme_name_dark">深色</string>
+    <string name="theme_name_system">跟隨系統</string>
+    <string name="font_name_small">小字</string>
+    <string name="font_name_normal">標準字</string>
+    <string name="font_name_large">大字</string>
+    <string name="font_name_extra_large">超大字</string>
+    <string name="font_name_custom">自定義 %1$d%%</string>
+    <string name="font_name_system">字型跟隨系統</string>
+
+    <!-- Storage -->
+    <string name="title_storage_usage">儲存佔用</string>
+    <string name="menu_total_usage">應用總佔用</string>
+    <string name="menu_app_package">應用安裝包</string>
+    <string name="menu_app_data">應用資料</string>
+    <string name="menu_system_cache">系統快取</string>
+    <string name="menu_cleanable_cache">可安全清理快取</string>
+    <string name="storage_explanation">總佔用按 Android 設定頁常見口徑估算：安裝包 + 應用資料 + 快取。清理範圍僅包含臨時上傳、圖片裁剪、拍照預覽、AI 響應磁碟快取，以及應用內更新後遺留的舊版本安裝包；不會刪除歷史對話、模型配置、API Key、MCP/SSH、Skills、頭像或工作目錄檔案。</string>
+    <string name="label_file_count_size">%1$d 個檔案</string>
+    <string name="action_clean">清理</string>
+    <string name="status_cleaning">正在清理 %1$s…</string>
+    <string name="status_cleaned">已清理 %1$s</string>
+    <string name="action_rescan">重新掃描</string>
+    <string name="status_scan_complete">掃描完成</string>
+    <string name="action_clean_all_cache">清理全部快取</string>
+    <string name="status_cleaning_cache">正在清理快取…</string>
+    <string name="status_cache_cleaned">快取已清理</string>
+    <string name="cache_ai_response">AI 響應快取</string>
+    <string name="cache_crop_image">裁剪圖片臨時檔案</string>
+    <string name="cache_camera_upload">拍照上傳臨時檔案</string>
+    <string name="cache_system_temp">系統臨時快取</string>
+    <string name="cache_code">程式碼快取</string>
+    <string name="cache_no_backup">No backup 資料</string>
+    <string name="cache_persistent">應用持久資料</string>
+    <string name="cache_external_private">外部私有檔案 %1$d</string>
+    <string name="cache_external_cache">外部快取 %1$d</string>
+
+    <!-- System Permissions -->
+    <string name="title_root_permission">請求 Root 許可權</string>
+    <string name="root_permission_desc">透過 Magisk、KernelSU 等 su 管理器授權。不可用時可回退到已授權的 Shell。</string>
+    <string name="title_shell_permission">請求 Shell 許可權</string>
+    <string name="shell_granted">Shizuku Shell 已授權</string>
+    <string name="shell_shizuku_running">Shizuku 正在執行，開啟後請求授權</string>
+    <string name="shell_need_shizuku">需要先透過無線除錯或電腦 ADB 啟動 Shizuku</string>
+    <string name="label_custom_su_command">自定義 su 命令</string>
+    <string name="su_command_hint">預設 su -c。可用 {command} 指定命令插入位置，例如 su 0 sh -c {command}。</string>
+    <string name="action_shell_authorized">Shell 已授權</string>
+    <string name="action_authorize_shell">授權 Shell</string>
+    <string name="status_detecting">檢測中…</string>
+    <string name="root_available">Root 可用</string>
+    <string name="root_not_available">Root 不可用：%1$s</string>
+    <string name="action_detect_root">檢測 Root</string>
+    <string name="system_permissions_hint">Root 和 Shell 開關都關閉時，AI 不會看到任何系統命令工具。所有 Shell/Root 命令都會先顯示完整命令並請求確認；Root 命令風險更高。普通 ADB 不會永久賦予應用 shell 身份，本應用透過 Shizuku 獲取該能力。</string>
+    <string name="status_not_detected">尚未檢測</string>
+
+    <!-- Permissions -->
+    <string name="permission_media">訪問手機媒體檔案</string>
+    <string name="permission_location">位置資訊</string>
+    <string name="permission_camera">攝像頭</string>
+    <string name="permission_notification">通知</string>
+    <string name="permission_app_list">讀取應用列表</string>
+    <string name="permission_termux">與 Termux 通訊</string>
+    <string name="permission_status_not_allowed">未允許</string>
+    <string name="permission_status_declared">已宣告</string>
+    <string name="permission_status_granted">已允許</string>
+    <string name="permission_status_click_grant">點選授予</string>
+    <string name="permission_hint">媒體、定位、通知、攝像頭等許可權會跳轉系統應用資訊頁；Termux 通訊許可權由 Termux 提供，點選後直接彈出授權許可。</string>
+
+    <!-- Agent Tools -->
+    <string name="title_search_tools">搜尋工具</string>
+    <string name="search_tools_placeholder">搜尋名稱、工具名或描述</string>
+    <string name="label_tools_match">匹配 %1$d / %2$d 個工具</string>
+    <string name="notice_no_matching_tools">沒有匹配的工具</string>
+    <string name="notice_termux_permission_required">未授予 Termux RUN_COMMAND 許可權，工具已自動禁用。</string>
+    <string name="notice_ssh_not_configured">未配置啟用的 SSH 連線，工具暫不可用。</string>
+    <string name="notice_protected_tool">保護工具，不能禁用。</string>
+    <string name="label_mcp_tool">MCP · %1$s / %2$s</string>
+    <string name="label_remote_mcp_tool">遠端 MCP 工具</string>
+
+    <!-- Tool descriptions -->
+    <string name="tool_list_directory">列出目錄</string>
+    <string name="tool_list_directory_desc">瀏覽工作目錄內檔案和子目錄。</string>
+    <string name="tool_read_file">讀取檔案</string>
+    <string name="tool_read_file_desc">讀取工作目錄內文字檔案。</string>
+    <string name="tool_write_file">寫入檔案</string>
+    <string name="tool_write_file_desc">建立或覆蓋工作目錄內文字檔案。</string>
+    <string name="tool_append_file">追加檔案</string>
+    <string name="tool_append_file_desc">在現有檔案末尾追加文字。</string>
+    <string name="tool_create_folder">建立目錄</string>
+    <string name="tool_create_folder_desc">在工作目錄內建立資料夾。</string>
+    <string name="tool_delete_file">刪除檔案/目錄</string>
+    <string name="tool_delete_file_desc">刪除工作目錄內檔案或空目錄。</string>
+    <string name="tool_rename_move">重新命名/移動</string>
+    <string name="tool_rename_move_desc">調整工作目錄內檔案路徑。</string>
+    <string name="tool_global_list_directory">全域性列目錄</string>
+    <string name="tool_global_list_directory_desc">列出 Android 共享儲存目錄，支援 Download。</string>
+    <string name="tool_global_read_file">全域性讀取檔案</string>
+    <string name="tool_global_read_file_desc">讀取工作區外共享儲存內的文字檔案。</string>
+    <string name="tool_global_write_file">全域性寫入檔案</string>
+    <string name="tool_global_write_file_desc">寫入工作區外共享儲存檔案，執行前需要使用者確認。</string>
+    <string name="tool_global_append_file">全域性追加檔案</string>
+    <string name="tool_global_append_file_desc">追加工作區外共享儲存檔案，執行前需要使用者確認。</string>
+    <string name="tool_global_create_folder">全域性建立目錄</string>
+    <string name="tool_global_create_folder_desc">在工作區外共享儲存建立目錄，執行前需要使用者確認。</string>
+    <string name="tool_global_delete">全域性刪除檔案/目錄</string>
+    <string name="tool_global_delete_desc">刪除工作區外共享儲存內容，執行前需要使用者確認。</string>
+    <string name="tool_global_rename">全域性移動/重新命名</string>
+    <string name="tool_global_rename_desc">移動工作區外共享儲存內容，執行前需要使用者確認。</string>
+    <string name="tool_download_file">下載檔案</string>
+    <string name="tool_download_file_desc">使用應用原生 HTTP/HTTPS 客戶端下載到工作區或共享儲存，支援請求頭和 SHA-256 校驗。</string>
+    <string name="tool_manage_tasks">定時任務</string>
+    <string name="tool_manage_tasks_desc">列出或管理一次性、每日、每週和每月後臺 AI 任務。</string>
+    <string name="tool_mini_server_status">微型伺服器狀態</string>
+    <string name="tool_mini_server_status_desc">讀取內建 HTTP 靜態伺服器狀態和訪問地址。</string>
+    <string name="tool_mini_server_logs">終端日誌讀取</string>
+    <string name="tool_mini_server_logs_desc">讀取微型伺服器連線、資源載入和頁面錯誤日誌，便於自動化除錯。</string>
+    <string name="tool_manage_mini_server">微型伺服器控制</string>
+    <string name="tool_manage_mini_server_desc">啟動、停止、重啟或修改工作區靜態站點服務，執行前需要使用者確認。</string>
+    <string name="tool_search_conversation">搜尋會話記錄</string>
+    <string name="tool_search_conversation_desc">跨普通會話按關鍵詞和時間段搜尋歷史記錄，不讀取思維鏈或工具日誌。</string>
+    <string name="tool_read_conversation">讀取會話記錄</string>
+    <string name="tool_read_conversation_desc">讀取指定歷史會話的使用者訊息和 AI 最終回覆，用於總結與趨勢分析。</string>
+    <string name="tool_search_files">工作區搜尋</string>
+    <string name="tool_search_files_desc">按檔名或路徑片段搜尋工作區。</string>
+    <string name="tool_global_search_files">全域性檔案搜尋</string>
+    <string name="tool_global_search_files_desc">搜尋 Android 共享儲存中的檔案路徑。</string>
+    <string name="tool_get_file_info">檔案資訊</string>
+    <string name="tool_get_file_info_desc">讀取檔案大小、修改時間等後設資料。</string>
+    <string name="tool_list_skill_files">列出 Skill 檔案</string>
+    <string name="tool_list_skill_files_desc">瀏覽已啟用 Skill 包內檔案。</string>
+    <string name="tool_read_skill_file">讀取 Skill 檔案</string>
+    <string name="tool_read_skill_file_desc">讀取相關 Skill 包內說明或指令碼。</string>
+    <string name="tool_run_command">執行命令</string>
+    <string name="tool_run_command_desc">透過 Termux 執行命令並返回 stdout/stderr。</string>
+    <string name="tool_web_search">聯網搜尋</string>
+    <string name="tool_web_search_desc">使用內嵌 WebView 搜尋網際網路。</string>
+    <string name="tool_read_web_page">讀取網頁</string>
+    <string name="tool_read_web_page_desc">讀取 http/https 網頁正文。</string>
+    <string name="tool_mark_web_sources">網頁來源標註</string>
+    <string name="tool_mark_web_sources_desc">宣告網頁引用來源，並要求最終回答就近標註來源連結。</string>
+    <string name="tool_manage_app_config">配置管理</string>
+    <string name="tool_manage_app_config_desc">透過使用者確認後新增、修改、啟用、禁用或刪除 MCP、SSH、WebDAV、Skills 與其他 Agent 工具配置。</string>
+    <string name="tool_get_time">時間感知</string>
+    <string name="tool_get_time_desc">讀取裝置當前時間和時區。</string>
+    <string name="tool_get_location">地理感知</string>
+    <string name="tool_get_location_desc">讀取裝置最近系統定位。</string>
+    <string name="tool_get_hardware">硬體檢查</string>
+    <string name="tool_get_hardware_desc">讀取裝置系統、CPU、記憶體、儲存、解析度、網路、藍芽、電池等診斷資訊。</string>
+    <string name="tool_list_apps">應用列表識別</string>
+    <string name="tool_list_apps_desc">讀取使用者應用和系統應用的名稱、包名、版本、大小及簽名證書 SHA-256。</string>
+    <string name="tool_shell_command">Shell 系統命令</string>
+    <string name="tool_shell_command_desc">透過 Shizuku 以 Android shell 身份執行系統命令，每次執行前都需要使用者確認。</string>
+    <string name="tool_root_command">Root 系統命令</string>
+    <string name="tool_root_command_desc">透過自定義 su 命令執行 Root 命令，每次執行前都需要使用者確認；不可用時可按設定回退到 Shell。</string>
+    <string name="tool_list_ssh">列出 SSH 連線</string>
+    <string name="tool_list_ssh_desc">檢視使用者已配置且啟用的 SSH 伺服器標識。</string>
+    <string name="tool_ssh_exec">SSH 執行命令</string>
+    <string name="tool_ssh_exec_desc">登入遠端伺服器執行命令並返回 stdout/stderr，執行前需要使用者確認。</string>
+    <string name="tool_list_webdav">列出 WebDAV</string>
+    <string name="tool_list_webdav_desc">檢視使用者已配置且啟用的 WebDAV 伺服器標識。</string>
+    <string name="tool_webdav_list">WebDAV 列目錄</string>
+    <string name="tool_webdav_list_desc">透過 PROPFIND 列出 WebDAV 目錄檔案詳情。</string>
+    <string name="tool_webdav_search">WebDAV 搜尋</string>
+    <string name="tool_webdav_search_desc">搜尋 WebDAV 伺服器上的檔案路徑。</string>
+    <string name="tool_webdav_download">WebDAV 下載</string>
+    <string name="tool_webdav_download_desc">從 WebDAV 下載檔案到工作區，執行前需要使用者確認。</string>
+    <string name="tool_webdav_upload">WebDAV 上傳</string>
+    <string name="tool_webdav_upload_desc">把工作區檔案上傳到 WebDAV，執行前需要使用者確認。</string>
+    <string name="tool_list_file_transfer">列出檔案傳輸伺服器</string>
+    <string name="tool_list_file_transfer_desc">檢視使用者已配置且啟用的 FTP/FTPS/SFTP 伺服器標識。</string>
+    <string name="tool_file_transfer_list">檔案傳輸列目錄</string>
+    <string name="tool_file_transfer_list_desc">列出 FTP/FTPS/SFTP 目錄檔案詳情。</string>
+    <string name="tool_file_transfer_search">檔案傳輸搜尋</string>
+    <string name="tool_file_transfer_search_desc">搜尋 FTP/FTPS/SFTP 伺服器上的檔案路徑。</string>
+    <string name="tool_file_transfer_download">檔案傳輸下載</string>
+    <string name="tool_file_transfer_download_desc">從 FTP/FTPS/SFTP 下載檔案到工作區，執行前需要使用者確認。</string>
+    <string name="tool_file_transfer_upload">檔案傳輸上傳</string>
+    <string name="tool_file_transfer_upload_desc">把工作區檔案上傳到 FTP/FTPS/SFTP，執行前需要使用者確認。</string>
+    <string name="tool_export_backup">匯出備份</string>
+    <string name="tool_export_backup_desc">匯出 Lyra Code 資料到本地或 WebDAV，執行前需要使用者確認。</string>
+    <string name="tool_import_backup">匯入備份</string>
+    <string name="tool_import_backup_desc">從本地或 WebDAV 用補充模式匯入備份，執行前需要使用者確認。</string>
+    <string name="tool_set_todo">設定 TODO</string>
+    <string name="tool_set_todo_desc">展示 Agent 當前任務計劃。</string>
+    <string name="tool_update_todo">更新 TODO</string>
+    <string name="tool_update_todo_desc">更新任務步驟狀態。</string>
+
+    <!-- Termux -->
+    <string name="label_termux_installed">已安裝</string>
+    <string name="label_termux_not_installed">未安裝</string>
+    <string name="label_available">可用</string>
+    <string name="label_granted">已授予</string>
+    <string name="label_click_to_grant">點選授予</string>
+    <string name="title_termux_config">Termux 配置教程</string>
+    <string name="termux_config_desc">首次使用前，請在 Termux 中開啟外部應用呼叫許可權。Termux:API 可選；未安裝 Termux:API 時，Lyra Code 會使用 RunCommandService 後臺靜默執行命令。</string>
+    <string name="termux_step1">安裝並開啟 Termux，建議使用 F-Droid 或 GitHub 版本。</string>
+    <string name="termux_step2">複製下面的配置命令到 Termux 執行，開啟外部應用呼叫許可權。</string>
+    <string name="action_copy_config_command">複製配置命令</string>
+    <string name="termux_step3">重新開啟 Lyra Code，在設定的應用許可權頁面授予 RUN_COMMAND 許可權。</string>
+    <string name="termux_step4">選擇內部儲存下可讀寫的工作目錄，例如 /storage/emulated/0/Fonts。</string>
+    <string name="termux_step5">run_command 會直接回傳 exit_code、stdout、stderr；只有輸出過大或超時時，再重定向到工作目錄檔案。</string>
+    <string name="action_copy_test_command">複製測試命令</string>
+
+    <!-- WebDAV -->
+    <string name="webdav_desc">用於遠端檔案搜尋、上傳下載和雲端備份。</string>
+    <string name="action_add">新增</string>
+    <string name="notice_webdav_saved">WebDAV 已儲存</string>
+    <string name="title_delete_webdav">刪除 WebDAV 配置</string>
+    <string name="confirm_delete_webdav">該操作會刪除此 WebDAV 伺服器配置和儲存的認證資訊。</string>
+    <string name="notice_no_webdav">暫無 WebDAV 伺服器</string>
+    <string name="webdav_empty_hint">新增後，AI 可在使用者確認後把 WebDAV 檔案下載到工作區，或把工作區檔案上傳到 WebDAV。</string>
+    <string name="label_address_hidden">地址已隱藏</string>
+    <string name="label_anonymous">匿名</string>
+    <string name="notice_http_warning_webdav">安全提示：HTTP 明文連線可能洩露賬號、密碼和檔案內容。</string>
+    <string name="action_test_connection">測試連線</string>
+    <string name="cd_edit_webdav">編輯 WebDAV</string>
+    <string name="cd_delete_webdav">刪除 WebDAV</string>
+    <string name="status_testing">正在測試 %1$s…</string>
+    <string name="webdav_test_success">WebDAV 測試成功，當前目錄 %1$d 項</string>
+    <string name="webdav_test_failed">WebDAV 測試失敗：%1$s</string>
+    <string name="label_webdav_service_name">服務名</string>
+    <string name="label_username_optional">使用者名稱，可空</string>
+    <string name="label_password_optional">密碼，可空</string>
+    <string name="label_custom_ua">自定義 UA，可空</string>
+    <string name="label_initial_path">初始路徑</string>
+    <string name="label_note">備註</string>
+    <string name="switch_trust_all_certs">信任所有 HTTPS 證書</string>
+    <string name="switch_trust_all_certs_desc">僅用於自簽名證書伺服器；不建議在公網服務開啟。</string>
+    <string name="switch_multi_thread">啟用多執行緒傳輸</string>
+    <string name="switch_multi_thread_desc">儲存此偏好，後續大檔案傳輸可按此策略擴充套件。</string>
+    <string name="switch_hide_address">在側欄隱藏地址</string>
+    <string name="switch_hide_address_desc">隱藏 URL 以避免旁人看到伺服器地址。</string>
+    <string name="switch_enable_server">啟用此伺服器</string>
+    <string name="switch_enable_server_desc">禁用後 AI 無法看到或呼叫該伺服器。</string>
+    <string name="notice_http_insecure">HTTP 明文連線不安全，可能洩露賬號密碼和檔案內容。</string>
+    <string name="action_save_webdav">儲存</string>
+
+    <!-- File Transfer -->
+    <string name="file_transfer_desc">用於遠端檔案搜尋、上傳和下載；AI 執行上傳下載前仍需使用者確認。</string>
+    <string name="notice_file_transfer_saved">檔案傳輸配置已儲存</string>
+    <string name="title_delete_file_transfer">刪除檔案傳輸配置</string>
+    <string name="confirm_delete_file_transfer">該操作會刪除此 %1$s 伺服器配置和儲存的認證資訊。</string>
+    <string name="notice_no_file_transfer">暫無檔案傳輸伺服器</string>
+    <string name="file_transfer_empty_hint">新增 FTP、FTPS 或 SFTP 後，AI 可列出遠端目錄、搜尋檔案，並在使用者確認後下載到工作區或從工作區上傳。</string>
+    <string name="label_key_login">金鑰登入</string>
+    <string name="notice_ftp_warning">安全提示：FTP 明文連線可能洩露賬號、密碼和檔案內容。</string>
+    <string name="cd_edit_file_transfer">編輯檔案傳輸</string>
+    <string name="cd_delete_file_transfer">刪除檔案傳輸</string>
+    <string name="file_transfer_test_success">%1$s 測試成功，當前目錄 %2$d 項</string>
+    <string name="file_transfer_test_failed">%1$s 測試失敗：%2$s</string>
+    <string name="label_host">主機</string>
+    <string name="label_port">埠</string>
+    <string name="label_username">使用者名稱</string>
+    <string name="switch_use_key_login">使用金鑰登入</string>
+    <string name="switch_use_key_login_desc">開啟後使用私鑰和可選口令登入 SFTP。</string>
+    <string name="label_private_key">私鑰內容</string>
+    <string name="label_passphrase_optional">私鑰口令，可空</string>
+    <string name="label_password">密碼</string>
+    <string name="ftp_warning_detail">FTP 是明文協議，建議只在可信區域網使用；公網或敏感檔案請優先使用 SFTP/FTPS。</string>
+    <string name="label_encoding">編碼</string>
+    <string name="switch_passive_mode">被動模式</string>
+    <string name="switch_passive_mode_desc">FTP/FTPS 推薦開啟被動模式，相容 NAT 和多數伺服器。</string>
+    <string name="switch_explicit_ftps">顯式 FTPS</string>
+    <string name="switch_explicit_ftps_desc">使用 AUTH TLS 升級連線；關閉後嘗試隱式 FTPS。</string>
+    <string name="switch_sync_permissions">傳輸時同步檔案許可權</string>
+    <string name="switch_sync_permissions_desc">僅部分 SFTP 伺服器支援。</string>
+    <string name="switch_hide_ft_address">在側欄隱藏地址</string>
+    <string name="switch_hide_ft_address_desc">隱藏主機地址以避免旁人看到伺服器資訊。</string>
+    <string name="switch_enable_ft_server">啟用此伺服器</string>
+    <string name="switch_enable_ft_server_desc">禁用後 AI 無法看到或呼叫該伺服器。</string>
+
+    <!-- Mini Server -->
+    <string name="title_workspace_mini_server">工作區微型伺服器</string>
+    <string name="mini_server_desc">以當前工作目錄作為靜態站點根目錄，適合除錯 Vue/Vite 文件站或普通 HTML/CSS/JS。</string>
+    <string name="label_server_running">執行中</string>
+    <string name="label_server_stopped">已停止</string>
+    <string name="label_local_address">本地地址：%1$s</string>
+    <string name="label_lan_address">區域網地址：%1$s</string>
+    <string name="label_bound_domains">繫結域名：%1$s</string>
+    <string name="action_view_logs">檢視終端日誌</string>
+    <string name="title_listen_config">監聽配置</string>
+    <string name="notice_https_self_signed">HTTPS 使用內建自簽名證書，瀏覽器會提示不受信任；公網或正式分享建議使用內網穿透/反向代理提供可信 TLS。</string>
+    <string name="label_listen_host">監聽主機</string>
+    <string name="listen_host_hint">127.0.0.1 僅本機訪問；0.0.0.0 可被區域網、內網穿透或公網對映訪問。</string>
+    <string name="label_access_username">訪問使用者名稱</string>
+    <string name="label_access_password_optional">訪問密碼，可空</string>
+    <string name="label_bind_domains">繫結域名，每行一個</string>
+    <string name="switch_force_https">強制 HTTPS 連線</string>
+    <string name="switch_force_https_desc">HTTP 訪問會返回 308 跳轉到 HTTPS；適合反向代理或同埠 HTTPS 除錯。</string>
+    <string name="notice_server_security">安全提示：面向區域網或公網對映時建議設定使用者名稱和密碼；HTTP 明文會暴露訪問內容和賬號密碼。</string>
+    <string name="title_https_cert">HTTPS 證書</string>
+    <string name="https_cert_desc">未配置自定義證書時會使用內建自簽名證書。證書庫支援 PKCS12/JKS；PEM 私鑰需為未加密 PKCS#8 格式。</string>
+    <string name="action_upload_keystore">上傳證書庫</string>
+    <string name="action_replace_keystore">替換證書庫</string>
+    <string name="action_clear_keystore">清除證書庫</string>
+    <string name="label_keystore_password">證書庫/私鑰密碼，可空</string>
+    <string name="action_upload_cert_chain">上傳證書鏈</string>
+    <string name="action_upload_private_key">上傳私鑰</string>
+    <string name="label_cert_chain_pem">證書鏈 PEM，可貼上</string>
+    <string name="label_private_key_pem">私鑰 PEM，可貼上</string>
+    <string name="title_site_behavior">站點行為</string>
+    <string name="switch_spa_fallback">SPA 回退到 index.html</string>
+    <string name="switch_spa_fallback_desc">適合 Vue Router / VitePress / 單頁應用重新整理路徑。</string>
+    <string name="switch_directory_listing">允許目錄列表</string>
+    <string name="switch_directory_listing_desc">沒有 index.html 時顯示目錄檔案；公網環境不建議開啟。</string>
+    <string name="switch_mdns">釋出 mDNS</string>
+    <string name="switch_mdns_desc">在區域網內嘗試釋出 _http._tcp 服務，便於支援 mDNS 的裝置發現。</string>
+    <string name="label_mdns_name">mDNS 名稱</string>
+    <string name="title_operations">操作</string>
+    <string name="notice_mini_server_config_saved">微型伺服器配置已儲存</string>
+    <string name="status_starting">正在啟動…</string>
+    <string name="notice_server_started">已啟動：%1$s</string>
+    <string name="notice_server_start_failed">啟動失敗：%1$s</string>
+    <string name="action_restart">重啟</string>
+    <string name="action_start">啟動</string>
+    <string name="action_stop_service">停止服務</string>
+    <string name="notice_server_stopped">已停止</string>
+    <string name="notice_server_stop_failed">停止失敗：%1$s</string>
+    <string name="error_read_keystore_failed">無法讀取證書庫檔案</string>
+    <string name="notice_keystore_read">已讀取證書庫檔案</string>
+    <string name="notice_keystore_read_failed">讀取證書庫失敗：%1$s</string>
+    <string name="error_read_cert_chain_failed">無法讀取證書鏈檔案</string>
+    <string name="notice_cert_chain_read">已讀取證書鏈檔案</string>
+    <string name="notice_cert_chain_read_failed">讀取證書鏈失敗：%1$s</string>
+    <string name="error_read_private_key_failed">無法讀取私鑰檔案</string>
+    <string name="notice_private_key_read">已讀取私鑰檔案</string>
+    <string name="notice_private_key_read_failed">讀取私鑰失敗：%1$s</string>
+
+    <!-- Mini Server Logs -->
+    <string name="title_terminal_log">終端日誌</string>
+    <string name="terminal_log_desc">自動跟隨連線、資源載入、認證失敗、404 和頁面 JavaScript 報錯。</string>
+    <string name="cd_clear_logs">清空日誌</string>
+    <string name="terminal_empty_log">暫無日誌。啟動微型伺服器並訪問站點後，這裡會自動顯示請求記錄和客戶端錯誤。</string>
+
+    <!-- Backup -->
+    <string name="title_export_content">匯出內容</string>
+    <string name="backup_desc">可單獨選擇匯出範圍；跨版本匯入時會跳過不相容結構並匯入可相容部分。</string>
+    <string name="backup_include_profile">個人資料</string>
+    <string name="backup_include_conversations">對話歷史</string>
+    <string name="backup_include_model_profiles">模型服務配置</string>
+    <string name="backup_include_mcp">MCP 伺服器配置</string>
+    <string name="backup_include_ssh">SSH 連線配置</string>
+    <string name="backup_include_prompts">系統提示詞</string>
+    <string name="backup_include_memories">個性化記憶</string>
+    <string name="backup_import_memories">記憶 %1$d 項</string>
+    <string name="backup_include_skills">Skills</string>
+    <string name="backup_include_webdav">WebDAV 配置</string>
+    <string name="backup_include_file_transfer">檔案傳輸配置</string>
+    <string name="title_include_secrets">包含 API Key / 密碼 / 私鑰</string>
+    <string name="backup_secrets_warning">包含金鑰的備份可直接匯入使用，但必須妥善保管，不要分享給他人。</string>
+    <string name="action_export_local">匯出到本地</string>
+    <string name="status_exporting_to_download">正在匯出到 Download/LyraCode…</string>
+    <string name="error_export_failed">匯出失敗：%1$s</string>
+    <string name="title_import_backup">匯入備份</string>
+    <string name="import_desc">補充模式會在現有資料上新增並去重，推薦使用。覆蓋模式會替換已有相容配置，存在資料丟失風險。</string>
+    <string name="action_supplement_import">補充匯入</string>
+    <string name="action_replace_import">覆蓋匯入</string>
+    <string name="title_webdav_backup">WebDAV 雲備份</string>
+    <string name="notice_no_webdav_for_backup">暫無啟用的 WebDAV 伺服器。先在 WebDAV 設定中新增伺服器後，可直接上傳或下載備份。</string>
+    <string name="label_remote_backup_path">遠端備份路徑</string>
+    <string name="status_uploading_webdav">正在匯出並上傳 WebDAV…</string>
+    <string name="notice_uploaded_to">已上傳到 %1$s:%2$s</string>
+    <string name="error_upload_failed">上傳失敗：%1$s</string>
+    <string name="action_upload_backup">上傳備份</string>
+    <string name="status_download_import_webdav">正在從 WebDAV 下載並補充匯入…</string>
+    <string name="notice_import_from_path">從 %1$s 補充匯入：%2$s</string>
+    <string name="action_import_from_cloud">從雲端匯入</string>
+    <string name="label_unknown_size">未知大小</string>
+
+    <!-- SSH -->
+    <string name="ssh_desc">用於連線可執行遠端命令的 Linux/Windows 伺服器。命令執行前會彈出確認。</string>
+    <string name="notice_ssh_saved">SSH 連線已儲存</string>
+    <string name="title_delete_ssh">刪除 SSH 連線</string>
+    <string name="confirm_delete_ssh">該操作會刪除伺服器地址、使用者名稱、密碼或私鑰配置。</string>
+    <string name="notice_no_ssh">暫無 SSH 連線</string>
+    <string name="ssh_empty_hint">可使用密碼或私鑰連線 VPS、雲主機或區域網主機。配置會加密儲存。</string>
+    <string name="cd_edit_ssh">編輯 SSH</string>
+    <string name="cd_delete_ssh">刪除 SSH</string>
+    <string name="ssh_test_success">SSH 測試成功：%1$s</string>
+    <string name="title_ssh_usage">使用約束</string>
+    <string name="ssh_usage_desc">AI 使用 SSH 執行命令會像檔案修改一樣請求確認。安裝軟體或修改伺服器前，AI 應先檢查系統、CPU/GPU、記憶體、磁碟和許可權。複雜互動式 shell（如 vim/top/互動 ssh）不適合由內建 SSH 工具執行。</string>
+    <string name="label_display_name">顯示名稱</string>
+    <string name="label_host_ip">主機/IP</string>
+    <string name="label_auth_method">認證方式</string>
+    <string name="auth_password">密碼</string>
+    <string name="auth_private_key">私鑰</string>
+    <string name="label_passphrase_optional_with_parens">私鑰口令（可空）</string>
+    <string name="label_default_timeout">預設超時秒數</string>
+    <string name="title_enable_connection">啟用此連線</string>
+    <string name="enable_connection_desc">禁用後 AI 無法看到或呼叫該伺服器。</string>
+    <string name="stable_id_hint">固定標識將使用 %1$s:%2$s，AI 呼叫 SSH 工具時會使用這個標識。</string>
+
+    <!-- MCP -->
+    <string name="mcp_desc">支援 Streamable HTTP 與 SSE。Android 端不直接啟動 stdio MCP Server。</string>
+    <string name="notice_mcp_saved">MCP 伺服器已儲存</string>
+    <string name="title_delete_mcp">刪除 MCP 伺服器</string>
+    <string name="confirm_delete_mcp">該操作會刪除此 MCP 伺服器連線、認證資訊和已拉取的工具列表。</string>
+    <string name="notice_no_mcp">暫無 MCP 伺服器</string>
+    <string name="mcp_empty_hint">請新增遠端或區域網 MCP Server URL。若伺服器使用 HTTP 明文連線，API Key 和工具引數可能被同一網路中的第三方截獲。</string>
+    <string name="label_mcp_tools_count">%1$s · %2$d s · %3$d 個 tools</string>
+    <string name="notice_http_mcp_warning">安全提示：HTTP 明文連線可能洩露認證 key、工具引數和返回內容。</string>
+    <string name="action_test_and_fetch">測試並拉取</string>
+    <string name="cd_edit_mcp">編輯 MCP</string>
+    <string name="cd_delete_mcp">刪除 MCP</string>
+    <string name="mcp_connection_failed">MCP 連線失敗：%1$s</string>
+    <string name="mcp_connected">已連線 %1$s，拉取 %2$d 個 tools</string>
+    <string name="label_fetched_tools">已拉取 %1$d 個工具</string>
+    <string name="action_collapse_tools">點選收起工具名稱和簡介</string>
+    <string name="action_expand_tools">點選展開檢視工具名稱和簡介</string>
+    <string name="label_no_description">無描述</string>
+    <string name="label_http_insecure">HTTP 明文連線不安全，但不會阻止新增。</string>
+    <string name="label_timeout_seconds">超時秒數 5-300</string>
+    <string name="label_raw_json">原始 JSON：實際以此連線</string>
+
+    <!-- Local MCP Server -->
+    <string name="notice_local_mcp_saved">本機 MCP 服務端配置已儲存</string>
+    <string name="title_local_mcp_as_server">本機作為 MCP 服務端</string>
+    <string name="local_mcp_desc">將 Lyra Code 已啟用的 Agent 工具和已啟用 MCP 工具暴露給其他 MCP Client。</string>
+    <string name="label_server_status">狀態：%1$s · %2$s</string>
+    <string name="label_local_address_info">本地地址：%1$s</string>
+    <string name="label_lan_address_info">區域網地址：%1$s</string>
+    <string name="local_mcp_auth_not_set">認證：未設定 key，區域網或公網暴露時不安全。</string>
+    <string name="local_mcp_auth_enabled">認證：已啟用 Authorization Bearer / X-Lyra-MCP-Key</string>
+    <string name="action_configure">配置</string>
+    <string name="notice_local_mcp_restarted">本機 MCP 服務端已重啟</string>
+    <string name="title_external_usage">外部呼叫說明</string>
+    <string name="external_usage_desc">外部 MCP Client 呼叫工具時，Lyra Code 預設不再彈出二次確認。請在外部 MCP Client 中配置是否需要使用者確認，並避免把未設定認證 Key 的服務暴露到不可信網路。</string>
+    <string name="local_mcp_dialog_hint">其他 MCP Client 可透過 http://主機:埠/mcp 連線。若監聽區域網或公網，建議設定認證 Key。</string>
+    <string name="label_auth_key_optional">認證 Key，可空</string>
+    <string name="notice_auth_key_risk">未設定認證 Key 時，同網路內能訪問該埠的客戶端都可請求工具呼叫。</string>
+    <string name="label_save_and_enable">儲存後立即啟用</string>
+
+    <!-- Sub Agents -->
+    <string name="title_sub_agent_orchestration">子代理編排</string>
+    <string name="sub_agent_settings_desc">開啟後，主模型可在複雜任務中呼叫 run_sub_agents，將獨立子任務交給已啟用的子代理模型執行。子代理對話不進入普通曆史，只把最終結果返回主模型。</string>
+    <string name="label_sub_agent_models">子代理模型</string>
+    <string name="label_sub_agent_default_name">子代理模型</string>
+    <string name="sub_agent_default_desc">擅長程式碼審查、Bug 檢查、資料核驗或獨立方案分析。</string>
+    <string name="sub_agent_empty_hint">暫無子代理模型。請從已新增的模型服務中選擇模型，並填寫它擅長的任務說明。</string>
+    <string name="notice_sub_agent_deleted">子代理已刪除</string>
+    <string name="notice_sub_agent_saved">子代理已儲存</string>
+    <string name="title_delete_sub_agent">刪除子代理模型</string>
+    <string name="confirm_delete_sub_agent">確定刪除“%1$s”嗎？該操作不會刪除原模型服務。</string>
+    <string name="title_edit_sub_agent">編輯子代理模型</string>
+    <string name="label_sub_agent_name">子代理名稱</string>
+    <string name="label_sub_agent_desc">能力說明</string>
+
+    <!-- Web Search -->
+    <string name="title_domain_blacklist">網站黑名單</string>
+    <string name="blacklist_desc">AI 聯網搜尋和網頁讀取會跳過這些域名。普通域名精確匹配，* 萬用字元匹配子域名。</string>
+    <string name="label_one_domain_per_line">每行一個域名或 URL</string>
+    <string name="blacklist_normalize_hint">儲存後會自動歸一化：移除協議、路徑和尾部斜槓，但保留 www.。例如 x.com 只匹配 x.com；*.x.com 匹配 www.x.com、news.x.com 等子域名；如需同時攔截根域名和全部子域名，請同時填寫 x.com 與 *.x.com。</string>
+    <string name="notice_blacklist_saved">已儲存 %1$d 個黑名單域名</string>
+    <string name="action_clear">清空</string>
+    <string name="notice_blacklist_cleared">已清空聯網搜尋黑名單</string>
+    <string name="label_will_save_domains">當前將儲存 %1$d 個域名</string>
+
+    <!-- Permissions (app) -->
+    <string name="permission_read_app_list">讀取應用列表</string>
+
+    <!-- Prompt Settings -->
+    <string name="title_system_prompt">系統提示詞</string>
+    <string name="system_prompt_desc">選擇不同用途的系統提示詞。修改後會儲存到當前預設；恢復預設隻影響當前選中的提示詞。</string>
+    <string name="title_prompt_config">提示詞配置</string>
+    <string name="label_custom_prompt">自定義提示詞</string>
+    <string name="action_new">新增</string>
+    <string name="notice_prompt_switched">已切換到 %1$s</string>
+    <string name="label_contains_example">含示例對話</string>
+    <string name="title_edit_builtin_prompt">編輯內建提示詞</string>
+    <string name="title_edit_custom_prompt">編輯自定義提示詞</string>
+    <string name="label_prompt_name">提示詞名稱</string>
+    <string name="label_prompt_content">提示詞內容</string>
+    <string name="label_example_conversation">示例對話（可選）</string>
+    <string name="action_restore_preset">恢復預設</string>
+    <string name="notice_prompt_saved">提示詞已儲存</string>
+    <string name="notice_preset_restored">已恢復預設</string>
+    <string name="notice_prompt_deleted">提示詞已刪除</string>
+
+    <!-- Open Source Licenses -->
+    <string name="title_licenses">開源許可證</string>
+    <string name="licenses_desc">Lyra Code 使用以下開源元件。點選條目可檢視內建的原始許可證文字。</string>
+    <string name="license_sora_editor_note">檔案編輯器、行號、搜尋、自動換行以及 TextMate 語法高亮執行庫。</string>
+    <string name="license_textmate_assets_note">程式碼編輯器使用的語言語法、語言配置和配色主題資源；各資源保留其上游許可證。</string>
+
+    <!-- About Software -->
+    <string name="about_description">面向 Android 的本地 AI Agent 工具，支援多平臺模型、流式對話、Termux、工作區檔案操作、聯網搜尋、MCP、Skills、TODO 進度和檔案變更審查。</string>
+    <string name="section_version_update">版本與更新</string>
+    <string name="label_version">版本 %1$s (%2$s)</string>
+    <string name="status_checking_update">正在檢查更新…</string>
+    <string name="notice_new_version_found">發現新版本，點選檢視</string>
+    <string name="action_check_update">點選檢測新版本</string>
+    <string name="action_checking_update">正在檢查更新...</string>
+    <string name="label_downloaded_size">已下載 %1$s，無需重新下載</string>
+    <string name="label_no_update_prompt">不彈出更新提示</string>
+    <string name="no_update_prompt_desc">關閉進入軟體時每日一次的新版本彈窗，不影響手動檢測更新。</string>
+    <string name="label_app_id">應用 ID</string>
+    <string name="section_repos">倉庫</string>
+    <string name="label_website">官網與使用文件</string>
+    <string name="section_build_info">構建資訊</string>
+    <string name="menu_device_info">手機資訊</string>
+    <string name="menu_update_manifest">更新清單</string>
+    <string name="label_not_configured_or_na">未配置</string>
+
+    <!-- Update Dialog -->
+    <string name="title_new_version">發現新版本 %1$s</string>
+    <string name="notice_mandatory_update">這是重要更新，建議儘快安裝。</string>
+    <string name="action_download_in_app">應用內下載</string>
+    <string name="action_downloading">下載中</string>
+    <string name="action_download_web">網頁下載</string>
+    <string name="action_later">稍後</string>
+
+    <!-- Device Info Screen -->
+    <string name="title_device_info">手機資訊</string>
+    <string name="device_info_desc">用於截圖反饋、排查相容性問題，以及讓硬體檢查 Agent 分析當前裝置環境。部分專案受系統許可權和 Android 沙箱限制，可能只能顯示近似資訊。</string>
+
+    <!-- ==================== UsageStatsScreen.kt ==================== -->
+    <string name="stats_error">統計失敗</string>
+    <string name="action_confirm">確定</string>
+    <string name="title_usage_stats">使用統計</string>
+    <string name="stats_description">按模型請求時間估算；會重複計入上下文、工具結果和靜態提示詞成本。</string>
+    <string name="action_refresh">重新整理</string>
+    <string name="stats_display_compact">粗略顯示</string>
+    <string name="stats_display_exact">精確顯示</string>
+    <string name="stats_time_range">統計時間</string>
+    <string name="stats_all_history">全部歷史</string>
+    <string name="cd_previous_period">上一段</string>
+    <string name="cd_next_period">下一段</string>
+    <string name="action_select_date">選擇日期</string>
+    <string name="action_back_to_today">回到今天</string>
+    <string name="stats_loading">正在讀取本地 tokenizer 並統計…</string>
+    <string name="stats_conversation_count">對話次數</string>
+    <string name="stats_conversation_desc">該時間段內有使用者輸入的會話數</string>
+    <string name="stats_input_tokens">請求輸入 Tokens</string>
+    <string name="stats_input_tokens_desc">每次請求的上下文 + 工具結果 + 固定提示詞估算</string>
+    <string name="stats_output_tokens">模型輸出 Tokens</string>
+    <string name="stats_output_tokens_desc">AI 正文 + thinking + 工具呼叫引數</string>
+    <string name="stats_details">明細</string>
+    <string name="stats_model_requests">模型請求</string>
+    <string name="stats_model_requests_format">%1$s 次</string>
+    <string name="stats_user_messages">使用者訊息</string>
+    <string name="stats_message_format">%1$s 條</string>
+    <string name="stats_ai_messages">AI 訊息</string>
+    <string name="stats_tool_results">工具結果</string>
+    <string name="stats_disclaimer">Token 數由本地 DeepSeek V3 tokenizer 估算，不訪問網路。當前口徑按每次模型請求重複計算上下文，併為系統提示詞、工具 schema 和訊息模板加入固定開銷；不同服務商的 tokenizer、圖片計費、快取摺扣和實際 usage 仍可能不同。</string>
+    <string name="stats_period_format">%1$s統計</string>
+    <string name="compact_unit_wan">萬</string>
+    <string name="compact_unit_yi">億</string>
+    <string name="compact_unit_wanyi">萬億</string>
+    <string name="compact_unit_yiyi">億億</string>
+    <string name="stats_date_range_format">%1$s 至 %2$s</string>
+    <string name="stats_month_format">%1$s 年 %2$s 月</string>
+    <string name="stats_year_format">%1$s 年</string>
+    <string name="stats_total_tokens">總 Tokens</string>
+    <string name="stats_quick_overview">快速概覽</string>
+    <string name="stats_token_usage">Token 用量</string>
+    <string name="stats_request_breakdown">請求明細</string>
+    <string name="stats_top_models">常用模型</string>
+    <string name="stats_no_model_data">該時間段暫無模型使用資料</string>
+    <string name="stats_unknown_model">未知模型</string>
+    <string name="stats_show_all_models">檢視全部模型</string>
+    <string name="stats_show_less_models">收起模型列表</string>
+    <string name="stats_model_usage_format">%1$s Tokens · %2$s 次請求</string>
+    <string name="stats_share_format">%1$d%%</string>
+    <string name="stats_about_title">關於統計</string>
+    <string name="stats_total_requests">總請求</string>
+
+    <!-- ==================== ChatController additional ==================== -->
+    <string name="label_upload_file_header_format">使用者上傳檔案：%1$s\n大小：%2$d bytes\n\n</string>
+    <string name="label_upload_media_header_format">使用者上傳媒體：%1$s\n型別：%2$s\nMIME：%3$s\nURI：%4$s\n大小：%5$d bytes</string>
+    <string name="todo_default_task">完成當前任務</string>
+    <string name="todo_set_result">TODO 列表已設定，共 %1$d 項。</string>
+    <string name="todo_marked_as">TODO %1$s 已標記為 %2$s。</string>
+
+    <!-- ==================== AppShell.kt — TopAppBar / Remaining ==================== -->
+    <string name="cd_menu">選單</string>
+    <string name="date_format_year_month">yyyy年M月</string>
+    <!-- Workspace @ picker, tool detail, and streaming output -->
+    <string name="workspace_file_picker_title">選擇工作區檔案（可多選）</string>
+    <string name="workspace_file_select">選擇檔案</string>
+    <string name="workspace_file_remove">移除檔案</string>
+    <string name="workspace_file_no_matches">沒有匹配的檔案</string>
+    <string name="workspace_file_indexing">正在建立工作區檔案索引…</string>
+    <string name="tool_call_summary">呼叫工具 %1$s · 檢視詳情</string>
+    <string name="tool_call_summary_unknown">工具呼叫 · 檢視詳情</string>
+    <string name="tool_detail_title">工具呼叫詳情</string>
+    <string name="tool_unknown_name">未知工具</string>
+    <string name="tool_input_title">工具輸入</string>
+    <string name="tool_output_title">呼叫結果</string>
+    <string name="detail_streaming_output">流式輸出</string>
+    <string name="streaming_output_title">流式輸出動畫</string>
+    <string name="streaming_typewriter_title">逐字顯示</string>
+    <string name="streaming_typewriter_desc">經典打字機效果，內容逐字出現</string>
+    <string name="streaming_fade_title">漸變顯示</string>
+    <string name="streaming_fade_desc">新內容從高透明度平滑過渡至清晰</string>
+    <string name="streaming_selected">已選擇</string>
+    <!-- Chat composer -->
+    <string name="label_sub_agent_short">子代理</string>
+    <string name="action_fullscreen_input">全屏輸入</string>
+    <string name="action_exit_fullscreen_input">退出全屏輸入</string>
+    <string name="title_fullscreen_input">全屏輸入</string>
+    <!-- File manager and editor -->
+    <string name="nav_tab_files">檔案</string>
+    <string name="file_permission_title">需要“管理所有檔案”許可權</string>
+    <string name="file_permission_message">檔案管理器需要訪問共享儲存，才能在 /storage/emulated/0 中瀏覽、編輯、移動和複製檔案。請在系統設定中允許 Lyra Code 管理所有檔案。</string>
+    <string name="file_permission_grant">授予許可權</string>
+    <string name="file_permission_retry">重新檢查</string>
+    <string name="file_permission_settings_unavailable">無法開啟系統許可權設定，請前往應用詳情頁手動允許“管理所有檔案”。</string>
+    <string name="file_folder_count">資料夾：%1$d</string>
+    <string name="file_file_count">檔案：%1$d</string>
+    <string name="file_empty_folder">空資料夾</string>
+    <string name="file_loading">正在讀取…</string>
+    <string name="file_open_failed">無法開啟檔案</string>
+    <string name="apk_install_title">安裝應用</string>
+    <string name="apk_install_message">是否安裝“%1$s”？將依次嘗試 Root、Shell、ADB，最後使用系統安裝器。</string>
+    <string name="apk_install_confirm">安裝</string>
+    <string name="apk_installing">正在準備安裝…</string>
+    <string name="apk_install_success">已透過 %1$s 完成安裝</string>
+    <string name="apk_install_permission_hint">請允許安裝未知應用，然後再次點選該安裝包。</string>
+    <string name="apk_install_system_success">應用安裝完成</string>
+    <string name="apk_install_system_failed">系統安裝器未能安裝此應用</string>
+    <string name="file_action_copy_other">複製到另一欄</string>
+    <string name="file_action_move_other">移動到另一欄</string>
+    <string name="file_action_copy">複製</string>
+    <string name="file_action_move">移動</string>
+    <string name="file_action_properties">屬性</string>
+    <string name="file_action_preview_html">在瀏覽器中預覽</string>
+    <string name="file_action_rename">重新命名</string>
+    <string name="file_action_unzip">解壓到當前目錄</string>
+    <string name="file_action_delete">刪除</string>
+    <string name="file_delete_title">確認刪除</string>
+    <string name="file_delete_message">將永久刪除“%1$s”。此操作無法撤銷，是否繼續？</string>
+    <string name="file_name_label">名稱</string>
+    <string name="file_create_folder">新建資料夾</string>
+    <string name="file_properties_title">檔案屬性</string>
+    <string name="file_property_path">路徑：%1$s</string>
+    <string name="file_property_copy_path">複製檔案路徑</string>
+    <string name="file_property_path_copied">檔案路徑已複製</string>
+    <string name="file_property_type">型別：%1$s</string>
+    <string name="file_property_size">大小：%1$s</string>
+    <string name="file_property_calculating_size">正在計算…</string>
+    <string name="file_property_modified">修改時間：%1$s</string>
+    <string name="file_type_folder">資料夾</string>
+    <string name="file_type_file">檔案</string>
+    <string name="file_operation_done">操作完成</string>
+    <string name="file_parent_folder">上級目錄</string>
+    <string name="file_refresh">重新整理</string>
+    <string name="file_editor_save">儲存</string>
+    <string name="file_editor_search">檔案內搜尋</string>
+    <string name="file_editor_search_query">查詢內容</string>
+    <string name="file_editor_search_results">搜尋結果：%1$d</string>
+    <string name="file_editor_replace_hint">替換內容（留空則刪除）</string>
+    <string name="file_editor_replace">替換</string>
+    <string name="file_editor_replace_all">全部替換</string>
+    <string name="file_editor_replace_done">已替換當前匹配項</string>
+    <string name="file_editor_replacing_all">正在替換全部匹配項…</string>
+    <string name="file_editor_replace_all_done">已替換全部匹配項</string>
+    <string name="file_editor_jump_line">跳轉到行</string>
+    <string name="file_editor_line_number">行號</string>
+    <string name="file_editor_word_wrap">自動換行</string>
+    <string name="file_editor_single_line">單行顯示</string>
+    <string name="file_editor_unsaved_title">儲存更改？</string>
+    <string name="file_editor_unsaved_message">檔案內容已修改。退出前是否儲存？</string>
+    <string name="file_editor_discard">不儲存</string>
+    <string name="file_editor_saved_backup">已儲存，並生成同目錄 .bak 備份</string>
+    <string name="file_editor_saved">已儲存</string>
+    <string name="file_editor_encoding_title">檢測到 UTF-8 解碼錯誤</string>
+    <string name="file_editor_encoding_message">檔案可能不是 UTF-8 編碼。建議先使用轉碼工具轉換編碼；繼續編輯並儲存會將內容寫成 UTF-8，原檔案仍會儲存在 .bak 備份中。</string>
+    <string name="file_editor_edit_anyway">仍然編輯</string>
+    <string name="file_editor_ai">AI 助手</string>
+    <string name="file_editor_ai_workspace">當前工作區：%1$s</string>
+    <string name="file_editor_ai_no_workspace">當前工作區：未選擇</string>
+    <string name="file_editor_add_workspace">新增工作目錄</string>
+    <string name="file_editor_swipe_hint">從左上邊緣向右滑出 AI</string>
+    <string name="file_search_previous">上一個</string>
+    <string name="file_search_next">下一個</string>
+    <string name="file_open_external">用其他應用開啟</string>
+    <string name="file_overwrite_backup_notice">修改會在同目錄保留舊檔案的 .bak 備份</string>
+    <string name="file_create">新建</string>
+    <string name="file_create_file">新建檔案</string>
+    <string name="file_selected_count">已選 %1$d</string>
+    <string name="file_batch_copy">複製所選項到另一欄</string>
+    <string name="file_batch_move">移動所選項到另一欄</string>
+    <string name="file_batch_delete">刪除所選項</string>
+    <string name="file_clear_selection">取消多選</string>
+    <string name="file_batch_copy_title">複製所選檔案？</string>
+    <string name="file_batch_copy_message">確定將選中的 %1$d 項複製到另一欄嗎？</string>
+    <string name="file_batch_move_title">移動所選檔案？</string>
+    <string name="file_batch_move_message">確定將選中的 %1$d 項移動到另一欄嗎？原位置將不再保留這些專案。</string>
+    <string name="file_batch_delete_title">刪除所選檔案？</string>
+    <string name="file_batch_delete_message">確定刪除選中的 %1$d 項嗎？此操作無法撤銷。</string>
+    <string name="file_editor_ai_working">AI 正在處理當前任務</string>
+    <string name="file_editor_ai_editing_file">正在編輯 %1$s</string>
+    <string name="file_editor_ai_reading_file">正在讀取 %1$s</string>
+    <string name="file_editor_ai_editing">AI 正在修改編輯器內容</string>
+    <string name="file_editor_ai_saving">編輯器修改完成，AI 正在儲存檔案</string>
+    <string name="file_editor_ai_saved">AI 已儲存檔案</string>
+    <string name="file_editor_view_ai">檢視</string>
+    <string name="file_editor_ai_applying">AI 正在更新當前檔案…</string>
+    <string name="file_editor_ai_applied">已同步並展示 AI 對當前檔案的修改</string>
+    <string name="file_editor_tool_output">工具輸出：%1$s</string>
+    <string name="media_preview_close">關閉預覽</string>
+    <string name="media_preview_play">播放</string>
+    <string name="media_preview_pause">暫停</string>
+    <string name="media_preview_speed">播放速度</string>
+    <string name="media_preview_landscape">橫屏播放</string>
+    <string name="media_preview_portrait">退出橫屏</string>
+    <string name="media_preview_brightness">亮度</string>
+    <string name="media_preview_volume">音量</string>
+    <string name="media_preview_decrease">降低%1$s</string>
+    <string name="media_preview_increase">提高%1$s</string>
+    <string name="media_preview_image_failed">無法解碼此圖片</string>
+    <string name="media_preview_playback_failed">無法播放此媒體：%1$s</string>
+    <string name="media_preview_seek_position">跳轉到 %1$s</string>
+    <string name="media_preview_long_press_speed">長按 2.0×</string>
+    <string name="media_preview_audio">音訊</string>
+    <string name="file_manager_left_pane">左側區域</string>
+    <string name="file_manager_right_pane">右側區域</string>
+    <string name="file_manager_menu">檔案選單</string>
+    <string name="file_manager_search">搜尋檔案</string>
+    <string name="file_manager_search_hint">搜尋當前路徑及其子資料夾</string>
+    <string name="file_manager_search_all">全部</string>
+    <string name="file_manager_search_files">檔案</string>
+    <string name="file_manager_search_folders">資料夾</string>
+    <string name="file_manager_search_results">找到 %1$d 項</string>
+    <string name="file_manager_search_empty">未找到匹配的檔案或資料夾</string>
+    <string name="file_manager_item_summary">資料夾：%1$d　檔案：%2$d</string>
+    <string name="file_manager_sort_by">排序方式</string>
+    <string name="file_manager_sort_name">按名稱</string>
+    <string name="file_manager_sort_modified">按修改時間</string>
+    <string name="file_manager_sort_size">按大小</string>
+    <string name="file_manager_sort_type">按型別</string>
+    <string name="file_manager_sort_ascending">當前升序（點選切換）</string>
+    <string name="file_manager_sort_descending">當前降序（點選切換）</string>
+    <!-- Compliance documents -->
+    <string name="compliance_service_agreements">服務協議</string>
+    <string name="compliance_service_agreements_desc">使用者協議、隱私政策與合規清單</string>
+    <string name="compliance_documents">協議與清單</string>
+    <string name="compliance_index_intro">以下文件結合當前版本的實際功能編寫，可離線檢視。外部模型、伺服器和網站由使用者自行選擇，其規則可能另行適用。</string>
+    <string name="compliance_review_notice">說明：這些文件用於如實說明當前版本的資料處理和許可權用途，不代表已經自動滿足任何應用市場或地區的全部稽核要求。功能或資料處理方式變化時應同步更新。</string>
+    <string name="compliance_effective_date">生效及更新日期：2026 年 7 月 19 日</string>
+    <string name="compliance_user_agreement">使用者協議</string>
+    <string name="compliance_user_agreement_desc">使用規則、風險與責任邊界</string>
+    <string name="compliance_privacy_policy">隱私政策</string>
+    <string name="compliance_privacy_policy_desc">個人資訊處理與使用者權利</string>
+    <string name="compliance_personal_info_list">個人資訊收集清單</string>
+    <string name="compliance_personal_info_list_desc">逐項說明資訊、目的和去向</string>
+    <string name="compliance_third_party_list">第三方資訊收集清單</string>
+    <string name="compliance_third_party_list_desc">外部服務、觸發條件與接收內容</string>
+    <string name="compliance_app_permissions">應用許可權</string>
+    <string name="compliance_app_permissions_desc">Manifest 許可權及實際用途</string>
+
+    <string name="compliance_user_summary">本協議適用於 Lyra Code Android 應用。Lyra Code 是本地優先的 AI Agent 與檔案工具，不提供內建雲賬號；模型、MCP、SSH、WebDAV、FTP 等服務由使用者自行配置。下載、安裝或使用本應用即表示使用者已閱讀並同意本協議；不同意時可停止使用並解除安裝應用。</string>
+    <string name="compliance_user_scope_title">一、協議主體與適用範圍</string>
+    <string name="compliance_user_scope_body">產品名稱：Lyra Code。
+開發者及專案維護者：Soffd / Lyra Code 專案維護者。
+聯絡渠道：https://github.com/Soffd/Lyra-Code/issues 。
+
+本協議適用於應用本體及隨版本提供的本地功能。使用者自行接入的模型平臺、網站、MCP 或遠端伺服器由相應服務方負責，並適用其另行公佈的協議和政策。</string>
+    <string name="compliance_user_service_title">二、服務內容</string>
+    <string name="compliance_user_service_body">應用提供 AI 對話、檔案管理、工作區工具、聯網搜尋、MCP、Termux、SSH、WebDAV、FTP/FTPS/SFTP、本地伺服器、備份及更新等功能。部分功能需要使用者提供 API Key、伺服器地址或系統許可權。
+
+應用不保證所有第三方介面、模型或裝置始終可用。因系統版本、網路、介面變更或第三方停止服務，部分能力可能調整或中斷。</string>
+    <string name="compliance_user_rules_title">三、使用者行為規範</string>
+    <string name="compliance_user_rules_body">使用者應確保有權訪問所選檔案、賬號、裝置和伺服器，並遵守所在地法律及第三方服務規則。不得利用應用侵入系統、傳播違法內容、侵犯他人權益、繞過授權或實施其他違法行為。
+
+API Key、密碼、私鑰和遠端服務費用由使用者自行管理。請勿分享敏感憑據，並優先使用 HTTPS、SFTP、FTPS 等安全連線。</string>
+    <string name="compliance_user_ai_risk_title">四、AI 與自動化風險</string>
+    <string name="compliance_user_ai_risk_body">AI 輸出可能不準確、過時或包含不適當內容，不能替代醫療、法律、金融等專業意見。檔案寫入、刪除、命令執行、遠端上傳和系統級工具可能造成資料丟失或裝置異常。
+
+使用者應在執行前審查命令、目標路徑和差異，保留必要備份，並對最終操作負責。應用中的確認流程不能消除全部風險。</string>
+    <string name="compliance_user_third_party_title">五、第三方服務與費用</string>
+    <string name="compliance_user_third_party_body">使用者主動配置或呼叫模型 API、搜尋網站、MCP、Termux、Shizuku、SSH、WebDAV、FTP/FTPS/SFTP、更新下載和外部連結時，資料將直接傳輸至相應服務。服務方可能記錄 IP 地址、請求內容和訪問日誌。
+
+第三方的可用性、收費、內容和資料處理由其自行負責。使用者應閱讀對應協議和隱私政策，並自行承擔產生的費用。</string>
+    <string name="compliance_user_disclaimer_title">六、智慧財產權與責任限制</string>
+    <string name="compliance_user_disclaimer_body">應用程式碼及資源按專案宣告的許可證提供；第三方開源元件適用各自許可證。使用者對自行輸入、上傳和生成內容承擔責任。
+
+在法律允許範圍內，專案維護者不對第三方服務故障、使用者誤操作、未備份、明文連線、Root/Shell/Termux 命令或不可抗力造成的間接損失負責，但依法不得排除的責任除外。</string>
+    <string name="compliance_user_contact_title">七、變更、終止與聯絡</string>
+    <string name="compliance_user_contact_body">使用者可隨時停止使用、清除應用資料或解除安裝應用。協議發生重要變化時，應隨應用版本更新並修改生效日期。
+
+問題、投訴或權利請求可透過 GitHub Issues 聯絡專案維護者。請勿在公開 Issue 中提交 API Key、密碼、私鑰、精確位置或私人檔案。</string>
+
+    <string name="compliance_privacy_summary">Lyra Code 堅持本地優先和按需處理。當前版本不要求註冊賬號，不包含廣告 SDK、行為分析 SDK或第三方崩潰統計 SDK。基本的本地介面和檔案瀏覽不以提供非必要個人資訊為前提。</string>
+    <string name="compliance_privacy_principles_title">一、處理原則與範圍</string>
+    <string name="compliance_privacy_principles_body">我們遵循合法、正當、必要、誠信和目的明確原則，僅在實現使用者主動選擇的功能時處理相應資訊。本政策適用於應用本體；使用者自行選擇的模型平臺、網站和伺服器適用各自政策。
+
+應用主要是本地工具。專案維護者通常不會集中接收本地對話、檔案或配置；資料是否出站取決於使用者啟用的網路功能和目標地址。</string>
+    <string name="compliance_privacy_process_title">二、處理的資訊</string>
+    <string name="compliance_privacy_process_body">可能處理的資訊包括：暱稱與頭像；對話、提示詞、記憶、附件和工具輸出；API 與遠端伺服器配置；使用者選擇的檔案、媒體和拍照內容；按需讀取的位置、裝置資訊、網路狀態和應用列表；任務、快取、審查日誌及備份資料。
+
+具體目的、方式、儲存位置和接收方見“個人資訊收集清單”。敏感許可權只在相應功能需要且獲得系統授權後使用。</string>
+    <string name="compliance_privacy_external_title">三、共享、委託處理與對外傳輸</string>
+    <string name="compliance_privacy_external_body">我們不出售個人資訊。使用 AI 對話時，所選上下文會傳送到使用者配置的模型介面；呼叫聯網搜尋、MCP、SSH、WebDAV 或檔案傳輸時，請求內容會傳送到使用者指定的目標；點選外鏈時由瀏覽器或目標應用處理。
+
+應用不會替使用者決定這些服務的資料保留期限。請根據“第三方資訊收集清單”核對接收方，並避免向不可信服務傳送敏感內容。</string>
+    <string name="compliance_privacy_storage_title">四、本地儲存、期限與備份</string>
+    <string name="compliance_privacy_storage_body">對話、配置、日誌和快取預設儲存在應用私有目錄；工作區及檔案管理器內容儲存在使用者選擇的目錄。敏感配置使用應用的加密儲存機制。資料通常保留至使用者刪除、清除應用資料或解除安裝。
+
+使用者可主動匯出本地或 WebDAV 備份。Android 也可能按裝置的系統備份設定處理允許備份的資料。匯出的備份由使用者自行保管。</string>
+    <string name="compliance_privacy_security_title">五、安全措施</string>
+    <string name="compliance_privacy_security_body">應用使用 Android 沙箱、敏感配置加密、使用者確認、檔案範圍限制和下載 SHA-256 校驗等措施降低風險。網路安全仍取決於目標服務；HTTP、FTP 等明文連線可能洩露憑據和內容。
+
+任何措施都無法保證絕對安全。發現安全問題時，請透過專案倉庫私下提供必要的復現資訊，不要公開敏感資料。</string>
+    <string name="compliance_privacy_rights_title">六、使用者權利</string>
+    <string name="compliance_privacy_rights_body">使用者可在應用內檢視、修改或刪除對話、記憶、模型及遠端服務配置，清理快取，匯出或匯入備份；可在 Android 系統設定中撤回位置、相機、媒體、通知等許可權，也可清除全部應用資料或解除安裝。
+
+如需查詢、更正、刪除或投訴專案維護者可能持有的資訊，可透過 GitHub Issues 聯絡。身份核驗僅限處理請求所必需的範圍。</string>
+    <string name="compliance_privacy_children_title">七、未成年人</string>
+    <string name="compliance_privacy_children_body">應用並非專門面向未成年人。未成年人應在監護人指導下使用，不應向模型、網站或遠端伺服器提交身份、位置、學校、聯絡方式等敏感資訊。監護人可透過系統許可權和清除應用資料進行管理。</string>
+    <string name="compliance_privacy_changes_title">八、政策更新與聯絡</string>
+    <string name="compliance_privacy_changes_body">功能、許可權、第三方服務或資訊處理方式發生重要變化時，應更新本政策和清單並修改日期。聯絡渠道：https://github.com/Soffd/Lyra-Code/issues 。公開反饋時請先刪除敏感資訊。</string>
+
+    <string name="compliance_personal_summary">本清單按當前版本列出應用可能處理的資訊。標註“按需”的專案不會因安裝應用而自動讀取；是否傳送到外部取決於使用者的操作、工具呼叫和服務配置。</string>
+    <string name="compliance_personal_optional_profile_title">暱稱與頭像（可選）</string>
+    <string name="compliance_personal_optional_profile_body">內容：使用者設定的暱稱、頭像圖片及本地路徑。
+目的：側邊欄個人資料展示。
+方式與時機：使用者主動編輯時處理。
+儲存與去向：儲存在本機應用資料中，預設不對外傳送。</string>
+    <string name="compliance_personal_chat_title">對話與 AI 上下文</string>
+    <string name="compliance_personal_chat_body">內容：使用者訊息、系統提示詞、記憶、會話標題、附件、選定檔案片段、工具引數與輸出、模型回覆。
+目的：提供 AI 對話、歷史記錄、摘要和 Agent 工具。
+方式與時機：使用者輸入、附加內容或發起模型請求時。
+儲存與去向：本地儲存；發起請求時將必要上下文傳送至使用者選定的模型介面。</string>
+    <string name="compliance_personal_credentials_title">服務配置與認證憑據</string>
+    <string name="compliance_personal_credentials_body">內容：模型 API Key、基礎 URL，MCP 認證 Key，SSH/WebDAV/FTP/FTPS/SFTP 地址、使用者名稱、密碼或私鑰等。
+目的：連線使用者指定的服務。
+方式與時機：使用者主動配置和連線時。
+儲存與去向：敏感配置加密儲存在本機；認證資訊僅傳送至對應目標以完成鑑權。備份可能包含這些配置，請妥善保管。</string>
+    <string name="compliance_personal_files_title">檔案、媒體與相機內容</string>
+    <string name="compliance_personal_files_body">內容：使用者選擇或授權範圍內的檔名、路徑、大小、修改時間、文字、圖片、影片及拍照臨時檔案。
+目的：檔案管理、附件上傳、預覽、工作區工具和遠端傳輸。
+方式與時機：使用者選擇檔案、進入檔案管理器、拍照或批准工具操作時。
+儲存與去向：在本機或使用者目錄處理；僅在使用者附加、上傳或批准相關工具時傳送至模型或指定伺服器。</string>
+    <string name="compliance_personal_device_title">裝置、網路與執行資訊（按需）</string>
+    <string name="compliance_personal_device_body">內容：Android 與裝置型號、CPU、記憶體、儲存、螢幕、電池、網路型別、IP/介面狀態、藍芽概況，以及應用版本、任務狀態和錯誤日誌。
+目的：相容性排查、硬體檢查、網路功能和任務執行。
+方式與時機：開啟手機資訊頁或呼叫對應 Agent 工具時。
+儲存與去向：主要即時讀取；若作為 AI 工具結果使用，會進入當前模型請求。</string>
+    <string name="compliance_personal_location_apps_title">位置與已安裝應用（可選、敏感）</string>
+    <string name="compliance_personal_location_apps_body">內容：系統最近位置；已安裝應用名稱、包名、版本、大小及簽名摘要。
+目的：地理感知和應用列表識別工具。
+方式與時機：使用者授予許可權並主動呼叫對應工具時；應用列表能力需 Manifest 宣告。
+儲存與去向：按需讀取，預設不建立後臺軌跡；作為工具結果時可能傳送至當前模型服務。</string>
+    <string name="compliance_personal_logs_title">日誌、快取、任務與備份</string>
+    <string name="compliance_personal_logs_body">內容：審查日誌、工具狀態、下載/定時任務、AI 響應快取、臨時上傳檔案和使用者選擇的備份內容。
+目的：恢復會話、審計操作、提升效能和備份遷移。
+方式與時機：使用相關功能時生成。
+儲存與去向：預設本地；使用者選擇 WebDAV 備份時傳送至指定伺服器，可在設定中清理或刪除。</string>
+    <string name="compliance_personal_not_collected_title">當前版本不主動收集</string>
+    <string name="compliance_personal_not_collected_body">應用不要求手機號、真實姓名、身份證件、通訊錄、簡訊、通話記錄、支付銀行卡、人臉或指紋模板，也不讀取廣告識別符號用於畫像。使用者在對話、檔案或第三方服務中自行輸入上述資訊的，不屬於應用基本功能所必需，請謹慎提交。</string>
+
+    <string name="compliance_third_party_summary">當前版本未內建廣告、行為分析或第三方崩潰統計 SDK。開源 UI、網路、播放器、編輯器和加密庫在應用程序內提供功能，不因被整合而獨立向其作者上傳個人資訊。以下外部接收方僅在對應功能觸發時出現。</string>
+    <string name="compliance_third_sdk_title">本地開源元件</string>
+    <string name="compliance_third_sdk_body">包括 AndroidX/Compose、OkHttp、Media3、Sora Editor、JSch、Shizuku API、JLatexMath 等。用途為介面、網路通訊、媒體播放、程式碼編輯、SSH、系統授權和公式渲染。
+
+這些元件本身未在本應用中配置獨立的資料上報端點。許可證和具體元件可在“開源許可證”頁檢視。Android System WebView 處理網頁時可能按所訪問網站規則產生 Cookie 或網路日誌。</string>
+    <string name="compliance_third_models_title">AI 模型服務商或自定義相容介面</string>
+    <string name="compliance_third_models_body">可能的接收方：OpenAI、Anthropic、Google Gemini，以及使用者填寫基礎 URL 的其他服務商。
+接收內容：API Key、模型名稱、使用者訊息、系統提示詞、必要歷史上下文、附件/檔案內容和工具結果。
+觸發條件：使用者配置服務併傳送訊息、重新整理模型或執行連通性測試。
+目的：生成回覆和提供模型能力。實際儲存期限及跨境處理以目標服務政策為準。</string>
+    <string name="compliance_third_web_title">搜尋引擎、網頁與下載站點</string>
+    <string name="compliance_third_web_body">接收方：使用者搜尋或訪問的網站及下載地址。
+接收內容：搜尋詞、目標 URL、網頁請求、IP 地址、瀏覽器標識及網站自行設定的資訊。
+觸發條件：使用者或已獲授權的 Agent 使用聯網搜尋、讀取網頁、開啟連結或下載檔案。
+目的：檢索、展示和下載網際網路內容。</string>
+    <string name="compliance_third_mcp_title">使用者配置的 MCP 服務</string>
+    <string name="compliance_third_mcp_body">接收方：使用者填寫的 MCP URL 對應運營者。
+接收內容：認證 Key、工具列表請求、工具引數、所需上下文及返回內容。
+觸發條件：使用者啟用 MCP 並呼叫其工具。
+目的：擴充套件 Agent 能力。請勿連線來源不明或使用明文 HTTP 的服務。</string>
+    <string name="compliance_third_remote_title">遠端主機、儲存與本機協作應用</string>
+    <string name="compliance_third_remote_body">接收方：使用者指定的 SSH、WebDAV、FTP/FTPS/SFTP 伺服器，以及本機 Termux、Termux:API 或 Shizuku。
+接收內容：地址、賬號、認證憑據、命令、檔案路徑、上傳內容和執行結果。
+觸發條件：使用者配置、批准並執行連線、命令、傳輸或備份。
+目的：遠端管理、檔案傳輸和本機命令執行。</string>
+    <string name="compliance_third_update_title">應用更新服務</string>
+    <string name="compliance_third_update_body">接收方：應用配置的更新清單和 APK 下載主機，可能包括 Lyra Code 官方站點或程式碼託管平臺。
+接收內容：網路請求通常包含 IP 地址、時間、應用版本及標準 HTTP 頭，不上傳對話和本地檔案。
+觸發條件：每日更新檢查（可在關於頁關閉提示）、手動檢查或下載更新。
+目的：發現並安裝新版本。</string>
+    <string name="compliance_third_external_links_title">官網、程式碼倉庫與社交外鏈</string>
+    <string name="compliance_third_external_links_body">接收方：lyracode.app、GitHub、Gitee、QQ、Discord 等。
+接收內容：點選後由瀏覽器或目標應用傳送常規訪問資料，具體以對方政策為準。
+觸發條件：使用者主動點選關於頁連結。
+目的：檢視專案、反饋問題或加入社群。Lyra Code 不會代替這些平臺建立賬號。</string>
+
+    <string name="compliance_permissions_summary">許可權按功能申請或由 Manifest 宣告。拒絕非必要許可權不影響不依賴該許可權的基本本地功能；對應的相機、定位、通知、檔案管理、應用識別或命令功能可能不可用。</string>
+    <string name="compliance_permission_network_title">網路與網路狀態</string>
+    <string name="compliance_permission_network_body">INTERNET：連線模型 API、網頁、MCP、遠端伺服器和更新服務。
+ACCESS_NETWORK_STATE：判斷網路連線並顯示診斷資訊。
+CHANGE_WIFI_MULTICAST_STATE：支援區域網服務及多播相關能力。
+
+這些是普通許可權，安裝後由系統授予；僅在使用相應網路功能時產生請求。</string>
+    <string name="compliance_permission_location_title">位置</string>
+    <string name="compliance_permission_location_body">ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION：在使用者啟用“獲取當前位置”工具時讀取系統最近位置，用於地理感知回答。應用不以此建立後臺行蹤軌跡。可在系統設定中隨時拒絕或撤回。</string>
+    <string name="compliance_permission_camera_title">攝像頭</string>
+    <string name="compliance_permission_camera_body">CAMERA：使用者選擇拍照作為對話附件時呼叫相機並生成臨時圖片。應用不會在後臺拍攝。拒絕後仍可使用文字對話和從檔案中選擇附件。</string>
+    <string name="compliance_permission_media_title">媒體與共享儲存</string>
+    <string name="compliance_permission_media_body">READ_MEDIA_IMAGES / READ_MEDIA_VIDEO：讀取使用者選擇或授權的圖片和影片。
+READ_EXTERNAL_STORAGE（Android 12 及以下）與 WRITE_EXTERNAL_STORAGE（Android 9 及以下）：相容舊系統檔案訪問。
+MANAGE_EXTERNAL_STORAGE：檔案管理器瀏覽、編輯、移動和複製共享儲存中的檔案。該許可權範圍較大，僅應在需要完整檔案管理時授予。</string>
+    <string name="compliance_permission_apps_title">應用列表</string>
+    <string name="compliance_permission_apps_body">QUERY_ALL_PACKAGES：識別已安裝應用並讀取名稱、包名、版本、大小及簽名摘要，也用於發現 Termux 等協作應用。僅在應用列表工具或相容性檢查中使用，不用於廣告畫像。</string>
+    <string name="compliance_permission_notifications_title">通知</string>
+    <string name="compliance_permission_notifications_body">POST_NOTIFICATIONS（Android 13 及以上）：顯示下載、定時任務或後臺操作狀態。拒絕後任務仍可能執行，但系統通知不可見。</string>
+    <string name="compliance_permission_install_title">安裝應用</string>
+    <string name="compliance_permission_install_body">REQUEST_INSTALL_PACKAGES：使用者在關於頁下載更新後，請求 Android 開啟 APK 安裝器。安裝前必須由使用者在系統介面單獨允許“安裝未知應用”並確認安裝；應用不會靜默安裝。</string>
+    <string name="compliance_permission_termux_title">Termux、Shizuku 與 Root</string>
+    <string name="compliance_permission_termux_body">com.termux.permission.RUN_COMMAND：經 Termux 授權後執行使用者或 Agent 批准的命令。
+Shizuku 與 Root：不屬於普通執行時許可權，由使用者在“系統許可權”頁另行啟用和授權。Shell/Root 命令風險較高，每次執行前應核對完整命令。</string>
+    <string name="compliance_permission_control_title">如何控制許可權</string>
+    <string name="compliance_permission_control_body">路徑：設定 → 常規 → 應用許可權，或 Android 系統設定 → 應用 → Lyra Code → 許可權/特殊訪問許可權。
+
+撤回許可權後，應用會停止透過該許可權讀取新資訊，但此前由使用者儲存的本地資料不會自動刪除；可在應用內刪除、清除應用資料或解除安裝。</string>
+    <string name="conversation_branch_title">%1$s · 分支</string>
+    <string name="status_branch_created">對話分支已建立</string>
+    <string name="action_create_branch">從此處建立分支</string>
+    <string name="action_more">更多操作</string>
+    <string name="file_privileged_access">受限目錄訪問</string>
+    <string name="file_privileged_access_message">使用 Root 或 Shizuku Shell 訪問應用程序無法直接讀取的目錄，例如 Android/data、Android/obb 和 /data。檔案操作將優先使用普通許可權，僅在受限路徑中使用所選通道。</string>
+    <string name="file_open_android_data">開啟 Android/data</string>
+    <string name="file_privileged_use_root">獲取並使用 Root</string>
+    <string name="file_privileged_use_shizuku">獲取並使用 Shizuku Shell</string>
+    <string name="file_privileged_test_access">測試受限目錄訪問</string>
+    <string name="file_privileged_testing_root">正在檢測 Root…</string>
+    <string name="file_privileged_root_ready">Root 已可用於檔案訪問</string>
+    <string name="file_privileged_shizuku_not_running">Shizuku 未執行，請先透過無線除錯或電腦 ADB 啟動。</string>
+    <string name="file_privileged_requesting_shell">正在請求 Shizuku Shell 授權…</string>
+    <string name="file_privileged_shell_ready">Shizuku Shell 已可用於檔案訪問</string>
+    <string name="file_privileged_testing_access">正在測試 Android/data 訪問…</string>
+    <string name="file_privileged_access_ready">%1$s 已可訪問受限目錄</string>
+    <string name="file_privileged_access_ready_prefix">Root</string>
+    <string name="file_privileged_disable">停用</string>
+    <string name="file_privileged_disabled">受限目錄訪問已停用</string>
+    <string name="responses_api_enabled">使用 Responses API</string>
+    <string name="conversation_details">對話資訊</string>
+    <string name="conversation_title_label">對話標題</string>
+    <string name="current_model_label">當前模型</string>
+    <string name="current_workspace_directory_label">當前工作區目錄</string>
+    <string name="conversation_id_label">對話 ID</string>
+    <string name="conversation_id_pending">尚未生成</string>
+    <string name="expand_conversation_details">展開對話資訊</string>
+    <string name="collapse_conversation_details">收起對話資訊</string>
+    <string name="detected_models_one_per_line">已探測模型，每行一個</string>
+    <string name="choose_enabled_models">選擇啟用模型</string>
+    <string name="enabled_models_description">對話和設定中的模型選擇器只顯示啟用模型。重新整理模型列表不會覆蓋這裡的選擇。</string>
+    <string name="search_models">搜尋模型</string>
+    <string name="no_matching_models">沒有匹配的模型</string>
+    <string name="enable_at_least_one_model">請至少啟用一個模型</string>
+    <string name="save_enabled_models">儲存啟用模型</string>
+    <string name="refresh_model_list">重新整理模型列表</string>
+    <string name="manage_enabled_models_count">管理啟用模型（%1$d）</string>
+    <string name="enabled_models_count">已啟用 %1$d 個模型</string>
+    <string name="models_fetched_enabled_preserved">已獲取 %1$d 個模型，原啟用選擇已保留</string>
+    <string name="menu_email">SMTP / IMAP 郵件</string>
+    <string name="menu_email_desc">新增郵箱伺服器，讓 AI 安全讀取、寫草稿、傳送與回覆郵件</string>
+    <string name="detail_email">郵件伺服器</string>
+    <string name="status_native_web_search">正在進行原生搜尋…</string>
+    <string name="status_native_web_search_completed">原生搜尋完成</string>
+
+    <!-- Migrated from the former UiTextBridge; Android resources are the source of truth. -->
+    <string name="ui_available"> 可用 / </string>
+    <string name="ui_total"> 總計 · </string>
+    <string name="ui_unable_to_read">無法讀取：</string>
+    <string name="ui_saving">正在儲存...</string>
+    <string name="ui_loading_media">載入媒體...</string>
+    <string name="ui_unrecognized_media_url">無法識別媒體地址：</string>
+    <string name="ui_decoded">已解碼 </string>
+    <string name="ui_audio_video_and_other_files_can_be_saved_and">。音訊、影片或其他檔案可儲存後用外部應用開啟。</string>
+    <string name="ui_saved_to">已儲存到 </string>
+    <string name="ui_media_exceeds">媒體超過 </string>
+    <string name="ui_export_as_csv">匯出為 CSV？</string>
+    <string name="ui_save_this_table_to_the_download_folder">將此表格儲存到 Download 資料夾。</string>
+    <string name="ui_exported_to_download">已匯出到 Download/</string>
+    <string name="ui_export_failed">匯出失敗: </string>
+    <string name="ui_task_notifications">任務通知</string>
+    <string name="ui_send_system_notifications_when_downloads_or_scheduled_tasks_complete">下載和定時任務完成或失敗後推送系統通知</string>
+    <string name="ui_add_scheduled_task">新增定時任務</string>
+    <string name="ui_no_scheduled_tasks">暫無定時任務</string>
+    <string name="ui_add_tasks_manually_here_or_ask_the_ai_to">可在這裡手動新增，或在對話中用自然語言讓 AI 建立。系統會透過 WorkManager 延期喚醒執行，受省電策略影響時不保證秒級準時。</string>
+    <string name="ui_download_tasks">下載任務</string>
+    <string name="ui_clear_finished_downloads">清除已完成下載</string>
+    <string name="ui_no_download_tasks">暫無下載任務</string>
+    <string name="ui_when_the_ai_uses_the_download_tool_progress_speed">AI 使用下載檔案工具後，可在這裡檢視進度、速度和結果。</string>
+    <string name="ui_delete_scheduled_task">刪除定時任務</string>
+    <string name="ui_delete_1_s">確定刪除“%1$s”嗎？</string>
+    <string name="ui_next_run_1_s">下次執行：%1$s</string>
+    <string name="ui_last_failure">最近失敗：</string>
+    <string name="ui_running">正在執行</string>
+    <string name="ui_last_result">最近結果：</string>
+    <string name="ui_completed">已完成</string>
+    <string name="ui_tap_to_view_full_result">點選檢視完整結果</string>
+    <string name="ui_edit">編輯</string>
+    <string name="ui_status_1_s">狀態：%1$s\n</string>
+    <string name="task_schedule_format">頻率：%1$s\n</string>
+    <string name="task_model_format">模型：%1$s\n</string>
+    <string name="task_last_run_format">最近執行：%1$s</string>
+    <string name="ui_not_run_yet">尚未執行</string>
+    <string name="ui_output">輸出結果</string>
+    <string name="ui_error">錯誤資訊</string>
+    <string name="ui_edit_scheduled_task">編輯定時任務</string>
+    <string name="ui_task_name">任務名稱</string>
+    <string name="ui_task_description">任務說明</string>
+    <string name="ui_frequency_1_s">執行頻率：%1$s</string>
+    <string name="ui_run_time">執行時間</string>
+    <string name="ui_format_yyyy_mm_dd_hh_mm">格式：yyyy-MM-dd HH:mm</string>
+    <string name="ui_format_hh_mm">格式：HH:mm</string>
+    <string name="ui_weekday_1_mon_7_sun">星期（1=週一，7=週日）</string>
+    <string name="ui_day_of_month_1_31">每月日期（1-31）</string>
+    <string name="ui_provider_1_s">服務商：%1$s</string>
+    <string name="ui_execution_model">執行模型</string>
+    <string name="ui_choose_from_saved_models">從預儲存模型選擇</string>
+    <string name="ui_task_description_cannot_be_empty">任務說明不能為空</string>
+    <string name="ui_invalid_run_time_format">執行時間格式不正確</string>
+    <string name="ui_one_time_task_must_be_scheduled_in_the_future">一次性任務時間必須晚於當前時間</string>
+    <string name="ui_weekday_must_be_1_to_7">星期必須為 1 到 7</string>
+    <string name="ui_day_of_month_must_be_1_to_31">每月日期必須為 1 到 31</string>
+    <string name="ui_waiting_to_download">等待下載</string>
+    <string name="download_completed_size">已完成 · %1$s</string>
+    <string name="ui_failed">失敗：</string>
+    <string name="ui_once">一次性</string>
+    <string name="ui_daily">每天</string>
+    <string name="ui_weekly">每週</string>
+    <string name="ui_monthly">每月</string>
+    <string name="task_one_time_at">一次性 · %1$s</string>
+    <string name="ui_daily_02d_02d">每天 %02d:%02d</string>
+    <string name="ui_every_s_02d_02d">每週%s %02d:%02d</string>
+    <string name="ui_mon">一</string>
+    <string name="ui_tue">二</string>
+    <string name="ui_wed">三</string>
+    <string name="ui_thu">四</string>
+    <string name="ui_fri">五</string>
+    <string name="ui_sat">六</string>
+    <string name="ui_monthly_on_day_d_02d_02d">每月%d日 %02d:%02d</string>
+    <string name="ui_waiting">等待執行</string>
+    <string name="ui_failed_2">失敗</string>
+    <string name="ui_please_wait">請等待 </string>
+    <string name="ui_seconds_before_confirming_deletion"> 秒後確認刪除。</string>
+    <string name="ui_this_cannot_be_restored_automatically_please_confirm">刪除後無法自動恢復，請確認。</string>
+    <string name="ui_network_unreachable_or_connection_timed_out">網路不可達或連線超時</string>
+    <string name="ui_check_failed">檢測失敗</string>
+    <string name="ui_request_failed">請求失敗</string>
+    <string name="ui_sent">已傳送</string>
+    <string name="ui_generating">輸出中</string>
+    <string name="ui_cache_hit">快取命中</string>
+    <string name="ui_model_completed">模型完成</string>
+    <string name="ui_tool_complete">工具完成：</string>
+    <string name="ui_request_interrupted_after_1_s_automatic_retries_this_turn">請求中斷：已自動重試 %1$s 次，仍無法繼續。已保留本輪已輸出的思維鏈和正文；可切換模型，或待 API 恢復後繼續任務。</string>
+    <string name="ui_request_interrupted">請求中斷：</string>
+    <string name="ui_using_tool">呼叫工具：</string>
+    <string name="ui_ai_request_failed">AI 請求失敗 </string>
+    <string name="ui_conversation_history_compression_failed">會話歷史壓縮失敗</string>
+    <string name="ui_app_native_prompt">應用原生提示詞</string>
+    <string name="ui_adapted_to_lyra_code_s_current_tools_and_android">適配 Lyra Code 當前工具和 Android 執行環境</string>
+    <string name="ui_no_line_level_diff">(無行級差異)</string>
+    <string name="ui_empty">(空)</string>
+    <string name="ui_process_log_collapsed_thinking_1_s_tools_2_s">過程記錄已收起 · thinking %1$s / 工具 %2$s</string>
+    <string name="ui_file_changes">檔案變更</string>
+    <string name="ui_composing_response">正在組織輸出...</string>
+    <string name="ui_forced_this_request">本輪強制使用</string>
+    <string name="ui_remove_skill">點選移除 Skill</string>
+    <string name="ui_choose_skill">選擇技能</string>
+    <string name="ui_type_to_choose_skills_for_this_request">輸入 / 選擇本輪要強制使用的 Skill</string>
+    <string name="ui_no_matching_skills">沒有匹配的 Skill</string>
+    <string name="ui_back_to_top">返回頂部</string>
+    <string name="ui_previous_user_message">上一條使用者訊息</string>
+    <string name="ui_next_user_message">下一條使用者訊息</string>
+    <string name="ui_back_to_bottom">返回底部</string>
+    <string name="ui_tool_call">呼叫工具</string>
+    <string name="ui_view_details">檢視詳情</string>
+    <string name="ui_tool_call_2">工具呼叫</string>
+    <string name="ui_text"> 文字</string>
+    <string name="ui_code"> 程式碼</string>
+    <string name="ui_archive"> 壓縮包</string>
+    <string name="ui_document"> 文件</string>
+    <string name="ui_file"> 檔案</string>
+    <string name="ui_the_app_native_prompt_is_used_when_no_custom">未選擇自定義提示詞時使用應用原生提示詞；你仍可新增並切換自己的提示詞。</string>
+    <string name="ui_switched_to_the_app_native_prompt">已切換到應用原生提示詞</string>
+    <string name="ui_maintained_by_lyra_code_and_adapted_to_the_current">由 Lyra Code 內建維護，適配當前工具和 Android 執行環境</string>
+    <string name="prompt_description_with_example">%1$s · 含示例對話</string>
+    <string name="custom_theme_color_value">自定義 %1$s</string>
+    <string name="ui_topic_summary_model">話題總結模型</string>
+    <string name="ui_set_custom_theme_color">設定自定義主題色</string>
+    <string name="ui_fonts_and_size">字型與大小</string>
+    <string name="ui_font_library">字型庫</string>
+    <string name="ui_android_kotlin_extensions_and_compatibility_layer">Android Kotlin 擴充套件與相容層。</string>
+    <string name="ui_compose_activity_integration">Compose Activity 整合。</string>
+    <string name="ui_declarative_ui_framework">宣告式 UI 框架。</string>
+    <string name="ui_material_design_3_components">Material Design 3 元件。</string>
+    <string name="ui_ui_icon_library">介面圖示庫。</string>
+    <string name="ui_saf_workspace_file_access">SAF 工作區檔案訪問。</string>
+    <string name="ui_local_encrypted_storage_for_sensitive_configuration">本地敏感配置加密儲存。</string>
+    <string name="ui_async_tasks_and_streaming_requests">非同步任務與流式請求。</string>
+    <string name="ui_http_sse_compatible_reading_and_mcp_streamable_http_communication">HTTP、SSE 相容讀取與 MCP Streamable HTTP 通訊。</string>
+    <string name="ui_provides_imap_message_reading_folder_and_draft_management_smtp">為應用提供 IMAP 郵件讀取、資料夾與草稿管理，以及 SMTP 郵件傳送和 MIME 處理。</string>
+    <string name="ui_markdown_gfm_ast_parsing_with_tables_lists_and_math">Markdown GFM AST 解析，支援表格、列表和數學節點。</string>
+    <string name="ui_android_build_toolchain">Android 構建工具鏈。</string>
+    <string name="ui_main_development_language_and_compiler">主要開發語言與編譯器。</string>
+    <string name="ui_ssh_connections_and_remote_command_execution">SSH 連線與遠端命令執行。</string>
+    <string name="ui_local_latex_math_rendering_source_is_kept_under_third">本地 LaTeX 數學公式渲染。原始碼隨工程 third_party/jlatexmath 保留。</string>
+    <string name="ui_math_rendering_fonts_full_font_licenses_are_distributed_under">數學公式渲染字型。完整字型許可隨 third_party/jlatexmath/assets 分發。</string>
+    <string name="ui_json_parsing_and_serialization">JSON 解析與序列化。</string>
+    <string name="ui_unit_test_framework_used_only_for_test_builds">單元測試框架，僅測試構建使用。</string>
+    <string name="ui_repository_svg_icons_on_the_about_page">關於頁面倉庫 SVG 圖示。</string>
+    <string name="ui_permission_is_not_complete_you_can_tap_continue_installation">授權未完成，可稍後點選繼續安裝</string>
+    <string name="ui_you_are_on_the_latest_version">當前已是最新版本</string>
+    <string name="ui_update_check_failed">檢查更新失敗</string>
+    <string name="ui_upload_background">上傳背景</string>
+    <string name="ui_mask_opacity_1_s">蒙版透明度 %1$s%%</string>
+    <string name="ui_custom_theme_color">自定義主題色</string>
+    <string name="ui_when_enabled_the_selected_color_coordinates_the_interface_background">開啟後會使用所選顏色協調介面背景、卡片、輸入框和側邊欄等表面。按鈕動態取色和聊天背景圖不受影響。</string>
+    <string name="ui_custom_theme_color_controls_light_dark_contrast_turn_it">自定義主題色已接管明暗判斷，關閉後可恢復主題模式選擇。</string>
+    <string name="ui_current_color_1_s">當前顏色：%1$s</string>
+    <string name="ui_turn_off_custom_theme_color_to_select_a_theme">關閉自定義主題色後可重新選擇主題模式。</string>
+    <string name="ui_choose_theme_color">選擇主題色</string>
+    <string name="ui_the_color_ring_and_input_only_update_the_preview">色環和輸入框只修改預覽，儲存並再次確認後才會應用，返回不會改變當前主題色。</string>
+    <string name="ui_hex_color_code">16 進位制顏色程式碼</string>
+    <string name="ui_enter_a_6_digit_color_code_for_example_f6f6f4">請輸入 6 位顏色程式碼，例如 #F6F6F4</string>
+    <string name="ui_discard_changes">撤銷更改</string>
+    <string name="ui_save_theme_color">儲存主題色</string>
+    <string name="ui_apply_theme_color">確認應用主題色？</string>
+    <string name="ui_theme_color_will_change_to_1_s_interface_colors">主題色將更新為 %1$s，介面配色會立即變化。</string>
+    <string name="ui_theme_color_updated_to_1_s">主題色已更新為 %1$s</string>
+    <string name="ui_apply">確認應用</string>
+    <string name="ui_follows_the_system_language_by_default_if_no_matching">預設跟隨系統語言；當前未提供對應翻譯或系統語言無法識別時，會使用英語。</string>
+    <string name="ui_use_device_language_first">優先使用裝置語言</string>
+    <string name="language_autonym_simplified_chinese">简体中文</string>
+    <string name="language_autonym_traditional_chinese">繁體中文</string>
+    <string name="language_autonym_english">English</string>
+    <string name="ui_simplified_chinese">簡體中文</string>
+    <string name="ui_traditional_chinese">繁體中文</string>
+    <string name="ui_english">英文</string>
+    <string name="ui_import_preview_and_switch_fonts_in_the_font_library">在字型庫中批次匯入、預覽和切換字型。</string>
+    <string name="ui_open_font_library">進入字型庫</string>
+    <string name="ui_text_font">文字字型</string>
+    <string name="ui_code_font">程式碼字型</string>
+    <string name="ui_imported_1_s_fonts">已匯入 %1$s 個字型</string>
+    <string name="ui_import_multiple_ttf_otf_and_ttc_fonts_preview_each">支援批次匯入 TTF、OTF 和 TTC 字型。匯入後可預覽，並分別設為文字字型或程式碼字型。</string>
+    <string name="ui_import_fonts">匯入字型</string>
+    <string name="ui_the_font_library_is_empty_tap_import_fonts_to">字型庫為空，點選“匯入字型”可一次選擇多個檔案。</string>
+    <string name="ui_text_font_changed_to_1_s">已切換文字字型：%1$s</string>
+    <string name="ui_code_font_changed_to_1_s">已切換程式碼字型：%1$s</string>
+    <string name="ui_removed_from_font_library_1_s">已從字型庫刪除：%1$s</string>
+    <string name="ui_font_preview">字型預覽</string>
+    <string name="ui_the_quick_brown_fox_jumps_over_the_lazy_dog">春風又綠江南岸 · The quick brown fox jumps over the lazy dog. · 0123456789</string>
+    <string name="ui_regular_bold_italic">常規 Regular  粗體 Bold  斜體 Italic</string>
+    <string name="ui_system_default">系統預設</string>
+    <string name="ui_restore_default">恢復預設</string>
+    <string name="ui_preview">預覽</string>
+    <string name="ui_remove_from_font_library">從字型庫刪除</string>
+    <string name="ui_text_font_current">文字字型（當前）</string>
+    <string name="ui_use_for_text">設為文字字型</string>
+    <string name="ui_code_font_current">程式碼字型（當前）</string>
+    <string name="ui_use_for_code">設為程式碼字型</string>
+    <string name="font_scale_standard">標準 %1$s%%</string>
+    <string name="font_scale_very_large">極大 %1$s%%</string>
+    <string name="font_scale_custom">自定義 %1$s%%</string>
+    <string name="ui_generate_short_titles_for_new_conversations">為新對話生成簡短標題</string>
+    <string name="ui_choose_the_model_used_for_manual_and_automatic_compression">設定手動與自動壓縮使用的模型</string>
+    <string name="ui_independent_topic_summary_model">獨立話題總結模型</string>
+    <string name="ui_after_the_first_message_in_each_new_conversation_this">每次新對話首次傳送訊息後，由此模型單獨生成會話標題，不再佔用主對話模型的工具呼叫。可選擇輕量模型以降低消耗。</string>
+    <string name="ui_topic_summary_model_saved">話題總結模型已儲存</string>
+    <string name="ui_used_to_segment_conversation_history_for_manual_or_automatic">用於手動或自動分段壓縮會話歷史，並逐級合併為結構化上下文。未單獨設定時，由當前會話模型承擔；壓縮失敗不會替換原上下文。</string>
+    <string name="ui_use_a_separate_compression_model">使用獨立壓縮模型</string>
+    <string name="ui_use_current_conversation_model">跟隨當前會話模型</string>
+    <string name="ui_history_compression_model">歷史壓縮模型</string>
+    <string name="ui_additional_feature_models_saved">額外功能模型已儲存</string>
+    <string name="ui_reachability_check">可達性檢測</string>
+    <string name="ui_select_at_least_one_model_to_check">請先選擇要檢測的模型</string>
+    <string name="ui_checking_model_reachability">正在檢測模型可達性...</string>
+    <string name="ui_model_reachability_check_complete">模型可達性檢測完成</string>
+    <string name="ui_model_reachability_check_failed">模型可達性檢測失敗</string>
+    <string name="ui_deleted">已刪除 </string>
+    <string name="ui_new_provider">新平臺</string>
+    <string name="ui_open_provider_website">開啟服務商官網</string>
+    <string name="ui_advanced">高階配置</string>
+    <string name="ui_endpoint_and_api_format_can_be_changed_at_any">介面地址與格式可隨時修改</string>
+    <string name="ui_request_path">請求路徑</string>
+    <string name="ui_for_providers_that_use_a_non_default_request_path">用於相容非預設請求路徑的服務商。留空時使用當前介面格式的預設請求路徑。</string>
+    <string name="ui_manage_enabled_models_1_s">管理啟用模型（%1$s）</string>
+    <string name="ui_select_models_and_check_reachability">選擇模型檢測可達性</string>
+    <string name="ui_fetching_models">正在獲取模型...</string>
+    <string name="ui_fetched_1_s_models_existing_enabled_selections_were_preserved">已獲取 %1$s 個模型，原啟用選擇已保留</string>
+    <string name="ui_select_all">全選</string>
+    <string name="ui_clear_selection">清空選擇</string>
+    <string name="ui_back_to_model_service">返回模型服務</string>
+    <string name="ui_checking">檢測中...</string>
+    <string name="ui_start_check">開始檢測</string>
+    <string name="ui_provider_available">服務商可用</string>
+    <string name="ui_provider_unavailable">服務商不可用</string>
+    <string name="ui_checking_provider">服務商檢測中...</string>
+    <string name="ui_select_models_to_check">選擇要檢測的模型</string>
+    <string name="ui_no_models_to_check">沒有可檢測的模型</string>
+    <string name="ui_waiting_to_check">等待檢測</string>
+    <string name="ui_reachability_results">可達性檢測結果</string>
+    <string name="ui_no_latency_data">無延遲資料</string>
+    <string name="ui_request_endpoint_1_s_2_s_model_list_3">請求端點：%1$s%2$s；模型列表：%3$s/models</string>
+    <string name="ui_choose_a_preset_to_configure_its_endpoint_and_api">選擇預設後只需填寫 API Key，介面地址和格式會自動配置，並且仍可在高階配置中修改。</string>
+    <string name="ui_custom_provider">自定義服務商</string>
+    <string name="ui_configure_the_api_format_base_url_and_request_path">自行設定介面格式、基礎 URL 和請求路徑</string>
+    <string name="blocked_hosts_saved_count">已儲存 %1$s 個黑名單域名</string>
+    <string name="ui_will_save_1_s_domains">當前將儲存 %1$s 個域名</string>
+    <string name="ui_email_server_saved">郵件伺服器已儲存</string>
+    <string name="ui_delete_email_server">刪除郵件伺服器</string>
+    <string name="ui_this_will_delete_1_s_and_its_encrypted_login">將刪除 %1$s 及其加密儲存的登入密碼。</string>
+    <string name="ui_passwords_are_encrypted_on_this_device_reading_a_message">密碼加密儲存在本機。讀取正文不會改變已讀狀態；SMTP 傳送每次都要求確認。</string>
+    <string name="ui_no_email_servers_yet">暫無郵件伺服器</string>
+    <string name="ui_use_an_app_specific_password_from_your_email_provider">建議使用郵箱服務商生成的應用專用密碼，並啟用 SSL/TLS。</string>
+    <string name="ui_security_warning_this_connection_is_unencrypted_so_account_cr">安全警告：連線未加密，賬號、密碼和郵件內容可能被竊聽。</string>
+    <string name="ui_testing_imap_connection">正在測試 IMAP 連線…</string>
+    <string name="ui_imap_connection_successful">IMAP 連線成功</string>
+    <string name="ui_connection_failed_1_s">連線失敗：%1$s</string>
+    <string name="ui_test_imap">測試 IMAP</string>
+    <string name="ui_email_address">郵箱地址</string>
+    <string name="ui_login_username_leave_blank_to_use_the_email_address">登入使用者名稱（留空則使用郵箱地址）</string>
+    <string name="ui_password_app_specific_password">密碼 / 應用專用密碼</string>
+    <string name="ui_enter_ssl_starttls_or_none_ssl_is_recommended_use">安全模式填寫 ssl、starttls 或 none。推薦 ssl；none 僅用於受信任的本地測試伺服器。</string>
+    <string name="ui_enter_a_valid_email_address_password_server_and_port">請填寫有效郵箱、密碼、伺服器和埠。</string>
+    <string name="ui_security_mode">安全模式</string>
+    <string name="server_testing_name">正在測試 %1$s...</string>
+    <string name="mcp_connection_failed_detail">MCP 連線失敗: %1$s</string>
+    <string name="ui_lan_address">區域網地址：</string>
+    <string name="ui_external_connection_raw_json">外部連線原始 JSON</string>
+    <string name="ui_copy_external_connection_json">複製外部連線 JSON</string>
+    <string name="ui_the_copied_config_only_includes_mcp_protocol_version_and">複製配置預設只包含 Mcp-Protocol-Version 和 Authorization。X-Lyra-MCP-Key、X-API-Key、Api-Key 是相容替代寫法，不需要同時填寫。請求地址必須是 /mcp。</string>
+    <string name="ui_local_mcp_server">本機 MCP 服務端</string>
+    <string name="ui_bound_domains">繫結域名：</string>
+    <string name="ui_starting">正在啟動...</string>
+    <string name="mini_server_empty_log_placeholder">$ lyra mini-server logs --follow\n# 暫無日誌。啟動微型伺服器並訪問站點後，這裡會自動顯示請求記錄和客戶端錯誤。</string>
+    <string name="webdav_test_success_count">WebDAV 測試成功，當前目錄 %1$s 項</string>
+    <string name="file_transfer_test_success_count">%1$s 測試成功，當前目錄 %2$s 項</string>
+    <string name="ui_email_server_configuration">郵件伺服器配置</string>
+    <string name="ui_exporting_to_download_lyracode">正在匯出到 Download/LyraCode...</string>
+    <string name="ui_exporting_and_uploading_to_webdav">正在匯出並上傳 WebDAV...</string>
+    <string name="ui_downloading_from_webdav_and_importing_in_supplement_mode">正在從 WebDAV 下載並補充匯入...</string>
+    <string name="ui_from">從 </string>
+    <string name="ui_supplemental_import"> 補充匯入：</string>
+    <string name="ui_choose_webdav">選擇 WebDAV</string>
+    <string name="ssh_test_success_id">SSH 測試成功: %1$s</string>
+    <string name="ui_stable_identifier_will_use">固定標識將使用 </string>
+    <string name="ui_the_ai_uses_this_identifier_when_calling_ssh_tools">，AI 呼叫 SSH 工具時會使用這個標識。</string>
+    <string name="ui_run_command_permission">RUN_COMMAND 許可權</string>
+    <string name="ui_ask_the_user">向使用者追問</string>
+    <string name="ui_pause_and_ask_the_user_when_a_complex_task">在複雜任務存在關鍵歧義、偏好選擇或意外情況時暫停並請求使用者回答。</string>
+    <string name="ui_read_file_lines">分段讀取檔案</string>
+    <string name="ui_read_a_selected_line_range_from_a_large_file">按真實行號讀取大檔案的指定行範圍。</string>
+    <string name="ui_create_or_fully_overwrite_text_files_in_the_workspace">建立或整體覆蓋工作目錄內文字檔案。</string>
+    <string name="ui_precise_file_edit">精確編輯檔案</string>
+    <string name="ui_modify_a_workspace_text_file_by_unique_source_text">按唯一原文或指定行範圍區域性修改工作區文字檔案。</string>
+    <string name="ui_global_read_file_lines">全域性分段讀取檔案</string>
+    <string name="ui_read_a_selected_line_range_from_a_large_shared">按真實行號讀取共享儲存大檔案的指定行範圍。</string>
+    <string name="ui_create_or_fully_overwrite_a_shared_storage_file_outside">建立或整體覆蓋工作區外共享儲存檔案，執行前需要使用者確認。</string>
+    <string name="ui_global_precise_file_edit">全域性精確編輯檔案</string>
+    <string name="ui_modify_a_shared_storage_file_by_unique_source_text">按唯一原文或指定行範圍區域性修改共享儲存檔案，執行前需要使用者確認。</string>
+    <string name="ui_read_memories">讀取記憶</string>
+    <string name="ui_read_cross_chat_memories_and_their_ids_for_review">讀取跨對話個性化記憶及其標識，用於核對或修改。</string>
+    <string name="ui_save_memory">儲存記憶</string>
+    <string name="ui_save_lasting_user_preferences_work_styles_or_communication_habits">儲存長期有用的使用者偏好、工作風格或溝通習慣。</string>
+    <string name="ui_update_memory">修改記憶</string>
+    <string name="ui_edit_correct_or_disable_an_existing_personalized_memory">修改、糾正或停用已有個性化記憶。</string>
+    <string name="ui_delete_memory">刪除記憶</string>
+    <string name="ui_delete_a_memory_that_no_longer_applies_or_that">刪除不再適用或使用者要求忘記的個性化記憶。</string>
+    <string name="ui_add_edit_enable_disable_or_delete_mcp_ssh_email">透過使用者確認後新增、修改、啟用、禁用或刪除 MCP、SSH、郵箱、WebDAV、Skills 與其他 Agent 工具配置。</string>
+    <string name="ui_list_email_accounts">列出郵件賬戶</string>
+    <string name="ui_view_configured_and_enabled_imap_smtp_email_accounts_without">檢視使用者已配置且啟用的 IMAP/SMTP 郵件賬戶，不顯示密碼。</string>
+    <string name="ui_list_email_folders">列出郵件資料夾</string>
+    <string name="ui_list_imap_folders_and_identify_the_drafts_folder_without">列出 IMAP 資料夾並識別草稿箱，不讀取郵件內容。</string>
+    <string name="ui_list_emails">列出郵件</string>
+    <string name="ui_list_email_metadata_and_unread_read_answered_and_draft">以只讀方式列出郵件後設資料及未讀、已讀、已回覆、草稿等狀態。</string>
+    <string name="ui_read_email_body">讀取郵件正文</string>
+    <string name="ui_read_a_bounded_email_body_without_changing_its_state">只讀獲取受限長度的郵件正文；清洗 HTML，並忽略附件及多媒體內容。</string>
+    <string name="ui_change_email_status">修改郵件狀態</string>
+    <string name="ui_change_an_email_s_read_unread_or_flagged_state">修改郵件的已讀/未讀或星標狀態，執行前需要使用者確認。</string>
+    <string name="ui_quarantine_email_attachment">隔離下載郵件附件</string>
+    <string name="ui_download_an_attachment_to_temporary_quarantine_without_exposing_it">將附件下載到臨時隔離目錄，AI 不讀取附件；執行後需要使用者進行病毒掃描。</string>
+    <string name="ui_record_attachment_scan_result">記錄附件掃描結果</string>
+    <string name="ui_record_the_attachment_scan_result_explicitly_provided_by_the">記錄使用者明確提供的附件病毒掃描結果，不會向 AI 開放附件內容。</string>
+    <string name="ui_save_email_draft">儲存郵件草稿</string>
+    <string name="ui_build_a_txt_html_email_and_append_it_to">構建 TXT/HTML 郵件並透過 IMAP APPEND 寫入自動識別的草稿箱，執行前需要使用者確認。</string>
+    <string name="ui_send_email">傳送郵件</string>
+    <string name="ui_send_or_reply_in_thread_through_smtp_every_send">透過 SMTP 傳送或執行緒回覆郵件；每次傳送都必須由使用者單獨確認。</string>
+    <string name="storage_item_summary">%1$s · %2$s 個檔案</string>
+    <string name="storage_clearing_item">正在清理 %1$s...</string>
+    <string name="ui_clearing_cache">正在清理快取...</string>
+</resources>
+
+

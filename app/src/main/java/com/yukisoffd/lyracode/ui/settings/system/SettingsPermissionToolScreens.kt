@@ -81,7 +81,7 @@ internal fun SystemPermissionSettings(
     var shellEnabled by remember { mutableStateOf(settings.requestShellAccess) }
     var suCommand by remember { mutableStateOf(settings.customSuCommand) }
     var revision by remember { mutableIntStateOf(0) }
-    var rootStatus by remember { mutableStateOf(uiText("尚未检测")) }
+    var rootStatus by remember { mutableStateOf(uiText(R.string.status_not_detected)) }
     val shizukuRunning = remember(revision) { executor.isShizukuRunning() }
     val shellGranted = remember(revision) { executor.hasShellPermission() }
     val permissionListener = remember {
@@ -110,9 +110,9 @@ internal fun SystemPermissionSettings(
             Icon(Icons.Default.Security, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(uiText("请求 Root 权限"), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.title_root_permission), style = MaterialTheme.typography.titleSmall)
                 Text(
-                    uiText("通过 Magisk、KernelSU 等 su 管理器授权。不可用时可回退到已授权的 Shell。"),
+                    uiText(R.string.root_permission_desc),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -130,12 +130,12 @@ internal fun SystemPermissionSettings(
             Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text(uiText("请求 Shell 权限"), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.title_shell_permission), style = MaterialTheme.typography.titleSmall)
                 Text(
                     when {
-                        shellGranted -> uiText("Shizuku Shell 已授权")
-                        shizukuRunning -> uiText("Shizuku 正在运行，开启后请求授权")
-                        else -> uiText("需要先通过无线调试或电脑 ADB 启动 Shizuku")
+                        shellGranted -> uiText(R.string.shell_granted)
+                        shizukuRunning -> uiText(R.string.shell_shizuku_running)
+                        else -> uiText(R.string.shell_need_shizuku)
                     },
                     color = if (shellGranted) MaterialTheme.colorScheme.primary else KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
@@ -161,9 +161,9 @@ internal fun SystemPermissionSettings(
                 settings.customSuCommand = it
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text(uiText("自定义 su 命令")) },
+            label = { Text(uiText(R.string.label_custom_su_command)) },
             supportingText = {
-                Text(uiText("默认 su -c。可用 {command} 指定命令插入位置，例如 su 0 sh -c {command}。"))
+                Text(uiText(R.string.su_command_hint))
             },
             singleLine = true,
         )
@@ -178,23 +178,23 @@ internal fun SystemPermissionSettings(
                 },
                 modifier = Modifier.weight(1f),
             ) {
-                Text(if (shellGranted) uiText("Shell 已授权") else uiText("授权 Shell"))
+                Text(if (shellGranted) uiText(R.string.action_shell_authorized) else uiText(R.string.action_authorize_shell))
             }
             OutlinedButton(
                 onClick = {
-                    rootStatus = uiText("检测中...")
+                    rootStatus = uiText(R.string.ui_checking)
                     scope.launch {
                         val result = executor.probeRoot()
                         rootStatus = if (result.ok && result.stdout.trim().lineSequence().lastOrNull() == "0") {
-                            uiText("Root 可用")
+                            uiText(R.string.root_available)
                         } else {
-                            uiText("Root 不可用：${result.stderr.ifBlank { result.message }.take(120)}")
+                            uiText(R.string.root_not_available, result.stderr.ifBlank { result.message }.take(120))
                         }
                     }
                 },
                 modifier = Modifier.weight(1f),
             ) {
-                Text(uiText("检测 Root"))
+                Text(uiText(R.string.action_detect_root))
             }
         }
         Text(rootStatus, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
@@ -207,7 +207,7 @@ internal fun SystemPermissionSettings(
         )
     }
     Text(
-        uiText("Root 和 Shell 开关都关闭时，AI 不会看到任何系统命令工具。所有 Shell/Root 命令都会先显示完整命令并请求确认；Root 命令风险更高。普通 ADB 不会永久赋予应用 shell 身份，本应用通过 Shizuku 获取该能力。"),
+        uiText(R.string.system_permissions_hint),
         color = KimiMuted,
         style = MaterialTheme.typography.bodySmall,
     )
@@ -224,15 +224,15 @@ internal fun PermissionSettings(termuxExecutor: TermuxExecutor) {
     }
     KimiCardBox {
         permissions.forEachIndexed { index, row ->
-            val displayStatus = if (row.title == uiText("读取应用列表")) {
+            val displayStatus = if (row.title == uiText(R.string.permission_read_app_list)) {
                 row.status
             } else if (row.granted) {
-                uiText("已允许")
+                uiText(R.string.permission_status_granted)
             } else {
                 row.status
             }
             KimiMenuRow(row.icon, row.title, displayStatus) {
-                if (row.title == uiText("与 Termux 通信")) {
+                if (row.title == uiText(R.string.permission_termux)) {
                     requestTermuxRunCommandPermission(context)
                     revision++
                 } else {
@@ -242,7 +242,7 @@ internal fun PermissionSettings(termuxExecutor: TermuxExecutor) {
             if (index != permissions.lastIndex) KimiDivider()
         }
     }
-    Text(uiText("媒体、定位、通知、摄像头等权限会跳转系统应用信息页；Termux 通信权限由 Termux 提供，点击后直接弹出授权许可。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+    Text(uiText(R.string.permission_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
 }
 
 @Composable
@@ -264,29 +264,27 @@ internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExec
         }
     }
     KimiCardBox {
-        Text(uiText("搜索工具"), style = MaterialTheme.typography.titleSmall)
+        Text(uiText(R.string.title_search_tools), style = MaterialTheme.typography.titleSmall)
         CapsuleTextField(
             value = query,
             onValueChange = { query = it },
             modifier = Modifier.fillMaxWidth(),
-            placeholder = uiText("搜索名称、工具名或描述"),
+            placeholder = uiText(R.string.search_tools_placeholder),
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary) },
         )
         Text(
-            uiText(
-                stringResource(
+            stringResource(
                     R.string.label_tools_match,
                     filteredLocalTools.size + filteredMcpTools.size,
                     localTools.size + mcpTools.size,
                 ),
-            ),
             color = KimiMuted,
             style = MaterialTheme.typography.labelSmall,
         )
     }
     KimiCardBox {
         if (filteredLocalTools.isEmpty() && filteredMcpTools.isEmpty()) {
-            Text(uiText("没有匹配的工具"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.notice_no_matching_tools), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
         filteredLocalTools.forEachIndexed { index, tool ->
             val lockedByPermission = tool.name == "run_command" && !termuxGranted
@@ -297,13 +295,13 @@ internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExec
                     Text(tool.name, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                     Text(tool.description, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     if (lockedByPermission) {
-                        Text(uiText("未授予 Termux RUN_COMMAND 权限，工具已自动禁用。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_termux_permission_required), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                     if (tool.name == "ssh_exec" && !sshToolsEnabled) {
-                        Text(uiText("未配置启用的 SSH 连接，工具暂不可用。"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_ssh_not_configured), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                     }
                     if (protectedTool) {
-                        Text(uiText("保护工具，不能禁用。"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.notice_protected_tool), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Switch(
@@ -323,7 +321,7 @@ internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExec
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text("MCP · ${server.name} / ${tool.name}", style = MaterialTheme.typography.titleSmall)
                     Text(functionName, color = KimiMuted, style = MaterialTheme.typography.labelSmall)
-                    Text(tool.description.ifBlank { uiText("远程 MCP 工具") }, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(tool.description.ifBlank { uiText(R.string.label_remote_mcp_tool) }, color = KimiMuted, style = MaterialTheme.typography.bodySmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 }
                 Switch(
                     checked = functionName !in disabled,
@@ -344,16 +342,16 @@ internal fun TermuxSettings(settings: AppSettings, termuxExecutor: TermuxExecuto
     var revision by remember { mutableIntStateOf(0) }
     val permissionGranted = remember(revision) { termuxExecutor.hasRunCommandPermission() }
     KimiCardBox {
-        KimiMenuRow(Icons.Default.Terminal, "Termux", if (termuxExecutor.isTermuxInstalled()) uiText("已安装") else uiText("未安装"))
+        KimiMenuRow(Icons.Default.Terminal, "Termux", if (termuxExecutor.isTermuxInstalled()) uiText(R.string.label_termux_installed) else uiText(R.string.label_termux_not_installed))
         KimiDivider()
-        KimiMenuRow(Icons.Default.Extension, "Termux:API", if (termuxExecutor.isTermuxApiInstalled()) uiText("可用") else uiText("未安装"))
+        KimiMenuRow(Icons.Default.Extension, "Termux:API", if (termuxExecutor.isTermuxApiInstalled()) uiText(R.string.label_available) else uiText(R.string.label_termux_not_installed))
         KimiDivider()
-        KimiMenuRow(Icons.Default.CheckCircle, uiText("RUN_COMMAND 权限"), if (permissionGranted) uiText("已授予") else uiText("点击授予")) {
+        KimiMenuRow(Icons.Default.CheckCircle, uiText(R.string.ui_run_command_permission), if (permissionGranted) uiText(R.string.label_granted) else uiText(R.string.label_click_to_grant)) {
             requestTermuxRunCommandPermission(context)
             revision++
         }
         KimiDivider()
-        KimiMenuRow(Icons.Default.Folder, uiText("Termux 路径"), workspaceManager.termuxRootPath() ?: uiText("仅 primary"))
+        KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_termux_path), workspaceManager.termuxRootPath() ?: uiText(R.string.termux_path_primary))
     }
     TermuxSetupGuide()
 }
@@ -379,12 +377,12 @@ internal fun appPermissionRows(context: Context, termuxExecutor: TermuxExecutor)
     }
     val locationGranted = granted(Manifest.permission.ACCESS_FINE_LOCATION) || granted(Manifest.permission.ACCESS_COARSE_LOCATION)
     return listOf(
-        PermissionRow(Icons.Default.PhotoLibrary, uiText("访问手机媒体文件"), mediaGranted, uiText("未允许")),
-        PermissionRow(Icons.Default.LocationOn, uiText("位置信息"), locationGranted, uiText("未允许")),
-        PermissionRow(Icons.Default.PhotoCamera, uiText("摄像头"), granted(Manifest.permission.CAMERA), uiText("未允许")),
-        PermissionRow(Icons.Default.Notifications, uiText("通知"), notificationGranted, uiText("未允许")),
-        PermissionRow(Icons.Default.Apps, uiText("读取应用列表"), true, uiText("已声明")),
-        PermissionRow(Icons.Default.Terminal, uiText("与 Termux 通信"), termuxExecutor.hasRunCommandPermission(), uiText("点击授予")),
+        PermissionRow(Icons.Default.PhotoLibrary, uiText(R.string.permission_media), mediaGranted, uiText(R.string.permission_status_not_allowed)),
+        PermissionRow(Icons.Default.LocationOn, uiText(R.string.permission_location), locationGranted, uiText(R.string.permission_status_not_allowed)),
+        PermissionRow(Icons.Default.PhotoCamera, uiText(R.string.compliance_permission_camera_title), granted(Manifest.permission.CAMERA), uiText(R.string.permission_status_not_allowed)),
+        PermissionRow(Icons.Default.Notifications, uiText(R.string.compliance_permission_notifications_title), notificationGranted, uiText(R.string.permission_status_not_allowed)),
+        PermissionRow(Icons.Default.Apps, uiText(R.string.permission_read_app_list), true, uiText(R.string.permission_status_declared)),
+        PermissionRow(Icons.Default.Terminal, uiText(R.string.permission_termux), termuxExecutor.hasRunCommandPermission(), uiText(R.string.label_click_to_grant)),
     )
 }
 
@@ -404,77 +402,77 @@ internal data class AgentToolInfo(
 )
 
 internal fun agentToolCatalog(): List<AgentToolInfo> = listOf(
-    AgentToolInfo("ask_user", uiText("向用户追问"), uiText("在复杂任务存在关键歧义、偏好选择或意外情况时暂停并请求用户回答。")),
-    AgentToolInfo("list_directory", uiText("列出目录"), uiText("浏览工作目录内文件和子目录。")),
-    AgentToolInfo("read_file", uiText("读取文件"), uiText("读取工作目录内文本文件。")),
-    AgentToolInfo("read_file_lines", uiText("分段读取文件"), uiText("按真实行号读取大文件的指定行范围。")),
-    AgentToolInfo("write_file", uiText("写入文件"), uiText("创建或整体覆盖工作目录内文本文件。")),
-    AgentToolInfo("edit_file", uiText("精确编辑文件"), uiText("按唯一原文或指定行范围局部修改工作区文本文件。")),
-    AgentToolInfo("append_file", uiText("追加文件"), uiText("在现有文件末尾追加文本。")),
-    AgentToolInfo("create_folder", uiText("创建目录"), uiText("在工作目录内创建文件夹。")),
-    AgentToolInfo("delete_file_or_folder", uiText("删除文件/目录"), uiText("删除工作目录内文件或空目录。")),
-    AgentToolInfo("rename_move", uiText("重命名/移动"), uiText("调整工作目录内文件路径。")),
-    AgentToolInfo("global_list_directory", uiText("全局列目录"), uiText("列出 Android 共享存储目录，支持 Download。")),
-    AgentToolInfo("global_read_file", uiText("全局读取文件"), uiText("读取工作区外共享存储内的文本文件。")),
-    AgentToolInfo("global_read_file_lines", uiText("全局分段读取文件"), uiText("按真实行号读取共享存储大文件的指定行范围。")),
-    AgentToolInfo("global_write_file", uiText("全局写入文件"), uiText("创建或整体覆盖工作区外共享存储文件，执行前需要用户确认。")),
-    AgentToolInfo("global_edit_file", uiText("全局精确编辑文件"), uiText("按唯一原文或指定行范围局部修改共享存储文件，执行前需要用户确认。")),
-    AgentToolInfo("global_append_file", uiText("全局追加文件"), uiText("追加工作区外共享存储文件，执行前需要用户确认。")),
-    AgentToolInfo("global_create_folder", uiText("全局创建目录"), uiText("在工作区外共享存储创建目录，执行前需要用户确认。")),
-    AgentToolInfo("global_delete_file_or_folder", uiText("全局删除文件/目录"), uiText("删除工作区外共享存储内容，执行前需要用户确认。")),
-    AgentToolInfo("global_rename_move", uiText("全局移动/重命名"), uiText("移动工作区外共享存储内容，执行前需要用户确认。")),
-    AgentToolInfo("download_file", uiText("下载文件"), uiText("使用应用原生 HTTP/HTTPS 客户端下载到工作区或共享存储，支持请求头和 SHA-256 校验。")),
-    AgentToolInfo("manage_scheduled_tasks", uiText("定时任务"), uiText("列出或管理一次性、每日、每周和每月后台 AI 任务。")),
-    AgentToolInfo("get_mini_server_status", uiText("微型服务器状态"), uiText("读取内置 HTTP 静态服务器状态和访问地址。")),
-    AgentToolInfo("read_mini_server_logs", uiText("终端日志读取"), uiText("读取微型服务器连接、资源加载和页面错误日志，便于自动化调试。")),
-    AgentToolInfo("manage_mini_server", uiText("微型服务器控制"), uiText("启动、停止、重启或修改工作区静态站点服务，执行前需要用户确认。")),
-    AgentToolInfo("search_conversation_history", uiText("搜索会话记录"), uiText("跨普通会话按关键词和时间段搜索历史记录，不读取思维链或工具日志。")),
-    AgentToolInfo("read_conversation_history", uiText("读取会话记录"), uiText("读取指定历史会话的用户消息和 AI 最终回复，用于总结与趋势分析。")),
-    AgentToolInfo("read_memories", uiText("读取记忆"), uiText("读取跨对话个性化记忆及其标识，用于核对或修改。")),
-    AgentToolInfo("save_memory", uiText("保存记忆"), uiText("保存长期有用的用户偏好、工作风格或沟通习惯。")),
-    AgentToolInfo("update_memory", uiText("修改记忆"), uiText("修改、纠正或停用已有个性化记忆。")),
-    AgentToolInfo("delete_memory", uiText("删除记忆"), uiText("删除不再适用或用户要求忘记的个性化记忆。")),
-    AgentToolInfo("search_files", uiText("工作区搜索"), uiText("按文件名或路径片段搜索工作区。")),
-    AgentToolInfo("global_search_files", uiText("全局文件搜索"), uiText("搜索 Android 共享存储中的文件路径。")),
-    AgentToolInfo("get_file_info", uiText("文件信息"), uiText("读取文件大小、修改时间等元数据。")),
-    AgentToolInfo("list_skill_files", uiText("列出 Skill 文件"), uiText("浏览已启用 Skill 包内文件。")),
-    AgentToolInfo("read_skill_file", uiText("读取 Skill 文件"), uiText("读取相关 Skill 包内说明或脚本。")),
-    AgentToolInfo("run_command", uiText("执行命令"), uiText("通过 Termux 执行命令并返回 stdout/stderr。")),
-    AgentToolInfo("web_search", uiText("联网搜索"), uiText("使用内嵌 WebView 搜索互联网。")),
-    AgentToolInfo("read_web_page", uiText("读取网页"), uiText("读取 http/https 网页正文。")),
-    AgentToolInfo("mark_web_sources", uiText("网页来源标注"), uiText("声明网页引用来源，并要求最终回答就近标注来源链接。")),
-    AgentToolInfo("manage_app_config", uiText("配置管理"), uiText("通过用户确认后添加、修改、启用、禁用或删除 MCP、SSH、邮箱、WebDAV、Skills 与其他 Agent 工具配置。")),
-    AgentToolInfo("get_current_time", uiText("时间感知"), uiText("读取设备当前时间和时区。")),
-    AgentToolInfo("get_current_location", uiText("地理感知"), uiText("读取设备最近系统定位。")),
-    AgentToolInfo("get_device_hardware_info", uiText("硬件检查"), uiText("读取设备系统、CPU、内存、存储、分辨率、网络、蓝牙、电池等诊断信息。")),
-    AgentToolInfo("list_installed_apps", uiText("应用列表识别"), uiText("读取用户应用和系统应用的名称、包名、版本、大小及签名证书 SHA-256。")),
-    AgentToolInfo("execute_shell_command", uiText("Shell 系统命令"), uiText("通过 Shizuku 以 Android shell 身份执行系统命令，每次执行前都需要用户确认。")),
-    AgentToolInfo("execute_root_command", uiText("Root 系统命令"), uiText("通过自定义 su 命令执行 Root 命令，每次执行前都需要用户确认；不可用时可按设置回退到 Shell。")),
-    AgentToolInfo("list_ssh_servers", uiText("列出 SSH 连接"), uiText("查看用户已配置且启用的 SSH 服务器标识。")),
-    AgentToolInfo("ssh_exec", uiText("SSH 执行命令"), uiText("登录远程服务器执行命令并返回 stdout/stderr，执行前需要用户确认。")),
-    AgentToolInfo("list_email_accounts", uiText("列出邮件账户"), uiText("查看用户已配置且启用的 IMAP/SMTP 邮件账户，不显示密码。")),
-    AgentToolInfo("list_email_folders", uiText("列出邮件文件夹"), uiText("列出 IMAP 文件夹并识别草稿箱，不读取邮件内容。")),
-    AgentToolInfo("list_emails", uiText("列出邮件"), uiText("以只读方式列出邮件元数据及未读、已读、已回复、草稿等状态。")),
-    AgentToolInfo("read_email", uiText("读取邮件正文"), uiText("只读获取受限长度的邮件正文；清洗 HTML，并忽略附件及多媒体内容。")),
-    AgentToolInfo("set_email_flags", uiText("修改邮件状态"), uiText("修改邮件的已读/未读或星标状态，执行前需要用户确认。")),
-    AgentToolInfo("download_email_attachment", uiText("隔离下载邮件附件"), uiText("将附件下载到临时隔离目录，AI 不读取附件；执行后需要用户进行病毒扫描。")),
-    AgentToolInfo("record_email_attachment_scan", uiText("记录附件扫描结果"), uiText("记录用户明确提供的附件病毒扫描结果，不会向 AI 开放附件内容。")),
-    AgentToolInfo("save_email_draft", uiText("保存邮件草稿"), uiText("构建 TXT/HTML 邮件并通过 IMAP APPEND 写入自动识别的草稿箱，执行前需要用户确认。")),
-    AgentToolInfo("send_email", uiText("发送邮件"), uiText("通过 SMTP 发送或线程回复邮件；每次发送都必须由用户单独确认。")),
-    AgentToolInfo("list_webdav_servers", uiText("列出 WebDAV"), uiText("查看用户已配置且启用的 WebDAV 服务器标识。")),
-    AgentToolInfo("webdav_list", uiText("WebDAV 列目录"), uiText("通过 PROPFIND 列出 WebDAV 目录文件详情。")),
-    AgentToolInfo("webdav_search", uiText("WebDAV 搜索"), uiText("搜索 WebDAV 服务器上的文件路径。")),
-    AgentToolInfo("webdav_download_to_workspace", uiText("WebDAV 下载"), uiText("从 WebDAV 下载文件到工作区，执行前需要用户确认。")),
-    AgentToolInfo("webdav_upload_from_workspace", uiText("WebDAV 上传"), uiText("把工作区文件上传到 WebDAV，执行前需要用户确认。")),
-    AgentToolInfo("list_file_transfer_servers", uiText("列出文件传输服务器"), uiText("查看用户已配置且启用的 FTP/FTPS/SFTP 服务器标识。")),
-    AgentToolInfo("file_transfer_list", uiText("文件传输列目录"), uiText("列出 FTP/FTPS/SFTP 目录文件详情。")),
-    AgentToolInfo("file_transfer_search", uiText("文件传输搜索"), uiText("搜索 FTP/FTPS/SFTP 服务器上的文件路径。")),
-    AgentToolInfo("file_transfer_download_to_workspace", uiText("文件传输下载"), uiText("从 FTP/FTPS/SFTP 下载文件到工作区，执行前需要用户确认。")),
-    AgentToolInfo("file_transfer_upload_from_workspace", uiText("文件传输上传"), uiText("把工作区文件上传到 FTP/FTPS/SFTP，执行前需要用户确认。")),
-    AgentToolInfo("export_backup", uiText("导出备份"), uiText("导出 Lyra Code 数据到本地或 WebDAV，执行前需要用户确认。")),
-    AgentToolInfo("import_backup", uiText("导入备份"), uiText("从本地或 WebDAV 用补充模式导入备份，执行前需要用户确认。")),
-    AgentToolInfo("set_todo_list", uiText("设置 TODO"), uiText("展示 Agent 当前任务计划。")),
-    AgentToolInfo("update_todo_item", uiText("更新 TODO"), uiText("更新任务步骤状态。")),
+    AgentToolInfo("ask_user", uiText(R.string.ui_ask_the_user), uiText(R.string.ui_pause_and_ask_the_user_when_a_complex_task)),
+    AgentToolInfo("list_directory", uiText(R.string.tool_list_directory), uiText(R.string.tool_list_directory_desc)),
+    AgentToolInfo("read_file", uiText(R.string.tool_read_file), uiText(R.string.tool_read_file_desc)),
+    AgentToolInfo("read_file_lines", uiText(R.string.ui_read_file_lines), uiText(R.string.ui_read_a_selected_line_range_from_a_large_file)),
+    AgentToolInfo("write_file", uiText(R.string.tool_write_file), uiText(R.string.ui_create_or_fully_overwrite_text_files_in_the_workspace)),
+    AgentToolInfo("edit_file", uiText(R.string.ui_precise_file_edit), uiText(R.string.ui_modify_a_workspace_text_file_by_unique_source_text)),
+    AgentToolInfo("append_file", uiText(R.string.tool_append_file), uiText(R.string.tool_append_file_desc)),
+    AgentToolInfo("create_folder", uiText(R.string.tool_create_folder), uiText(R.string.tool_create_folder_desc)),
+    AgentToolInfo("delete_file_or_folder", uiText(R.string.tool_delete_file), uiText(R.string.tool_delete_file_desc)),
+    AgentToolInfo("rename_move", uiText(R.string.tool_rename_move), uiText(R.string.tool_rename_move_desc)),
+    AgentToolInfo("global_list_directory", uiText(R.string.tool_global_list_directory), uiText(R.string.tool_global_list_directory_desc)),
+    AgentToolInfo("global_read_file", uiText(R.string.tool_global_read_file), uiText(R.string.tool_global_read_file_desc)),
+    AgentToolInfo("global_read_file_lines", uiText(R.string.ui_global_read_file_lines), uiText(R.string.ui_read_a_selected_line_range_from_a_large_shared)),
+    AgentToolInfo("global_write_file", uiText(R.string.tool_global_write_file), uiText(R.string.ui_create_or_fully_overwrite_a_shared_storage_file_outside)),
+    AgentToolInfo("global_edit_file", uiText(R.string.ui_global_precise_file_edit), uiText(R.string.ui_modify_a_shared_storage_file_by_unique_source_text)),
+    AgentToolInfo("global_append_file", uiText(R.string.tool_global_append_file), uiText(R.string.tool_global_append_file_desc)),
+    AgentToolInfo("global_create_folder", uiText(R.string.tool_global_create_folder), uiText(R.string.tool_global_create_folder_desc)),
+    AgentToolInfo("global_delete_file_or_folder", uiText(R.string.tool_global_delete), uiText(R.string.tool_global_delete_desc)),
+    AgentToolInfo("global_rename_move", uiText(R.string.tool_global_rename), uiText(R.string.tool_global_rename_desc)),
+    AgentToolInfo("download_file", uiText(R.string.tool_download_file), uiText(R.string.tool_download_file_desc)),
+    AgentToolInfo("manage_scheduled_tasks", uiText(R.string.tool_manage_tasks), uiText(R.string.tool_manage_tasks_desc)),
+    AgentToolInfo("get_mini_server_status", uiText(R.string.tool_mini_server_status), uiText(R.string.tool_mini_server_status_desc)),
+    AgentToolInfo("read_mini_server_logs", uiText(R.string.tool_mini_server_logs), uiText(R.string.tool_mini_server_logs_desc)),
+    AgentToolInfo("manage_mini_server", uiText(R.string.tool_manage_mini_server), uiText(R.string.tool_manage_mini_server_desc)),
+    AgentToolInfo("search_conversation_history", uiText(R.string.tool_search_conversation), uiText(R.string.tool_search_conversation_desc)),
+    AgentToolInfo("read_conversation_history", uiText(R.string.tool_read_conversation), uiText(R.string.tool_read_conversation_desc)),
+    AgentToolInfo("read_memories", uiText(R.string.ui_read_memories), uiText(R.string.ui_read_cross_chat_memories_and_their_ids_for_review)),
+    AgentToolInfo("save_memory", uiText(R.string.ui_save_memory), uiText(R.string.ui_save_lasting_user_preferences_work_styles_or_communication_habits)),
+    AgentToolInfo("update_memory", uiText(R.string.ui_update_memory), uiText(R.string.ui_edit_correct_or_disable_an_existing_personalized_memory)),
+    AgentToolInfo("delete_memory", uiText(R.string.ui_delete_memory), uiText(R.string.ui_delete_a_memory_that_no_longer_applies_or_that)),
+    AgentToolInfo("search_files", uiText(R.string.tool_search_files), uiText(R.string.tool_search_files_desc)),
+    AgentToolInfo("global_search_files", uiText(R.string.tool_global_search_files), uiText(R.string.tool_global_search_files_desc)),
+    AgentToolInfo("get_file_info", uiText(R.string.tool_get_file_info), uiText(R.string.tool_get_file_info_desc)),
+    AgentToolInfo("list_skill_files", uiText(R.string.tool_list_skill_files), uiText(R.string.tool_list_skill_files_desc)),
+    AgentToolInfo("read_skill_file", uiText(R.string.tool_read_skill_file), uiText(R.string.tool_read_skill_file_desc)),
+    AgentToolInfo("run_command", uiText(R.string.tool_run_command), uiText(R.string.tool_run_command_desc)),
+    AgentToolInfo("web_search", uiText(R.string.tool_web_search), uiText(R.string.tool_web_search_desc)),
+    AgentToolInfo("read_web_page", uiText(R.string.tool_read_web_page), uiText(R.string.tool_read_web_page_desc)),
+    AgentToolInfo("mark_web_sources", uiText(R.string.tool_mark_web_sources), uiText(R.string.tool_mark_web_sources_desc)),
+    AgentToolInfo("manage_app_config", uiText(R.string.tool_manage_app_config), uiText(R.string.ui_add_edit_enable_disable_or_delete_mcp_ssh_email)),
+    AgentToolInfo("get_current_time", uiText(R.string.tool_get_time), uiText(R.string.tool_get_time_desc)),
+    AgentToolInfo("get_current_location", uiText(R.string.tool_get_location), uiText(R.string.tool_get_location_desc)),
+    AgentToolInfo("get_device_hardware_info", uiText(R.string.tool_get_hardware), uiText(R.string.tool_get_hardware_desc)),
+    AgentToolInfo("list_installed_apps", uiText(R.string.tool_list_apps), uiText(R.string.tool_list_apps_desc)),
+    AgentToolInfo("execute_shell_command", uiText(R.string.tool_shell_command), uiText(R.string.tool_shell_command_desc)),
+    AgentToolInfo("execute_root_command", uiText(R.string.tool_root_command), uiText(R.string.tool_root_command_desc)),
+    AgentToolInfo("list_ssh_servers", uiText(R.string.tool_list_ssh), uiText(R.string.tool_list_ssh_desc)),
+    AgentToolInfo("ssh_exec", uiText(R.string.tool_ssh_exec), uiText(R.string.tool_ssh_exec_desc)),
+    AgentToolInfo("list_email_accounts", uiText(R.string.ui_list_email_accounts), uiText(R.string.ui_view_configured_and_enabled_imap_smtp_email_accounts_without)),
+    AgentToolInfo("list_email_folders", uiText(R.string.ui_list_email_folders), uiText(R.string.ui_list_imap_folders_and_identify_the_drafts_folder_without)),
+    AgentToolInfo("list_emails", uiText(R.string.ui_list_emails), uiText(R.string.ui_list_email_metadata_and_unread_read_answered_and_draft)),
+    AgentToolInfo("read_email", uiText(R.string.ui_read_email_body), uiText(R.string.ui_read_a_bounded_email_body_without_changing_its_state)),
+    AgentToolInfo("set_email_flags", uiText(R.string.ui_change_email_status), uiText(R.string.ui_change_an_email_s_read_unread_or_flagged_state)),
+    AgentToolInfo("download_email_attachment", uiText(R.string.ui_quarantine_email_attachment), uiText(R.string.ui_download_an_attachment_to_temporary_quarantine_without_exposing_it)),
+    AgentToolInfo("record_email_attachment_scan", uiText(R.string.ui_record_attachment_scan_result), uiText(R.string.ui_record_the_attachment_scan_result_explicitly_provided_by_the)),
+    AgentToolInfo("save_email_draft", uiText(R.string.ui_save_email_draft), uiText(R.string.ui_build_a_txt_html_email_and_append_it_to)),
+    AgentToolInfo("send_email", uiText(R.string.ui_send_email), uiText(R.string.ui_send_or_reply_in_thread_through_smtp_every_send)),
+    AgentToolInfo("list_webdav_servers", uiText(R.string.tool_list_webdav), uiText(R.string.tool_list_webdav_desc)),
+    AgentToolInfo("webdav_list", uiText(R.string.tool_webdav_list), uiText(R.string.tool_webdav_list_desc)),
+    AgentToolInfo("webdav_search", uiText(R.string.tool_webdav_search), uiText(R.string.tool_webdav_search_desc)),
+    AgentToolInfo("webdav_download_to_workspace", uiText(R.string.tool_webdav_download), uiText(R.string.tool_webdav_download_desc)),
+    AgentToolInfo("webdav_upload_from_workspace", uiText(R.string.tool_webdav_upload), uiText(R.string.tool_webdav_upload_desc)),
+    AgentToolInfo("list_file_transfer_servers", uiText(R.string.tool_list_file_transfer), uiText(R.string.tool_list_file_transfer_desc)),
+    AgentToolInfo("file_transfer_list", uiText(R.string.tool_file_transfer_list), uiText(R.string.tool_file_transfer_list_desc)),
+    AgentToolInfo("file_transfer_search", uiText(R.string.tool_file_transfer_search), uiText(R.string.tool_file_transfer_search_desc)),
+    AgentToolInfo("file_transfer_download_to_workspace", uiText(R.string.tool_file_transfer_download), uiText(R.string.tool_file_transfer_download_desc)),
+    AgentToolInfo("file_transfer_upload_from_workspace", uiText(R.string.tool_file_transfer_upload), uiText(R.string.tool_file_transfer_upload_desc)),
+    AgentToolInfo("export_backup", uiText(R.string.tool_export_backup), uiText(R.string.tool_export_backup_desc)),
+    AgentToolInfo("import_backup", uiText(R.string.title_import_backup), uiText(R.string.tool_import_backup_desc)),
+    AgentToolInfo("set_todo_list", uiText(R.string.tool_set_todo), uiText(R.string.tool_set_todo_desc)),
+    AgentToolInfo("update_todo_item", uiText(R.string.tool_update_todo), uiText(R.string.tool_update_todo_desc)),
 )
 
 @Composable
@@ -488,32 +486,32 @@ internal fun TermuxSetupGuide() {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Text(uiText("Termux 配置教程"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text(uiText(R.string.title_termux_config), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
             Text(
-                uiText("首次使用前，请在 Termux 中开启外部应用调用权限。Termux:API 可选；未安装 Termux:API 时，Lyra Code 会使用 RunCommandService 后台静默执行命令。"),
+                uiText(R.string.termux_config_desc),
                 color = KimiMuted,
                 style = MaterialTheme.typography.bodySmall,
             )
-            TermuxGuideStep("1", uiText("安装并打开 Termux，建议使用 F-Droid 或 GitHub 版本。"))
+            TermuxGuideStep("1", uiText(R.string.termux_step1))
             SettingsExternalLinkRow(
                 icon = Icons.Default.Terminal,
                 title = "Termux GitHub",
                 subtitle = "termux/termux-app",
                 url = "https://github.com/termux/termux-app",
             )
-            TermuxGuideStep("2", uiText("复制下面的配置命令到 Termux 执行，开启外部应用调用权限。"))
+            TermuxGuideStep("2", uiText(R.string.termux_step2))
             CommandCopyCard(
                 command = setupCommand,
-                buttonText = uiText("复制配置命令"),
+                buttonText = uiText(R.string.action_copy_config_command),
                 onCopy = { clipboard.setText(AnnotatedString(setupCommand)) },
             )
-            TermuxGuideStep("3", uiText("重新打开 Lyra Code，在设置的应用权限页面授予 RUN_COMMAND 权限。"))
-            TermuxGuideStep("4", uiText("选择内部存储下可读写的工作目录，例如 /storage/emulated/0/Fonts。"))
-            TermuxGuideStep("5", uiText("run_command 会直接回传 exit_code、stdout、stderr；只有输出过大或超时时，再重定向到工作目录文件。"))
+            TermuxGuideStep("3", uiText(R.string.termux_step3))
+            TermuxGuideStep("4", uiText(R.string.termux_step4))
+            TermuxGuideStep("5", uiText(R.string.termux_step5))
             CommandCopyCard(
                 command = testCommand,
-                buttonText = uiText("复制测试命令"),
+                buttonText = uiText(R.string.action_copy_test_command),
                 onCopy = { clipboard.setText(AnnotatedString(testCommand)) },
             )
         }

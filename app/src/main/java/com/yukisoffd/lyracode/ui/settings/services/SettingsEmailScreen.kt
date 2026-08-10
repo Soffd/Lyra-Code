@@ -58,41 +58,41 @@ internal fun EmailSettings(settings: AppSettings, externalRevision: Int = 0) {
                 settings.upsertEmailServer(saved)
                 revision++
                 editing = null
-                status = uiText("邮件服务器已保存")
+                status = uiText(R.string.ui_email_server_saved)
             },
         )
     }
     deleteTarget?.let { target ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text(uiText("删除邮件服务器")) },
-            text = { Text(uiText("将删除 ${target.name} 及其加密保存的登录密码。")) },
+            title = { Text(uiText(R.string.ui_delete_email_server)) },
+            text = { Text(uiText(R.string.ui_this_will_delete_1_s_and_its_encrypted_login, target.name)) },
             confirmButton = {
                 TextButton(onClick = {
                     settings.deleteEmailServer(target.id)
                     revision++
                     deleteTarget = null
-                }) { Text(uiText("删除"), color = MaterialTheme.colorScheme.error) }
+                }) { Text(uiText(R.string.file_action_delete), color = MaterialTheme.colorScheme.error) }
             },
-            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(uiText("取消")) } },
+            dismissButton = { TextButton(onClick = { deleteTarget = null }) { Text(uiText(R.string.action_cancel)) } },
         )
     }
 
     KimiCardBox {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(uiText("SMTP / IMAP 邮件"), style = MaterialTheme.typography.titleMedium)
-                Text(uiText("密码加密保存在本机。读取正文不会改变已读状态；SMTP 发送每次都要求确认。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.menu_email), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.ui_passwords_are_encrypted_on_this_device_reading_a_message), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
             }
-            Button(onClick = { editing = defaultEmailServer() }, shape = KimiPillShape) { Text(uiText("添加")) }
+            Button(onClick = { editing = defaultEmailServer() }, shape = KimiPillShape) { Text(uiText(R.string.action_add)) }
         }
         if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 
     if (accounts.isEmpty()) {
         KimiCardBox {
-            Text(uiText("暂无邮件服务器"), style = MaterialTheme.typography.titleSmall)
-            Text(uiText("建议使用邮箱服务商生成的应用专用密码，并启用 SSL/TLS。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            Text(uiText(R.string.ui_no_email_servers_yet), style = MaterialTheme.typography.titleSmall)
+            Text(uiText(R.string.ui_use_an_app_specific_password_from_your_email_provider), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         }
     }
     accounts.forEach { account ->
@@ -103,28 +103,28 @@ internal fun EmailSettings(settings: AppSettings, externalRevision: Int = 0) {
                     Text(account.emailAddress, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     Text("IMAP ${account.imapHost}:${account.imapPort} · SMTP ${account.smtpHost}:${account.smtpPort}", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                     if (account.imapSecurity == AppSettings.EMAIL_SECURITY_NONE || account.smtpSecurity == AppSettings.EMAIL_SECURITY_NONE) {
-                        Text(uiText("安全警告：连接未加密，账号、密码和邮件内容可能被窃听。"), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.ui_security_warning_this_connection_is_unencrypted_so_account_cr), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelSmall)
                     }
                 }
                 Switch(
                     checked = account.enabled,
                     onCheckedChange = { enabled -> settings.setEmailServerEnabled(account.id, enabled); revision++ },
                 )
-                IconButton(onClick = { editing = account }) { Icon(Icons.Default.Edit, contentDescription = uiText("编辑")) }
-                IconButton(onClick = { deleteTarget = account }) { Icon(Icons.Default.Delete, contentDescription = uiText("删除")) }
+                IconButton(onClick = { editing = account }) { Icon(Icons.Default.Edit, contentDescription = uiText(R.string.ui_edit)) }
+                IconButton(onClick = { deleteTarget = account }) { Icon(Icons.Default.Delete, contentDescription = uiText(R.string.file_action_delete)) }
             }
             OutlinedButton(
                 onClick = {
                     scope.launch {
-                        status = uiText("正在测试 IMAP 连接…")
+                        status = uiText(R.string.ui_testing_imap_connection)
                         status = withContext(Dispatchers.IO) {
-                            runCatching { client.listFolders(account); uiText("IMAP 连接成功") }
-                                .getOrElse { uiText("连接失败：${it.message}") }
+                            runCatching { client.listFolders(account); uiText(R.string.ui_imap_connection_successful) }
+                                .getOrElse { uiText(R.string.ui_connection_failed_1_s, it.message) }
                         }
                     }
                 },
                 shape = KimiPillShape,
-            ) { Text(uiText("测试 IMAP")) }
+            ) { Text(uiText(R.string.ui_test_imap)) }
         }
     }
 }
@@ -149,24 +149,24 @@ private fun EmailServerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(uiText("邮件服务器")) },
+        title = { Text(uiText(R.string.detail_email)) },
         text = {
             Column(Modifier.heightIn(max = 560.dp).verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(uiText("名称")) }, singleLine = true)
-                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(uiText("邮箱地址")) }, singleLine = true)
-                OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text(uiText("登录用户名（留空则使用邮箱地址）")) }, singleLine = true)
-                OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text(uiText("密码 / 应用专用密码")) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
+                OutlinedTextField(name, { name = it }, Modifier.fillMaxWidth(), label = { Text(uiText(R.string.file_name_label)) }, singleLine = true)
+                OutlinedTextField(email, { email = it }, Modifier.fillMaxWidth(), label = { Text(uiText(R.string.ui_email_address)) }, singleLine = true)
+                OutlinedTextField(username, { username = it }, Modifier.fillMaxWidth(), label = { Text(uiText(R.string.ui_login_username_leave_blank_to_use_the_email_address)) }, singleLine = true)
+                OutlinedTextField(password, { password = it }, Modifier.fillMaxWidth(), label = { Text(uiText(R.string.ui_password_app_specific_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation())
                 OutlinedTextField(imapHost, { imapHost = it }, Modifier.fillMaxWidth(), label = { Text("IMAP Host") }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(imapPort, { imapPort = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text(uiText("端口")) }, singleLine = true)
+                    OutlinedTextField(imapPort, { imapPort = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text(uiText(R.string.label_port)) }, singleLine = true)
                     SecurityField(imapSecurity, { imapSecurity = it }, Modifier.weight(1f))
                 }
                 OutlinedTextField(smtpHost, { smtpHost = it }, Modifier.fillMaxWidth(), label = { Text("SMTP Host") }, singleLine = true)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(smtpPort, { smtpPort = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text(uiText("端口")) }, singleLine = true)
+                    OutlinedTextField(smtpPort, { smtpPort = it.filter(Char::isDigit) }, Modifier.weight(1f), label = { Text(uiText(R.string.label_port)) }, singleLine = true)
                     SecurityField(smtpSecurity, { smtpSecurity = it }, Modifier.weight(1f))
                 }
-                Text(uiText("安全模式填写 ssl、starttls 或 none。推荐 ssl；none 仅用于受信任的本地测试服务器。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                Text(uiText(R.string.ui_enter_ssl_starttls_or_none_ssl_is_recommended_use), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
         },
@@ -176,7 +176,7 @@ private fun EmailServerDialog(
                 val imap = imapPort.toIntOrNull()
                 val smtp = smtpPort.toIntOrNull()
                 if (!normalizedEmail.contains('@') || imap == null || imap !in 1..65535 || smtp == null || smtp !in 1..65535 || password.isBlank() || imapHost.isBlank() || smtpHost.isBlank()) {
-                    error = uiText("请填写有效邮箱、密码、服务器和端口。")
+                    error = uiText(R.string.ui_enter_a_valid_email_address_password_server_and_port)
                     return@TextButton
                 }
                 onSave(
@@ -193,15 +193,15 @@ private fun EmailServerDialog(
                         smtpSecurity = AppSettings.normalizeEmailSecurity(smtpSecurity),
                     ),
                 )
-            }) { Text(uiText("保存")) }
+            }) { Text(uiText(R.string.file_editor_save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText("取消")) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) } },
     )
 }
 
 @Composable
 private fun SecurityField(value: String, onValueChange: (String) -> Unit, modifier: Modifier = Modifier) {
-    OutlinedTextField(value, onValueChange, modifier, label = { Text(uiText("安全模式")) }, singleLine = true)
+    OutlinedTextField(value, onValueChange, modifier, label = { Text(uiText(R.string.ui_security_mode)) }, singleLine = true)
 }
 
 private fun defaultEmailServer() = EmailServerConfig(

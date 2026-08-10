@@ -322,7 +322,7 @@ internal fun SkillManualImportDialog(
     val context = LocalContext.current
     var manualText by rememberSaveable {
         mutableStateOf(
-            if (UiTextBridge.isEnglish()) {
+            if (AppStrings.isEnglish()) {
                 """
                 ---
                 name: Custom Skill

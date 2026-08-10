@@ -120,10 +120,10 @@ internal fun WorkspaceFileMentionPicker(
                 Column(Modifier.weight(1f)) {
                     Text(stringResource(R.string.workspace_file_picker_title), style = MaterialTheme.typography.labelMedium)
                     if (selected.isNotEmpty()) {
-                        Text(uiText("已选择") + " ${selected.size}/24", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                        Text(uiText(R.string.streaming_selected) + " ${selected.size}/24", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                TextButton(onClick = onDone, enabled = enabled) { Text(uiText("完成")) }
+                TextButton(onClick = onDone, enabled = enabled) { Text(uiText(R.string.status_done)) }
             }
             if (loading) {
                 Text(
@@ -211,14 +211,14 @@ internal fun ForcedSkillControls(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(uiText("本轮强制使用"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+            Text(uiText(R.string.ui_forced_this_request), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
             forcedSkills.forEach { skill ->
                 TextButton(
                     onClick = { onSkillIdsChange(forcedSkillIds - skill.id) },
                     shape = RoundedCornerShape(18.dp),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = uiText("点击移除 Skill"), modifier = Modifier.size(14.dp))
+                    Icon(Icons.Default.Close, contentDescription = uiText(R.string.ui_remove_skill), modifier = Modifier.size(14.dp))
                     Spacer(Modifier.width(4.dp))
                     Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
@@ -243,13 +243,13 @@ internal fun ForcedSkillControls(
                 ) {
                     Icon(Icons.Default.Build, contentDescription = null, modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
                     Column(Modifier.weight(1f)) {
-                        Text(uiText("选择技能"), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
-                        Text(uiText("输入 / 选择本轮要强制使用的 Skill"), style = MaterialTheme.typography.labelSmall, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(uiText(R.string.ui_choose_skill), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurface)
+                        Text(uiText(R.string.ui_type_to_choose_skills_for_this_request), style = MaterialTheme.typography.labelSmall, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
                 if (matches.isEmpty()) {
                     Text(
-                        uiText("没有匹配的 Skill"),
+                        uiText(R.string.ui_no_matching_skills),
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
@@ -271,7 +271,7 @@ internal fun ForcedSkillControls(
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                     Text(skill.name, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium)
                                     if (!skill.enabled) {
-                                        Text(uiText("已禁用"), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                                        Text(uiText(R.string.skill_status_disabled), color = KimiMuted, style = MaterialTheme.typography.labelSmall)
                                     }
                                 }
                                 if (skill.description.isNotBlank()) {
@@ -356,10 +356,10 @@ internal fun ConversationNavigationControls(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         listOf(
-            Triple(Icons.Default.KeyboardDoubleArrowUp, uiText("返回顶部"), onTop),
-            Triple(Icons.Default.KeyboardArrowUp, uiText("上一条用户消息"), onPreviousUser),
-            Triple(Icons.Default.KeyboardArrowDown, uiText("下一条用户消息"), onNextUser),
-            Triple(Icons.Default.KeyboardDoubleArrowDown, uiText("返回底部"), onBottom),
+            Triple(Icons.Default.KeyboardDoubleArrowUp, uiText(R.string.ui_back_to_top), onTop),
+            Triple(Icons.Default.KeyboardArrowUp, uiText(R.string.ui_previous_user_message), onPreviousUser),
+            Triple(Icons.Default.KeyboardArrowDown, uiText(R.string.ui_next_user_message), onNextUser),
+            Triple(Icons.Default.KeyboardDoubleArrowDown, uiText(R.string.ui_back_to_bottom), onBottom),
         ).forEach { (icon, description, action) ->
             IconButton(
                 onClick = {

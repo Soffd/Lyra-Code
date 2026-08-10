@@ -63,16 +63,16 @@ internal fun ToolResultContent(
     compact: Boolean = false,
 ) {
     val summary = if (toolName.isNotBlank()) {
-        uiText("调用工具") + " $toolName · " + uiText("查看详情")
+        uiText(R.string.ui_tool_call) + " $toolName · " + uiText(R.string.ui_view_details)
     } else {
-        uiText("工具调用") + " · " + uiText("查看详情")
+        uiText(R.string.ui_tool_call_2) + " · " + uiText(R.string.ui_view_details)
     }
     ToolCallSummaryButton(text = summary, compact = compact, onClick = onToggle)
     if (expanded) {
         ToolCallDetailPage(
             toolName = toolName,
             toolInput = toolInput.ifBlank { "{}" },
-            toolOutput = content.ifBlank { uiText("空结果") },
+            toolOutput = content.ifBlank { uiText(R.string.label_empty_result) },
             onClose = onToggle,
         )
     }
@@ -106,7 +106,7 @@ private fun ToolCallSummaryButton(text: String, compact: Boolean, onClick: () ->
         )
         Icon(
             Icons.Default.ChevronRight,
-            contentDescription = uiText("查看详情"),
+            contentDescription = uiText(R.string.ui_view_details),
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
             modifier = Modifier.size(if (compact) 17.dp else 24.dp),
         )
@@ -133,9 +133,9 @@ internal fun ToolCallDetailPage(
                 TopAppBar(
                     title = {
                         Column {
-                            Text(uiText("工具调用详情"))
+                            Text(uiText(R.string.tool_detail_title))
                             Text(
-                                toolName.ifBlank { uiText("未知工具") },
+                                toolName.ifBlank { uiText(R.string.tool_unknown_name) },
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 style = MaterialTheme.typography.labelMedium,
                             )
@@ -143,7 +143,7 @@ internal fun ToolCallDetailPage(
                     },
                     navigationIcon = {
                         IconButton(onClick = onClose) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = uiText("返回"), tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Default.ArrowBack, contentDescription = uiText(R.string.cd_back), tint = MaterialTheme.colorScheme.primary)
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
@@ -161,14 +161,14 @@ internal fun ToolCallDetailPage(
             ) {
                 item {
                     ToolJsonSection(
-                        title = uiText("工具输入"),
+                        title = uiText(R.string.tool_input_title),
                         content = toolInput,
                         onCopy = { clipboard.setText(AnnotatedString(toolInput)) },
                     )
                 }
                 item {
                     ToolJsonSection(
-                        title = uiText("调用结果"),
+                        title = uiText(R.string.tool_output_title),
                         content = toolOutput,
                         onCopy = { clipboard.setText(AnnotatedString(toolOutput)) },
                     )
@@ -207,7 +207,7 @@ private fun ToolJsonSection(title: String, content: String, onCopy: () -> Unit) 
                 ) {
                     Text("json", modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onSurfaceVariant, fontFamily = codeFontFamily)
                     IconButton(onClick = onCopy) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = uiText("复制"), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Default.ContentCopy, contentDescription = uiText(R.string.file_action_copy), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
                 KimiDivider()
@@ -276,7 +276,7 @@ internal data class FileChangeView(
 )
 
 internal fun fileNameForDisplay(path: String): String {
-    return path.trim().replace('\\', '/').substringAfterLast('/').ifBlank { path.ifBlank { uiText("未命名文件") } }
+    return path.trim().replace('\\', '/').substringAfterLast('/').ifBlank { path.ifBlank { uiText(R.string.label_unnamed_file) } }
 }
 
 internal fun stripUploadedFileBlocks(content: String): String {
@@ -292,13 +292,13 @@ internal fun stripUploadedFileBlocks(content: String): String {
 internal fun uploadedFileTypeLabel(name: String): String {
     val ext = name.substringAfterLast('.', missingDelimiterValue = "").lowercase()
     return when (ext) {
-        "" -> uiText("文件")
-        "txt", "md", "json", "xml", "csv", "log" -> ext.uppercase() + uiText(" 文本")
-        "kt", "java", "py", "js", "ts", "html", "css", "go", "rs", "cpp", "c", "h" -> ext.uppercase() + uiText(" 代码")
-        "zip", "7z", "rar", "tar", "gz" -> ext.uppercase() + uiText(" 压缩包")
-        "pdf" -> uiText("PDF 文档")
-        "doc", "docx", "xls", "xlsx", "ppt", "pptx" -> ext.uppercase() + uiText(" 文档")
-        else -> ext.uppercase() + uiText(" 文件")
+        "" -> uiText(R.string.file_manager_search_files)
+        "txt", "md", "json", "xml", "csv", "log" -> ext.uppercase() + uiText(R.string.ui_text)
+        "kt", "java", "py", "js", "ts", "html", "css", "go", "rs", "cpp", "c", "h" -> ext.uppercase() + uiText(R.string.ui_code)
+        "zip", "7z", "rar", "tar", "gz" -> ext.uppercase() + uiText(R.string.ui_archive)
+        "pdf" -> uiText(R.string.label_file_pdf)
+        "doc", "docx", "xls", "xlsx", "ppt", "pptx" -> ext.uppercase() + uiText(R.string.ui_document)
+        else -> ext.uppercase() + uiText(R.string.ui_file)
     }
 }
 

@@ -203,9 +203,9 @@ internal fun AgentProcessSummary(
     val startedAt = startedAtOverride ?: messages.minOfOrNull { it.createdAt } ?: fallbackNow
     val finishedAt = completedAt ?: finishedAtOverride ?: messages.maxOfOrNull { it.createdAt } ?: fallbackNow
     val collapsedText = if (expanded) {
-        uiText("过程记录已展开")
+        uiText(R.string.process_record_expanded)
     } else {
-        uiText("过程记录已收起 · thinking $thinkingCount / 工具 $toolCount")
+        uiText(R.string.ui_process_log_collapsed_thinking_1_s_tools_2_s, thinkingCount, toolCount)
     }
     Card(
         Modifier.fillMaxWidth(),
@@ -241,7 +241,7 @@ internal fun ProcessDurationHeader(
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = if (active) uiText("任务处理中 · ") else uiText("任务耗时 · "),
+            text = if (active) uiText(R.string.label_task_processing) else uiText(R.string.label_task_duration),
             color = KimiMuted,
             style = MaterialTheme.typography.labelSmall,
         )
@@ -285,11 +285,11 @@ internal fun ToolApprovalDialog(
     var feedback by rememberSaveable(pending.id) { mutableStateOf("") }
     AlertDialog(
         onDismissRequest = {},
-        title = { Text(uiText("确认工具调用")) },
+        title = { Text(uiText(R.string.title_confirm_tool_call)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(uiText(pending.request.summary), style = MaterialTheme.typography.titleSmall)
-                Text(uiText(pending.request.risk), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(pending.request.summary, style = MaterialTheme.typography.titleSmall)
+                Text(pending.request.risk, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 SelectionContainer {
                     Text(
                         pending.request.arguments,
@@ -307,7 +307,7 @@ internal fun ToolApprovalDialog(
                     modifier = Modifier.fillMaxWidth(),
                     minLines = 2,
                     maxLines = 4,
-                    label = { Text(uiText("拒绝时给 AI 的修改要求")) },
+                    label = { Text(uiText(R.string.label_reject_feedback)) },
                 )
             }
         },
@@ -321,7 +321,7 @@ internal fun ToolApprovalDialog(
                         onClick = { onApprove(true) },
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(uiText("本会话无需确认"))
+                        Text(uiText(R.string.action_session_no_confirm))
                     }
                 }
                 Row(
@@ -332,13 +332,13 @@ internal fun ToolApprovalDialog(
                         onClick = { onReject(feedback) },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(uiText("不同意"))
+                        Text(uiText(R.string.action_reject))
                     }
                     Button(
                         onClick = { onApprove(false) },
                         modifier = Modifier.weight(1f),
                     ) {
-                        Text(uiText("同意"))
+                        Text(uiText(R.string.action_approve))
                     }
                 }
             }
@@ -537,7 +537,7 @@ internal fun TodoProgressPanel(settings: AppSettings, conversationId: Long, item
                     IconButton(onClick = { expanded = !expanded }) {
                         Icon(
                             if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                            contentDescription = if (expanded) uiText("收起") else uiText("展开"),
+                            contentDescription = if (expanded) uiText(R.string.cd_expand) else uiText(R.string.cd_expand_alt),
                         )
                     }
                 }
@@ -638,7 +638,7 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    "${uiText("文件变更")} ${events.size}",
+                    "${uiText(R.string.ui_file_changes)} ${events.size}",
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleSmall,
                 )
@@ -648,7 +648,7 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
                 IconButton(onClick = { expanded = !expanded }) {
                     Icon(
                         if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = if (expanded) uiText("收起") else uiText("展开"),
+                        contentDescription = if (expanded) uiText(R.string.cd_expand) else uiText(R.string.cd_expand_alt),
                     )
                 }
             }
@@ -681,7 +681,7 @@ internal fun ConversationChangesPanel(settings: AppSettings, conversationId: Lon
                                 Text("-${change.removed}", color = Color(0xFFD93025), style = MaterialTheme.typography.labelMedium)
                             }
                             Text(
-                                if (openedKey == event.key) uiText("收起变更详情") else uiText("点击审视变更前后代码"),
+                                if (openedKey == event.key) uiText(R.string.cd_expand_collapse) else uiText(R.string.cd_expand_collapse_alt),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.primary,
                             )
@@ -706,7 +706,7 @@ internal fun ModelToolbar(controller: ChatController) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.weight(0.9f)) {
             OutlinedButton(onClick = { profileExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(profile?.name ?: uiText("平台"), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(profile?.name ?: uiText(R.string.label_platform), maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = profileExpanded, onDismissRequest = { profileExpanded = false }) {
                 profiles.forEach {
@@ -719,7 +719,7 @@ internal fun ModelToolbar(controller: ChatController) {
         }
         Box(Modifier.weight(1.1f)) {
             OutlinedButton(onClick = { modelExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                Text(controller.activeModel.value.ifBlank { uiText("模型") }, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text(controller.activeModel.value.ifBlank { uiText(R.string.label_model) }, maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             DropdownMenu(expanded = modelExpanded, onDismissRequest = { modelExpanded = false }) {
                 profile?.enabledModels.orEmpty().forEach { model ->
@@ -777,7 +777,7 @@ internal fun MessageCard(
     if (editDialogOpen) {
         AlertDialog(
             onDismissRequest = { editDialogOpen = false },
-            title = { Text(uiText("编辑并重新生成")) },
+            title = { Text(uiText(R.string.title_edit_regenerate)) },
             text = {
                 OutlinedTextField(
                     value = editText,
@@ -794,12 +794,12 @@ internal fun MessageCard(
                         onEditAndRegenerate?.invoke(message.id, editText)
                     },
                 ) {
-                    Text(uiText("重新生成"))
+                    Text(uiText(R.string.status_regenerate))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { editDialogOpen = false }) {
-                    Text(uiText("取消"))
+                    Text(uiText(R.string.action_cancel))
                 }
             },
         )
@@ -864,11 +864,11 @@ internal fun MessageCard(
                             ),
                         ) {
                             if (!isUser && message.role != "assistant" && !compactToolResult) {
-                                Text(uiText("工具结果"), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
+                                Text(uiText(R.string.stats_tool_results), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                             }
                             if (message.thinking.isNotBlank()) {
                                 CollapsedStatusLine(
-                                    text = if (showThinking) uiText("思考详情已展开") else if (message.content.isBlank()) "thinking..." else uiText("思考完毕"),
+                                    text = if (showThinking) uiText(R.string.thinking_details_expanded) else if (message.content.isBlank()) "thinking..." else uiText(R.string.label_thinking_done),
                                     expanded = showThinking,
                                     onClick = { showThinking = !showThinking },
                                 )
@@ -926,7 +926,7 @@ internal fun MessageCard(
                                                     ) {
                                                         Icon(
                                                             Icons.Default.MoreVert,
-                                                            contentDescription = uiText("更多操作"),
+                                                            contentDescription = uiText(R.string.action_more),
                                                             tint = MaterialTheme.colorScheme.primary,
                                                             modifier = Modifier.size(18.dp),
                                                         )
@@ -950,7 +950,7 @@ internal fun MessageCard(
                                         }
                                     }
                                 } else if (message.role == "assistant" && !inProcessRecord) {
-                                    Text(uiText("正在组织输出..."), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                                    Text(uiText(R.string.ui_composing_response), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                                 }
                             }
                         }
@@ -1001,27 +1001,27 @@ private fun MessageActionsDropdown(
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
-            text = { Text(uiText("复制")) },
+            text = { Text(uiText(R.string.file_action_copy)) },
             leadingIcon = { Icon(Icons.Default.ContentCopy, contentDescription = null) },
             onClick = onCopy,
         )
         onCreateBranch?.let { createBranch ->
             DropdownMenuItem(
-                text = { Text(uiText("从此处创建分支")) },
+                text = { Text(uiText(R.string.action_create_branch)) },
                 leadingIcon = { Icon(Icons.Default.CallSplit, contentDescription = null) },
                 onClick = createBranch,
             )
         }
         onEditAndRegenerate?.let { editAndRegenerate ->
             DropdownMenuItem(
-                text = { Text(uiText("修改并重新生成")) },
+                text = { Text(uiText(R.string.action_edit_regenerate)) },
                 leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
                 onClick = editAndRegenerate,
             )
         }
         onRegenerate?.let { regenerate ->
             DropdownMenuItem(
-                text = { Text(uiText("重新生成")) },
+                text = { Text(uiText(R.string.status_regenerate)) },
                 leadingIcon = { Icon(Icons.Default.Refresh, contentDescription = null) },
                 onClick = regenerate,
             )
@@ -1095,9 +1095,9 @@ internal fun formatProcessDuration(durationMs: Long): String {
     val minutes = (totalSeconds % 3600L) / 60L
     val seconds = totalSeconds % 60L
     return when {
-        hours > 0L -> uiText("${hours}小时${minutes}分${seconds}秒")
-        minutes > 0L -> uiText("${minutes}分${seconds}秒")
-        else -> uiText("${seconds}秒")
+        hours > 0L -> uiText(R.string.label_time_hours, hours, minutes, seconds)
+        minutes > 0L -> uiText(R.string.label_time_minutes, minutes, seconds)
+        else -> uiText(R.string.label_time_seconds, seconds)
     }
 }
 
@@ -1119,7 +1119,7 @@ internal fun CollapsedStatusLine(
         Text(text, modifier = Modifier.weight(1f), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
         Icon(
             if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-            contentDescription = if (expanded) uiText("收起") else uiText("展开"),
+            contentDescription = if (expanded) uiText(R.string.cd_expand) else uiText(R.string.cd_expand_alt),
             tint = MaterialTheme.colorScheme.primary,
         )
     }
@@ -1133,7 +1133,7 @@ internal fun ContinueInterruptedRow(onContinue: () -> Unit) {
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)))
-        KimiChip(uiText("继续对话"), onClick = onContinue)
+        KimiChip(uiText(R.string.action_continue_chat), onClick = onContinue)
         Box(Modifier.weight(1f).height(1.dp).background(MaterialTheme.colorScheme.outline.copy(alpha = 0.45f)))
     }
 }

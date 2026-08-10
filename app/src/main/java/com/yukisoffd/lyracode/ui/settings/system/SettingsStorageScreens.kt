@@ -46,18 +46,18 @@ internal fun StorageCacheSettings() {
         scan = scanStorageUsage(context)
     }
     KimiCardBox {
-        Text(uiText("存储占用"), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.title_storage_usage), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Storage, uiText("应用总占用"), formatBytes(scan.totalBytes))
+        KimiMenuRow(Icons.Default.Storage, uiText(R.string.menu_total_usage), formatBytes(scan.totalBytes))
         KimiDivider()
-        KimiMenuRow(Icons.Default.Android, uiText("应用安装包"), formatBytes(scan.appBytes))
+        KimiMenuRow(Icons.Default.Android, uiText(R.string.menu_app_package), formatBytes(scan.appBytes))
         KimiDivider()
-        KimiMenuRow(Icons.Default.Folder, uiText("应用数据"), formatBytes(scan.dataBytes))
+        KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_app_data), formatBytes(scan.dataBytes))
         KimiDivider()
-        KimiMenuRow(Icons.Default.Memory, uiText("系统缓存"), formatBytes(scan.cacheBytes))
+        KimiMenuRow(Icons.Default.Memory, uiText(R.string.menu_system_cache), formatBytes(scan.cacheBytes))
         KimiDivider()
-        KimiMenuRow(Icons.Default.CleaningServices, uiText("可安全清理缓存"), formatBytes(scan.cleanableBytes))
-        Text(uiText("总占用按 Android 设置页常见口径估算：安装包 + 应用数据 + 缓存。清理范围仅包含临时上传、图片裁剪、拍照预览、AI 响应磁盘缓存，以及应用内更新后遗留的旧版本安装包；不会删除历史对话、模型配置、API Key、MCP/SSH、Skills、头像或工作目录文件。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        KimiMenuRow(Icons.Default.CleaningServices, uiText(R.string.menu_cleanable_cache), formatBytes(scan.cleanableBytes))
+        Text(uiText(R.string.storage_explanation), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
     scan.items.forEach { item ->
         KimiCardBox {
@@ -65,42 +65,42 @@ internal fun StorageCacheSettings() {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(item.title, style = MaterialTheme.typography.titleSmall)
                     Text(item.path, color = KimiMuted, maxLines = 1, overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.labelSmall)
-                    Text(uiText("${formatBytes(item.bytes)} · ${item.fileCount} 个文件"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    Text(uiText(R.string.storage_item_summary, formatBytes(item.bytes), item.fileCount), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                 }
                 if (item.cleanable && item.bytes > 0L) {
                     OutlinedButton(
                         onClick = {
-                            status = uiText("正在清理 ${item.title}...")
+                            status = uiText(R.string.storage_clearing_item, item.title)
                             scope.launch(Dispatchers.IO) {
                                 deleteCacheTarget(item.file)
                                 withContext(Dispatchers.Main) {
-                                    status = uiText("已清理 ${item.title}")
+                                    status = uiText(R.string.status_cleaned, item.title)
                                     refresh()
                                 }
                             }
                         },
                         shape = KimiPillShape,
-                    ) { Text(uiText("清理")) }
+                    ) { Text(uiText(R.string.action_clean)) }
                 }
             }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(onClick = { refresh(); status = uiText("扫描完成") }, shape = KimiPillShape) { Text(uiText("重新扫描")) }
+        Button(onClick = { refresh(); status = uiText(R.string.status_scan_complete) }, shape = KimiPillShape) { Text(uiText(R.string.action_rescan)) }
         OutlinedButton(
             enabled = scan.cleanableBytes > 0L,
             onClick = {
-                status = uiText("正在清理缓存...")
+                status = uiText(R.string.ui_clearing_cache)
                 scope.launch(Dispatchers.IO) {
                     scan.items.filter { it.cleanable }.forEach { deleteCacheTarget(it.file) }
                     withContext(Dispatchers.Main) {
-                        status = uiText("缓存已清理")
+                        status = uiText(R.string.status_cache_cleaned)
                         refresh()
                     }
                 }
             },
             shape = KimiPillShape,
-        ) { Text(uiText("清理全部缓存")) }
+        ) { Text(uiText(R.string.action_clean_all_cache)) }
     }
     if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
 }
@@ -138,18 +138,18 @@ internal fun scanStorageUsage(context: Context): StorageScanResult {
         (recursiveDataRootBytes - recursiveCacheBytes).coerceAtLeast(0L),
     )
     val items = buildList {
-        add(storageItem(uiText("AI 响应缓存"), File(context.cacheDir, "ai_response_cache"), cleanable = true))
-        add(storageItem(uiText("裁剪图片临时文件"), File(context.cacheDir, "uploads"), cleanable = true))
-        add(storageItem(uiText("拍照上传临时文件"), File(context.cacheDir, "upload_crop"), cleanable = true))
-        add(storageItem(uiText("系统临时缓存"), context.cacheDir, cleanable = false))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) add(storageItem(uiText("代码缓存"), context.codeCacheDir, cleanable = false))
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) add(storageItem(uiText("No backup 数据"), context.noBackupFilesDir, cleanable = false))
-        add(storageItem(uiText("应用持久数据"), context.filesDir, cleanable = false))
+        add(storageItem(uiText(R.string.cache_ai_response), File(context.cacheDir, "ai_response_cache"), cleanable = true))
+        add(storageItem(uiText(R.string.cache_crop_image), File(context.cacheDir, "uploads"), cleanable = true))
+        add(storageItem(uiText(R.string.cache_camera_upload), File(context.cacheDir, "upload_crop"), cleanable = true))
+        add(storageItem(uiText(R.string.cache_system_temp), context.cacheDir, cleanable = false))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) add(storageItem(uiText(R.string.cache_code), context.codeCacheDir, cleanable = false))
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) add(storageItem(uiText(R.string.cache_no_backup), context.noBackupFilesDir, cleanable = false))
+        add(storageItem(uiText(R.string.cache_persistent), context.filesDir, cleanable = false))
         context.getExternalFilesDirs(null).filterNotNull().forEachIndexed { index, dir ->
-            add(storageItem(uiText(context.getString(R.string.cache_external_private, index + 1)), dir, cleanable = false))
+            add(storageItem(context.getString(R.string.cache_external_private, index + 1), dir, cleanable = false))
         }
         context.externalCacheDirs.filterNotNull().forEachIndexed { index, dir ->
-            add(storageItem(uiText(context.getString(R.string.cache_external_cache, index + 1)), dir, cleanable = true))
+            add(storageItem(context.getString(R.string.cache_external_cache, index + 1), dir, cleanable = true))
         }
     }
     val total = appBytes + dataBytes + cacheBytes

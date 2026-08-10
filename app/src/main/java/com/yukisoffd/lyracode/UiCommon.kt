@@ -619,7 +619,7 @@ internal fun ConfirmDeleteDialog(
                 Text(message, color = KimiMuted, style = MaterialTheme.typography.bodyMedium)
                 Text(targetName, style = MaterialTheme.typography.titleSmall, maxLines = 2, overflow = TextOverflow.Ellipsis)
                 Text(
-                    if (remaining > 0) uiText("请等待 ") + remaining + uiText(" 秒后确认删除。") else uiText("删除后无法自动恢复，请确认。"),
+                    if (remaining > 0) uiText(R.string.ui_please_wait) + remaining + uiText(R.string.ui_seconds_before_confirming_deletion) else uiText(R.string.ui_this_cannot_be_restored_automatically_please_confirm),
                     color = if (remaining > 0) KimiMuted else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -634,11 +634,11 @@ internal fun ConfirmDeleteDialog(
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
             ) {
-                Text(if (remaining > 0) uiText("删除") + " ($remaining)" else uiText("确认删除"))
+                Text(if (remaining > 0) uiText(R.string.file_action_delete) + " ($remaining)" else uiText(R.string.file_delete_title))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text(uiText("取消")) }
+            TextButton(onClick = onDismiss) { Text(uiText(R.string.action_cancel)) }
         },
     )
 }

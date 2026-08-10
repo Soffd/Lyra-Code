@@ -219,9 +219,15 @@ class MainActivity : ComponentActivity() {
     private var miniServerManager: MiniServerManager? = null
     private var localMcpServerManager: LocalMcpServerManager? = null
 
+    override fun attachBaseContext(newBase: Context) {
+        val languageMode = AppSettings(newBase).languageMode
+        super.attachBaseContext(newBase.localizedContext(languageMode))
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val settings = AppSettings(this)
+        AppStrings.initialize(this)
         if (savedInstanceState == null) settings.clearChatInputDrafts()
         val auditLogStore = AuditLogStore(this)
         val conversationStore = ConversationStore(this)
@@ -264,8 +270,6 @@ class MainActivity : ComponentActivity() {
             var fontScaleMode by remember { mutableStateOf(settings.fontScaleMode) }
             var customFontScale by remember { mutableStateOf(settings.customFontScale) }
             var wallpaperColorRevision by remember { mutableIntStateOf(0) }
-            val localizedContext = remember(languageMode) { this.localizedContext(languageMode) }
-            UiTextBridge.languageMode = languageMode
             val systemDark = isSystemInDarkTheme()
             val systemFontScale = LocalDensity.current.fontScale
             val settingsRevision = chatController.settingsRevision.intValue
@@ -306,7 +310,6 @@ class MainActivity : ComponentActivity() {
                 else -> systemDark
             }
             CompositionLocalProvider(
-                LocalContext provides localizedContext,
                 LocalActivityResultRegistryOwner provides this@MainActivity,
                 LocalOnBackPressedDispatcherOwner provides this@MainActivity,
             ) {
@@ -352,8 +355,12 @@ class MainActivity : ComponentActivity() {
                         },
                         languageMode = languageMode,
                         onLanguageModeChange = {
-                            languageMode = AppSettings.normalizeLanguageMode(it)
-                            settings.languageMode = languageMode
+                            val normalized = AppSettings.normalizeLanguageMode(it)
+                            if (normalized != languageMode) {
+                                languageMode = normalized
+                                settings.languageMode = normalized
+                                recreate()
+                            }
                         },
                         refreshRateMode = refreshRateMode,
                         onRefreshRateModeChange = {
@@ -401,20 +408,21 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun Context.localizedContext(languageMode: String): Context {
-        val locale = when (AppSettings.normalizeLanguageMode(languageMode)) {
-            AppSettings.LANGUAGE_ZH_CN -> Locale.SIMPLIFIED_CHINESE
-            AppSettings.LANGUAGE_EN -> Locale.ENGLISH
-            else -> null
-        } ?: return this
-        val configuration = Configuration(resources.configuration)
-        configuration.setLocales(LocaleList(locale))
-        return createConfigurationContext(configuration)
-    }
-
     companion object {
         internal const val TERMUX_RUN_COMMAND_PERMISSION = "com.termux.permission.RUN_COMMAND"
     }
+}
+
+private fun Context.localizedContext(languageMode: String): Context {
+    val locale = when (AppSettings.normalizeLanguageMode(languageMode)) {
+        AppSettings.LANGUAGE_ZH_CN -> Locale.SIMPLIFIED_CHINESE
+        AppSettings.LANGUAGE_ZH_TW -> Locale.TRADITIONAL_CHINESE
+        AppSettings.LANGUAGE_EN -> Locale.ENGLISH
+        else -> null
+    } ?: return this
+    val configuration = Configuration(resources.configuration)
+    configuration.setLocales(LocaleList(locale))
+    return createConfigurationContext(configuration)
 }
 
 

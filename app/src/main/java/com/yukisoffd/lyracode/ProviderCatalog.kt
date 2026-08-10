@@ -12,7 +12,7 @@ internal data class ProviderPresetPlan(
     val chatPath: String = ApiProfile.DEFAULT_OPENAI_CHAT_PATH,
     val apiFormat: String = ApiProfile.API_FORMAT_OPENAI,
 ) {
-    fun displayName(): String = if (UiTextBridge.isEnglish()) nameEn else nameZh
+    fun displayName(): String = if (AppStrings.isEnglish()) nameEn else nameZh
 
     companion object {
         const val DEFAULT_ID = "default"
@@ -31,7 +31,7 @@ internal data class ProviderPreset(
     val aliases: Set<String> = emptySet(),
     val additionalPlans: List<ProviderPresetPlan> = emptyList(),
 ) {
-    fun displayName(): String = if (UiTextBridge.isEnglish()) nameEn else nameZh
+    fun displayName(): String = if (AppStrings.isEnglish()) nameEn else nameZh
 
     fun plans(): List<ProviderPresetPlan> = listOf(
         ProviderPresetPlan(

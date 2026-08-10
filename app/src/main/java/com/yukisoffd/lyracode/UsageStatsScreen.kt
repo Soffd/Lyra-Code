@@ -622,7 +622,7 @@ private fun StatsProgressBar(fraction: Float) {
 
 private fun formatStatsNumber(value: Long, compact: Boolean): String {
     if (!compact) return NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
-    return if (UiTextBridge.isEnglish()) formatCompactEnglishNumber(value) else formatCompactChineseNumber(value)
+    return if (AppStrings.isEnglish()) formatCompactEnglishNumber(value) else formatCompactChineseNumber(value)
 }
 
 private fun formatCompactEnglishNumber(value: Long): String {
@@ -650,10 +650,10 @@ private fun formatCompactChineseNumber(value: Long): String {
     val absValue = kotlin.math.abs(value)
     if (absValue < 10_000L) return NumberFormat.getIntegerInstance(Locale.getDefault()).format(value)
     val units = listOf(
-        10_000.0 to uiText("万"),
-        100_000_000.0 to uiText("亿"),
-        1_000_000_000_000.0 to uiText("万亿"),
-        10_000_000_000_000_000.0 to uiText("亿亿"),
+        10_000.0 to uiText(R.string.compact_unit_wan),
+        100_000_000.0 to uiText(R.string.compact_unit_yi),
+        1_000_000_000_000.0 to uiText(R.string.compact_unit_wanyi),
+        10_000_000_000_000_000.0 to uiText(R.string.compact_unit_yiyi),
     )
     val (divisor, unit) = units.lastOrNull { absValue >= it.first } ?: units.first()
     val scaled = absValue / divisor

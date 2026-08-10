@@ -95,22 +95,22 @@ internal fun OpenSourceLicensesScreen() {
     var selectedNotice by remember { mutableStateOf<LicenseNotice?>(null) }
     val notices = remember(context) {
         listOf(
-            LicenseNotice("AndroidX Core KTX", "Apache License 2.0", uiText("Android Kotlin 扩展与兼容层。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("AndroidX Activity Compose", "Apache License 2.0", uiText("Compose Activity 集成。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("Jetpack Compose UI", "Apache License 2.0", uiText("声明式 UI 框架。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("Jetpack Compose Material 3", "Apache License 2.0", uiText("Material Design 3 组件。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("Jetpack Compose Material Icons Extended", "Apache License 2.0", uiText("界面图标库。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("AndroidX DocumentFile", "Apache License 2.0", uiText("SAF 工作区文件访问。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("AndroidX Security Crypto", "Apache License 2.0", uiText("本地敏感配置加密存储。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("Kotlinx Coroutines", "Apache License 2.0", uiText("异步任务与流式请求。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("OkHttp", "Apache License 2.0", uiText("HTTP、SSE 兼容读取与 MCP Streamable HTTP 通信。"), LicenseTexts.APACHE_2_0),
+            LicenseNotice("AndroidX Core KTX", "Apache License 2.0", uiText(R.string.ui_android_kotlin_extensions_and_compatibility_layer), LicenseTexts.APACHE_2_0),
+            LicenseNotice("AndroidX Activity Compose", "Apache License 2.0", uiText(R.string.ui_compose_activity_integration), LicenseTexts.APACHE_2_0),
+            LicenseNotice("Jetpack Compose UI", "Apache License 2.0", uiText(R.string.ui_declarative_ui_framework), LicenseTexts.APACHE_2_0),
+            LicenseNotice("Jetpack Compose Material 3", "Apache License 2.0", uiText(R.string.ui_material_design_3_components), LicenseTexts.APACHE_2_0),
+            LicenseNotice("Jetpack Compose Material Icons Extended", "Apache License 2.0", uiText(R.string.ui_ui_icon_library), LicenseTexts.APACHE_2_0),
+            LicenseNotice("AndroidX DocumentFile", "Apache License 2.0", uiText(R.string.ui_saf_workspace_file_access), LicenseTexts.APACHE_2_0),
+            LicenseNotice("AndroidX Security Crypto", "Apache License 2.0", uiText(R.string.ui_local_encrypted_storage_for_sensitive_configuration), LicenseTexts.APACHE_2_0),
+            LicenseNotice("Kotlinx Coroutines", "Apache License 2.0", uiText(R.string.ui_async_tasks_and_streaming_requests), LicenseTexts.APACHE_2_0),
+            LicenseNotice("OkHttp", "Apache License 2.0", uiText(R.string.ui_http_sse_compatible_reading_and_mcp_streamable_http_communication), LicenseTexts.APACHE_2_0),
             LicenseNotice(
                 "Android Mail / Jakarta Mail for Android 1.6.7",
                 "Eclipse Public License 2.0",
-                uiText("为应用提供 IMAP 邮件读取、文件夹与草稿管理，以及 SMTP 邮件发送和 MIME 处理。"),
+                uiText(R.string.ui_provides_imap_message_reading_folder_and_draft_management_smtp),
                 LicenseTexts.EPL_2_0,
             ),
-            LicenseNotice("JetBrains Markdown / RikkaHub Markdown fork", "Apache License 2.0", uiText("Markdown GFM AST 解析，支持表格、列表和数学节点。"), LicenseTexts.APACHE_2_0),
+            LicenseNotice("JetBrains Markdown / RikkaHub Markdown fork", "Apache License 2.0", uiText(R.string.ui_markdown_gfm_ast_parsing_with_tables_lists_and_math), LicenseTexts.APACHE_2_0),
             LicenseNotice(
                 "Sora Editor / language-textmate",
                 "GNU LGPL 2.1 or later",
@@ -123,14 +123,14 @@ internal fun OpenSourceLicensesScreen() {
                 context.getString(R.string.license_textmate_assets_note),
                 LicenseTexts.TEXTMATE_ASSET_NOTICES,
             ),
-            LicenseNotice("Android Gradle Plugin", "Apache License 2.0", uiText("Android 构建工具链。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("Kotlin", "Apache License 2.0", uiText("主要开发语言与编译器。"), LicenseTexts.APACHE_2_0),
-            LicenseNotice("JSch / mwiede fork", "BSD 3-Clause License", uiText("SSH 连接与远程命令执行。"), LicenseTexts.BSD_3_CLAUSE),
-            LicenseNotice("JLatexMath Android / Soffd fork", "GNU General Public License v2.0 with linking exception", uiText("本地 LaTeX 数学公式渲染。源码随工程 third_party/jlatexmath 保留。"), LicenseTexts.JLATEXMATH_GPL_2_WITH_EXCEPTION),
-            LicenseNotice("JLatexMath fonts", "OFL / Knuth / Public Domain / GPL v2", uiText("数学公式渲染字体。完整字体许可随 third_party/jlatexmath/assets 分发。"), LicenseTexts.JLATEXMATH_FONT_LICENSES),
-            LicenseNotice("JSON-java / org.json", "JSON License", uiText("JSON 解析与序列化。"), LicenseTexts.JSON_LICENSE),
-            LicenseNotice("JUnit", "Eclipse Public License 1.0", uiText("单元测试框架，仅测试构建使用。"), LicenseTexts.EPL_1_0),
-            LicenseNotice("Simple Icons", "CC0 1.0 Universal", uiText("关于页面仓库 SVG 图标。"), LicenseTexts.CC0_1_0),
+            LicenseNotice("Android Gradle Plugin", "Apache License 2.0", uiText(R.string.ui_android_build_toolchain), LicenseTexts.APACHE_2_0),
+            LicenseNotice("Kotlin", "Apache License 2.0", uiText(R.string.ui_main_development_language_and_compiler), LicenseTexts.APACHE_2_0),
+            LicenseNotice("JSch / mwiede fork", "BSD 3-Clause License", uiText(R.string.ui_ssh_connections_and_remote_command_execution), LicenseTexts.BSD_3_CLAUSE),
+            LicenseNotice("JLatexMath Android / Soffd fork", "GNU General Public License v2.0 with linking exception", uiText(R.string.ui_local_latex_math_rendering_source_is_kept_under_third), LicenseTexts.JLATEXMATH_GPL_2_WITH_EXCEPTION),
+            LicenseNotice("JLatexMath fonts", "OFL / Knuth / Public Domain / GPL v2", uiText(R.string.ui_math_rendering_fonts_full_font_licenses_are_distributed_under), LicenseTexts.JLATEXMATH_FONT_LICENSES),
+            LicenseNotice("JSON-java / org.json", "JSON License", uiText(R.string.ui_json_parsing_and_serialization), LicenseTexts.JSON_LICENSE),
+            LicenseNotice("JUnit", "Eclipse Public License 1.0", uiText(R.string.ui_unit_test_framework_used_only_for_test_builds), LicenseTexts.EPL_1_0),
+            LicenseNotice("Simple Icons", "CC0 1.0 Universal", uiText(R.string.ui_repository_svg_icons_on_the_about_page), LicenseTexts.CC0_1_0),
         )
     }
     selectedNotice?.let { notice ->
@@ -154,7 +154,7 @@ internal fun OpenSourceLicensesScreen() {
                             Text(notice.license, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelMedium)
                         }
                         IconButton(onClick = { selectedNotice = null }) {
-                            Icon(Icons.Default.Close, contentDescription = uiText("关闭"))
+                            Icon(Icons.Default.Close, contentDescription = uiText(R.string.cd_close))
                         }
                     }
                     KimiDivider()
@@ -180,9 +180,9 @@ internal fun OpenSourceLicensesScreen() {
     ) {
         item {
             KimiCardBox {
-                Text(uiText("开源许可证"), style = MaterialTheme.typography.titleMedium)
+                Text(uiText(R.string.title_licenses), style = MaterialTheme.typography.titleMedium)
                 Text(
-                    uiText("Lyra Code 使用以下开源组件。点击条目可查看内置的原始许可证文本。"),
+                    uiText(R.string.licenses_desc),
                     color = KimiMuted,
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -227,13 +227,13 @@ internal fun AboutSoftwareScreen(
             }
         }.getOrNull()
     }
-    val versionName = packageInfo?.versionName.orEmpty().ifBlank { uiText("未知") }
+    val versionName = packageInfo?.versionName.orEmpty().ifBlank { uiText(R.string.device_battery_unknown) }
     val versionCode = packageInfo?.let {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) it.longVersionCode.toString() else {
             @Suppress("DEPRECATION")
             it.versionCode.toString()
         }
-    } ?: uiText("未知")
+    } ?: uiText(R.string.device_battery_unknown)
     var notice by remember { mutableStateOf("") }
     var checking by remember { mutableStateOf(false) }
     var updateInfo by remember { mutableStateOf<AppUpdateInfo?>(null) }
@@ -246,26 +246,26 @@ internal fun AboutSoftwareScreen(
         pendingApk = apk
         if (apk != null && !updateManager.needsInstallPermission()) {
             runCatching { context.startActivity(updateManager.installIntent(apk)) }
-                .onFailure { notice = it.message.orEmpty().ifBlank { uiText("无法打开安装器") } }
+                .onFailure { notice = it.message.orEmpty().ifBlank { uiText(R.string.notice_cannot_open_installer) } }
         } else if (apk != null) {
-            notice = uiText("授权未完成，可稍后点击继续安装")
+            notice = uiText(R.string.ui_permission_is_not_complete_you_can_tap_continue_installation)
         }
     }
 
     fun openInstaller(apk: File) {
         if (updateManager.needsInstallPermission()) {
-            notice = uiText("请授权安装未知来源应用，返回后将继续安装")
+            notice = uiText(R.string.notice_grant_install_permission)
             installPermissionLauncher.launch(updateManager.installPermissionIntent())
         } else {
             runCatching { context.startActivity(updateManager.installIntent(apk)) }
-                .onFailure { notice = it.message.orEmpty().ifBlank { uiText("无法打开安装器") } }
+                .onFailure { notice = it.message.orEmpty().ifBlank { uiText(R.string.notice_cannot_open_installer) } }
         }
     }
 
     fun checkUpdate() {
         if (checking) return
         checking = true
-        notice = uiText("正在检查更新...")
+        notice = uiText(R.string.action_checking_update)
         scope.launch {
             val result = withContext(Dispatchers.IO) { updateManager.checkForUpdate() }
             checking = false
@@ -274,7 +274,7 @@ internal fun AboutSoftwareScreen(
                     if (info == null) {
                         updateManager.clearLatestAvailableUpdate()
                         onUpdateAvailabilityChange(false)
-                        notice = uiText("当前已是最新版本")
+                        notice = uiText(R.string.ui_you_are_on_the_latest_version)
                     } else {
                         updateManager.saveLatestAvailableUpdate(info)
                         onUpdateAvailabilityChange(true)
@@ -282,7 +282,7 @@ internal fun AboutSoftwareScreen(
                         updateInfo = info
                     }
                 },
-                onFailure = { notice = it.message.orEmpty().ifBlank { uiText("检查更新失败") } },
+                onFailure = { notice = it.message.orEmpty().ifBlank { uiText(R.string.ui_update_check_failed) } },
             )
         }
     }
@@ -305,7 +305,7 @@ internal fun AboutSoftwareScreen(
             onDownload = {
                 if (downloading) return@UpdateDialog
                 downloading = true
-                downloadProgress = UpdateDownloadProgress(status = uiText("准备下载"))
+                downloadProgress = UpdateDownloadProgress(status = uiText(R.string.notice_preparing_download))
                 scope.launch {
                     val result = withContext(Dispatchers.IO) {
                         updateManager.downloadApk(info) { progress -> downloadProgress = progress }
@@ -314,11 +314,11 @@ internal fun AboutSoftwareScreen(
                     result.fold(
                         onSuccess = { apk ->
                             pendingApk = apk
-                            notice = uiText("下载完成，准备安装")
+                            notice = uiText(R.string.notice_download_complete_prepare_install)
                             openInstaller(apk)
                         },
                         onFailure = {
-                            val message = it.message.orEmpty().ifBlank { uiText("下载失败") }
+                            val message = it.message.orEmpty().ifBlank { uiText(R.string.notice_download_failed) }
                             downloadProgress = UpdateDownloadProgress(status = message)
                             notice = message
                         },
@@ -339,7 +339,7 @@ internal fun AboutSoftwareScreen(
             KimiCardBox {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        uiText("面向 Android 的本地 AI Agent 工具，支持多平台模型、流式对话、Termux、工作区文件操作、联网搜索、MCP、Skills、TODO 进度和文件变更审查。"),
+                        uiText(R.string.about_description),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -358,7 +358,7 @@ internal fun AboutSoftwareScreen(
                     KimiMenuRow(
                         Icons.Default.InstallMobile,
                         updateManager.pendingDownloadedApkLabel(),
-                        uiText("已下载 ${formatBytes(apk.length())}，无需重新下载"),
+                        uiText(R.string.label_downloaded_size, formatBytes(apk.length())),
                         onClick = { openInstaller(apk) },
                     )
                 }
@@ -367,8 +367,8 @@ internal fun AboutSoftwareScreen(
                     AboutIconBadge(Icons.Default.NotificationsOff)
                     Spacer(Modifier.width(14.dp))
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        Text(uiText("不弹出更新提示"), style = MaterialTheme.typography.titleSmall)
-                        Text(uiText("关闭进入软件时每日一次的新版本弹窗，不影响手动检测更新。"), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                        Text(uiText(R.string.label_no_update_prompt), style = MaterialTheme.typography.titleSmall)
+                        Text(uiText(R.string.no_update_prompt_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
                     }
                     Switch(
                         checked = updatePromptDisabled,
@@ -379,13 +379,13 @@ internal fun AboutSoftwareScreen(
                     )
                 }
                 KimiDivider()
-                KimiMenuRow(Icons.Default.Apps, uiText("应用 ID"), context.packageName)
+                KimiMenuRow(Icons.Default.Apps, uiText(R.string.label_app_id), context.packageName)
             }
-            KimiSectionLabel(uiText("仓库"))
+            KimiSectionLabel(uiText(R.string.section_repos))
             KimiCardBox {
                 SocialLinkRow(
                     logo = { AboutIconBadge(Icons.Default.Public) },
-                    title = uiText("官网与使用文档"),
+                    title = uiText(R.string.label_website),
                     value = "lyracode.app",
                     onClick = { uriHandler.openUri("https://lyracode.app") },
                 )
@@ -413,11 +413,11 @@ internal fun AboutSoftwareScreen(
                     onClick = onOpenServiceAgreements,
                 )
             }
-            KimiSectionLabel(uiText("构建信息"))
+            KimiSectionLabel(uiText(R.string.section_build_info))
             KimiCardBox {
-                KimiMenuRow(Icons.Default.PhoneAndroid, uiText("手机信息"), "${Build.MANUFACTURER} ${Build.MODEL}", onClick = onOpenDeviceInfo)
+                KimiMenuRow(Icons.Default.PhoneAndroid, uiText(R.string.title_device_info), "${Build.MANUFACTURER} ${Build.MODEL}", onClick = onOpenDeviceInfo)
                 KimiDivider()
-                KimiMenuRow(Icons.Default.CloudDownload, uiText("更新清单"), updateManager.manifestUrl().ifBlank { uiText("未配置") })
+                KimiMenuRow(Icons.Default.CloudDownload, uiText(R.string.menu_update_manifest), updateManager.manifestUrl().ifBlank { uiText(R.string.label_not_configured_or_na) })
             }
         }
         TransientNotice(
@@ -445,10 +445,10 @@ internal fun DeviceInfoScreen() {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Icon(Icons.Default.PhoneAndroid, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                        Text(uiText("手机信息"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(uiText(R.string.title_device_info), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
                     Text(
-                        uiText("用于截图反馈、排查兼容性问题，以及让硬件检查 Agent 分析当前设备环境。部分项目受系统权限和 Android 沙箱限制，可能只能显示近似信息。"),
+                        uiText(R.string.device_info_desc),
                         color = KimiMuted,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -692,7 +692,7 @@ internal fun UpdateDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.SystemUpdate, contentDescription = null) },
-        title = { Text(uiText("发现新版本 ${info.versionName.ifBlank { info.versionCode.toString() }}")) },
+        title = { Text(uiText(R.string.title_new_version, info.versionName.ifBlank { info.versionCode.toString() })) },
         text = {
             Column(
                 Modifier
@@ -702,7 +702,7 @@ internal fun UpdateDialog(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 if (info.mandatory) {
-                    Text(uiText("这是重要更新，建议尽快安装。"), color = MaterialTheme.colorScheme.error)
+                    Text(uiText(R.string.notice_mandatory_update), color = MaterialTheme.colorScheme.error)
                 }
                 RichMarkdownContent(
                     markdown = info.releaseNotes,
@@ -735,15 +735,15 @@ internal fun UpdateDialog(
             Button(onClick = onDownload, enabled = !downloading && info.apkUrl.isNotBlank()) {
                 Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text(if (downloading) uiText("下载中") else uiText("应用内下载"))
+                Text(if (downloading) uiText(R.string.action_downloading) else uiText(R.string.action_download_in_app))
             }
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (info.webUrl.isNotBlank() || info.apkUrl.isNotBlank()) {
-                    TextButton(onClick = onOpenWeb) { Text(uiText("网页下载")) }
+                    TextButton(onClick = onOpenWeb) { Text(uiText(R.string.action_download_web)) }
                 }
-                TextButton(onClick = onDismiss, enabled = !downloading) { Text(uiText("稍后")) }
+                TextButton(onClick = onDismiss, enabled = !downloading) { Text(uiText(R.string.action_later)) }
             }
         },
     )

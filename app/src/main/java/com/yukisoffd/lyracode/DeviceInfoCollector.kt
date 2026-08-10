@@ -275,11 +275,11 @@ object DeviceInfoCollector {
             val stat = StatFs(path.absolutePath)
             val total = stat.blockSizeLong * stat.blockCountLong
             val available = stat.blockSizeLong * stat.availableBlocksLong
-            formatBytes(available) + uiText(" 可用 / ") + formatBytes(total) + uiText(" 总计 · ") + path.absolutePath
-        }.getOrElse { uiText("无法读取：") + path.absolutePath }
+            formatBytes(available) + uiText(R.string.ui_available) + formatBytes(total) + uiText(R.string.ui_total) + path.absolutePath
+        }.getOrElse { uiText(R.string.ui_unable_to_read) + path.absolutePath }
     }
 
-    private fun String?.orUnknown(): String = this?.takeIf { it.isNotBlank() } ?: uiText("未知")
+    private fun String?.orUnknown(): String = this?.takeIf { it.isNotBlank() } ?: uiText(R.string.device_battery_unknown)
 
     private fun String?.cleanCpuValue(): String? {
         return this

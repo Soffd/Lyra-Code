@@ -336,7 +336,7 @@ class ChatController(
         val sourceId = activeConversationId.value.takeIf { it > 0L } ?: return
         if (jobs[sourceId]?.isActive == true) return
         val source = conversationStore.conversation(sourceId) ?: return
-        val title = appContext.getString(R.string.conversation_branch_title, source.title).let(::uiText)
+        val title = appContext.getString(R.string.conversation_branch_title, source.title)
         val branchId = conversationStore.createConversationBranch(sourceId, messageId, title)
         if (branchId <= 0L) return
 
@@ -347,7 +347,7 @@ class ChatController(
         if (sourceId in autoApprovedConversations) autoApprovedConversations += branchId
         reloadConversations()
         selectConversation(branchId)
-        status.value = uiText(appContext.getString(R.string.status_branch_created))
+        status.value = appContext.getString(R.string.status_branch_created)
     }
 
     fun persistWorkspaceForActiveSession(uri: Uri): String {
@@ -638,7 +638,7 @@ class ChatController(
             refreshContextWindowUsage()
             status.value = result.fold(
                 onSuccess = { appContext.getString(R.string.status_history_compressed) },
-                onFailure = { uiText(it.message.orEmpty()).ifBlank { appContext.getString(R.string.error_history_compression_failed) } },
+                onFailure = { it.message.orEmpty().ifBlank { appContext.getString(R.string.error_history_compression_failed) } },
             )
             onDone(result)
         }
@@ -679,7 +679,7 @@ class ChatController(
         }
             .onSuccess { summary -> conversationStore.setCompressedContext(conversationId, summary, throughMessageId) }
             .onFailure { error ->
-                status.value = uiText(error.message.orEmpty()).ifBlank { appContext.getString(R.string.error_history_compression_failed) }
+                status.value = error.message.orEmpty().ifBlank { appContext.getString(R.string.error_history_compression_failed) }
             }
             .exceptionOrNull()
     }
