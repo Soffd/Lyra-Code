@@ -1,0 +1,74 @@
+name: Bug 反馈
+description: 报告可复现的异常、崩溃或行为错误
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢你帮助改进 Lyra Code。提交前请先搜索现有 Issue，避免重复报告。
+
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请清楚、简洁地描述发生了什么，以及你期望的正确行为。
+      placeholder: 实际发生了什么？预期应该怎样？
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 请提供能够稳定复现问题的最小步骤。
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 输入……
+        4. 出现……
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Lyra Code 版本
+      description: 可在“关于软件”页面查看版本号。
+      placeholder: 例如：3.6.0
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: 设备与 Android 版本
+      placeholder: 例如：Pixel 8 / Android 16
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与截图
+      description: 请粘贴相关日志或拖入截图。提交前务必移除 API Key、令牌、邮箱、服务器地址等敏感信息。
+      render: shell
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: 补充信息
+      description: 可提供问题出现频率、最近的配置变更或其他相关信息。
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: 提交前确认
+      options:
+        - label: 我已搜索现有 Issue，确认没有相同或高度相似的报告。
+          required: true
+        - label: 我已移除日志和截图中的账号、密钥、令牌等敏感信息。
+          required: true
+        - label: 我提供的信息足以让维护者理解并尝试复现该问题。
+          required: true

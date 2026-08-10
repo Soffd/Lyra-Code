@@ -174,7 +174,7 @@ Lyra Code may handle API keys, SSH passwords/private keys, MCP tokens, email pas
 
 ## PR Notice
 
-This project does not accept external pull requests. If you have feedback or suggestions, please submit an issue. If you need long-term modifications, fork this repository for independent maintenance or contact the repository owner.
+We accept pull requests from members of the organization. If you would like to contribute, please contact the administrator to try joining the organization. Contributions are welcome, including code generated or assisted by AI. Regardless of how the code was produced, contributors must perform the necessary hands-on testing and human review before submission and remain responsible for the result. Code does not have to be elegant or flawless, and minor imperfections are acceptable, but it must not break existing functionality, introduce serious bugs, or create obvious security, stability, or data risks. Please describe the test scope and results in the PR.
 
 ## License
 
