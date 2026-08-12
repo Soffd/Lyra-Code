@@ -18,7 +18,7 @@
   <img alt="Version" src="https://img.shields.io/badge/version-3.6.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
-  <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
+  <img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-orange" />
   <img alt="MCP" src="https://img.shields.io/badge/MCP-Client%20%2F%20Server-purple" />
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
@@ -178,6 +178,6 @@ Lyra Code 会处理 API Key、SSH 密码/私钥、MCP Token、邮箱密码/应�
 
 ## 许可证
 
-本项目采用双重许可：Lyra Code 原创源代码可在 AGPLv3-or-later 下使用；如果需要闭源分发、私有修改、商业例外或不希望遵守 AGPL copyleft 义务，需要获取商业许可证。第三方组件仍以其各自许可证为准。
+Lyra Code 原创源代码仅依据 GNU Affero General Public License version 3（`AGPL-3.0`）开源。第三方组件仍以其各自许可证为准。
 
 详见 [LICENSE](LICENSE) 和 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
