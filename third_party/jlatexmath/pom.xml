@@ -15,16 +15,11 @@
     </properties>
 
     <dependencies>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>jlatexmath-font-greek</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>${project.parent.groupId}</groupId>
-            <artifactId>jlatexmath-font-cyrillic</artifactId>
-            <version>${project.parent.version}</version>
-        </dependency>
+        <!--
+          Optional upstream language-font modules are intentionally excluded.
+          In particular, jlatexmath-font-greek contains GPL-2.0-only fonts,
+          which must not be distributed in Lyra Code's AGPL-3.0 build.
+        -->
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
