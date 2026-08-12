@@ -35,4 +35,4 @@ This document summarizes the main third-party components used by Lyra Code. It i
 
 - Apache License 2.0 dependencies can generally be combined into GPLv3/AGPLv3 works, but keep required notices and license texts.
 - The local JLaTeXMath module is the main copyleft-sensitive component. Its local `LICENSE` says it is GPL v2 or later and includes a special linking exception for independent modules. If you modify that library, preserve its license terms and review whether the exception still applies.
-- Commercial licensing of Lyra Code original code does not relicense third-party components. Commercial distributors must still comply with third-party licenses or replace those components with separately licensed alternatives.
+- Lyra Code original code is licensed only under AGPL-3.0. Distributors must also comply with all applicable third-party licenses or replace those components with separately licensed alternatives.

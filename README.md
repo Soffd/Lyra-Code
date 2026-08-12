@@ -18,7 +18,7 @@
   <img alt="Version" src="https://img.shields.io/badge/version-3.6.0-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
   <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
-  <img alt="License" src="https://img.shields.io/badge/license-Dual%20License%20%2F%20AGPLv3-orange" />
+  <img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-orange" />
   <img alt="MCP" src="https://img.shields.io/badge/MCP-Client%20%2F%20Server-purple" />
   <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
@@ -178,6 +178,6 @@ We accept pull requests from members of the organization. If you would like to c
 
 ## License
 
-This project uses a dual-license model. The original Lyra Code source code is available under AGPLv3-or-later. A commercial license is required for closed-source distribution, private modifications, commercial exceptions, or use cases where you do not want to comply with AGPL copyleft obligations. Third-party components remain governed by their own licenses.
+Original Lyra Code source code is licensed exclusively under the GNU Affero General Public License version 3 (`AGPL-3.0`). Third-party components remain governed by their own licenses.
 
 See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
