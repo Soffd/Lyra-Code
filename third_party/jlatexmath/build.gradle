@@ -2,6 +2,36 @@ plugins {
     id 'com.android.library'
 }
 
+def incompatibleGreekFonts = [
+    'jlm_fcmbipg.ttf',
+    'jlm_fcmripg.ttf',
+    'jlm_fcmrpg.ttf',
+    'jlm_fcsropg.ttf',
+    'jlm_fcmbpg.ttf',
+    'jlm_fcsbpg.ttf',
+    'jlm_fctrpg.ttf',
+    'jlm_fcsrpg.ttf',
+] as Set
+
+def verifyAgplCompatibleFonts = tasks.register('verifyAgplCompatibleFonts') {
+    group = 'verification'
+    description = 'Fails if GPL-2.0-only JLaTeXMath Greek fonts are included.'
+    inputs.files(fileTree('src/main/assets') { include '**/*.ttf' })
+    doLast {
+        def bundledNames = fileTree('src/main/assets') {
+            include '**/*.ttf'
+        }.files.collect { it.name } as Set
+        def forbidden = bundledNames.intersect(incompatibleGreekFonts)
+        if (!forbidden.isEmpty()) {
+            throw new GradleException(
+                "GPL-2.0-only JLaTeXMath Greek fonts are incompatible with " +
+                "Lyra Code's AGPL-3.0-only distribution and must not be bundled: " +
+                forbidden.sort().join(', ')
+            )
+        }
+    }
+}
+
 android {
     namespace 'ru.noties.jlatexmath.android'
     compileSdk 36
@@ -19,4 +49,10 @@ android {
 
 dependencies {
     implementation 'androidx.annotation:annotation:1.9.1'
+}
+
+tasks.configureEach { task ->
+    if (task.name == 'preBuild') {
+        task.dependsOn(verifyAgplCompatibleFonts)
+    }
 }

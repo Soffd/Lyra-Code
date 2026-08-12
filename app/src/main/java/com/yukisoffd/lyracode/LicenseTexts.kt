@@ -151,7 +151,7 @@ The laws of most jurisdictions throughout the world automatically confer exclusi
 
 This is the CC0 1.0 Universal public domain dedication text summarized for in-app display. The canonical legal code is published by Creative Commons."""
 
-    const val JLATEXMATH_GPL_2_WITH_EXCEPTION = """JLaTeXMath Library - Displays LaTeX commands
+    const val JLATEXMATH_GPL_WITH_EXCEPTION = """JLaTeXMath Library - Displays LaTeX commands
 JLateXMath is an fork of JMathTeX with a lot of modifications to support many more LaTeX commands, drop of the jdom dependency and easy evolution capabilities.
 
 Copyright (C) 2009-2011 DENIZET Calixte
@@ -161,6 +161,8 @@ Copyright (C) Kurt Vermeulen
 Copyright 2004-2007 Universiteit Gent
 
 This program is free software; you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation; either version 2 of the License, or (at your option) any later version.
+
+Lyra Code exercises the "any later version" option and distributes this library under GNU GPL version 3 when combining it with the AGPL-v3 application. The complete GPLv3 text is bundled at org/scilab/forge/jlatexmath/licences/GPL-3.0.txt.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
 
@@ -217,8 +219,8 @@ The archive contains several fonts:
 2) dsrom10.ttf is under a free license.
 3) stmary10.ttf and rsfs10.ttf are in the Public Domain.
 4) cmbsy10.ttf, cmbx10.ttf, cmbxti10.ttf, cmex10.ttf, cmmi10.ttf, cmr10.ttf, cmss10.ttf, cmssbx10.ttf, cmsy10.ttf and cmtt10.ttf are under the Knuth License.
-5) Greek fonts fcmbipg.ttf, fcmripg.ttf, fcmrpg.ttf, fcsropg.ttf, fcmbpg.ttf, fcsbpg.ttf, fctrpg.ttf and fcsrpg.ttf are under GNU GPL version 2.
-6) Cyrillic fonts wnbx10.ttf, wnss10.ttf, wnti10.ttf, wnr10.ttf, wnssi10.ttf, wnbxti10.ttf, wnssbx10.ttf and wntt10.ttf are under the Knuth License.
+5) The optional upstream Greek font module is not included. Its GPL-2.0-only fonts are intentionally excluded from Lyra Code builds.
+6) The optional upstream Cyrillic font module is not included.
 
 The original font license files are bundled in:
 org/scilab/forge/jlatexmath/fonts/licences/

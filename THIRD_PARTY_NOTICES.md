@@ -21,7 +21,8 @@ This document summarizes the main third-party components used by Lyra Code. It i
 | JetBrains Markdown / RikkaHub fork | Apache License 2.0 | Markdown parser/rendering support. |
 | Sora Editor (`io.github.rosemoe:editor`, `language-textmate`) | GNU LGPL 2.1 or later | Android code editor, line numbers, search, wrapping, and TextMate integration. Preserve the LGPL notice and allow replacement/relinking of the library as required by the license. |
 | Sora Editor demo TextMate themes and language bundles | Upstream component licenses, primarily MIT-style; distributed by the Sora Editor project | Syntax/theme assets for Java, Kotlin, Python, JavaScript, HTML, XML, Markdown, and Lua were copied from the official Sora Editor demo assets. Retain upstream notices when redistributing source assets. |
-| JLaTeXMath Android / local fork | GPL v2 or later with a special linking exception; bundled fonts have separate licenses | LaTeX rendering. Keep `third_party/jlatexmath/LICENSE`, `COPYING`, and font licenses with source distributions. |
+| JLaTeXMath Android / local fork | GPL v2 or later with a special linking exception; distributed under GPL v3 for this combination | LaTeX rendering. Its independent-module linking exception and GPL v2-or-later grant permit combination with Lyra Code under AGPL v3. Keep `third_party/jlatexmath/LICENSE`, `COPYING`, `src/main/assets/org/scilab/forge/jlatexmath/licences/GPL-3.0.txt`, and the font licenses with distributions. |
+| Bundled JLaTeXMath core fonts | SIL OFL 1.1, Knuth/Computer Modern terms, permissive terms, or Public Domain, depending on the font | The optional upstream `jlatexmath-font-greek` module and its GPL-2.0-only fonts are excluded from this repository and every build. See `third_party/jlatexmath/LICENSE` and `third_party/jlatexmath/src/main/assets/org/scilab/forge/jlatexmath/fonts/licences/`. |
 
 ## Test-Only Dependencies
 
@@ -34,5 +35,6 @@ This document summarizes the main third-party components used by Lyra Code. It i
 ## Compliance Notes
 
 - Apache License 2.0 dependencies can generally be combined into GPLv3/AGPLv3 works, but keep required notices and license texts.
-- The local JLaTeXMath module is the main copyleft-sensitive component. Its local `LICENSE` says it is GPL v2 or later and includes a special linking exception for independent modules. If you modify that library, preserve its license terms and review whether the exception still applies.
+- The local JLaTeXMath module is the main copyleft-sensitive component. Its local `LICENSE` says GPL v2 or later and includes a special linking exception for independent modules; Lyra Code distributes the library under GPL v3 when combining it with the AGPL-v3 application. Preserve the upstream notices and exception when modifying it.
+- Do not add the optional upstream `jlatexmath-font-greek` module or any of `jlm_fcmbipg.ttf`, `jlm_fcmripg.ttf`, `jlm_fcmrpg.ttf`, `jlm_fcsropg.ttf`, `jlm_fcmbpg.ttf`, `jlm_fcsbpg.ttf`, `jlm_fctrpg.ttf`, or `jlm_fcsrpg.ttf`. Those fonts are GPL-2.0-only and are rejected by the JLaTeXMath pre-build verification task.
 - Lyra Code original code is licensed only under AGPL-3.0. Distributors must also comply with all applicable third-party licenses or replace those components with separately licensed alternatives.
