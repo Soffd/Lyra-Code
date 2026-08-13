@@ -29,6 +29,14 @@ class AppSettings(context: Context) {
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
+    /** App-private OpenSSH known_hosts file used by both exec and interactive SSH. */
+    fun sshKnownHostsFile(): File {
+        val directory = File(appContext.filesDir, "ssh").also { it.mkdirs() }
+        return File(directory, "known_hosts").also { file ->
+            if (!file.exists()) file.createNewFile()
+        }
+    }
+
     init {
         cleanupRetiredConversationModeData()
     }

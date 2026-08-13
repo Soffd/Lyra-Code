@@ -3,6 +3,21 @@
 
     <!-- ==================== AppShell.kt ==================== -->
     <string name="nav_tab_ai_chat">AI 對話</string>
+    <string name="nav_tab_terminal">SSH 終端</string>
+    <string name="ssh_terminal_no_servers">沒有可用的 SSH 伺服器</string>
+    <string name="ssh_terminal_address_hidden">位址已隱藏，防止截圖洩露</string>
+    <string name="ssh_terminal_select_server">選擇伺服器</string>
+    <string name="ssh_terminal_connect">連線</string>
+    <string name="ssh_terminal_disconnect">中斷</string>
+    <string name="ssh_terminal_idle">選擇伺服器後建立長時連線</string>
+    <string name="ssh_terminal_connecting">正在建立安全連線…</string>
+    <string name="ssh_terminal_connected">已安全連線</string>
+    <string name="ssh_terminal_reconnecting">連線中斷，正在進行第 %1$d 次重新連線…</string>
+    <string name="ssh_terminal_disconnected">已中斷</string>
+    <string name="ssh_terminal_host_key_changed">伺服器主機金鑰已變更，為保障安全已拒絕連線</string>
+    <string name="ssh_terminal_auth_failed">身分驗證失敗，請檢查使用者名稱和憑證</string>
+    <string name="ssh_terminal_timeout">連線逾時，請檢查伺服器和網路</string>
+    <string name="ssh_terminal_connection_failed">SSH 連線失敗，請點選連線重試</string>
     <string name="nav_tab_log">日誌</string>
     <string name="nav_tab_statistics">統計</string>
     <string name="nav_tab_tasks">任務</string>

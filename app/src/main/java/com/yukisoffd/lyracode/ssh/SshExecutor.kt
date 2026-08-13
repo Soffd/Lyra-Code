@@ -2,6 +2,8 @@ package com.yukisoffd.lyracode.ssh
 
 import com.jcraft.jsch.ChannelExec
 import com.jcraft.jsch.JSch
+import com.jcraft.jsch.UIKeyboardInteractive
+import com.jcraft.jsch.UserInfo
 import com.jcraft.jsch.Session
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.SshServerConfig
@@ -66,8 +68,9 @@ class SshExecutor(private val settings: AppSettings) {
         }
     }
 
-    private fun createSession(server: SshServerConfig): Session {
+    internal fun createSession(server: SshServerConfig): Session {
         val jsch = JSch()
+        jsch.setKnownHosts(settings.sshKnownHostsFile().absolutePath)
         if (server.authType == AppSettings.SSH_AUTH_KEY) {
             val key = server.privateKey.trim()
             require(key.isNotBlank()) { "SSH 私钥为空" }
@@ -78,12 +81,18 @@ class SshExecutor(private val settings: AppSettings) {
         if (server.authType == AppSettings.SSH_AUTH_PASSWORD) {
             session.setPassword(server.password)
         }
+        session.userInfo = SshUserInfo(server.password)
         session.setConfig(
             Properties().apply {
-                put("StrictHostKeyChecking", "no")
+                // Trust on first use. The key is persisted in app-private storage; a changed
+                // key is never accepted silently, protecting later connections from MITM.
+                put("StrictHostKeyChecking", "ask")
+                put("HashKnownHosts", "yes")
                 put("PreferredAuthentications", if (server.authType == AppSettings.SSH_AUTH_KEY) "publickey" else "password,keyboard-interactive")
             },
         )
+        session.setServerAliveInterval(30_000)
+        session.setServerAliveCountMax(6)
         return session
     }
 
@@ -160,5 +169,32 @@ class SshExecutor(private val settings: AppSettings) {
 
     companion object {
         private const val MAX_OUTPUT_CHARS = 120_000
+    }
+}
+
+private class SshUserInfo(private val password: String) : UserInfo, UIKeyboardInteractive {
+    override fun getPassword(): String = password
+    override fun getPassphrase(): String? = null
+    override fun promptPassword(message: String?): Boolean = password.isNotEmpty()
+    override fun promptPassphrase(message: String?): Boolean = false
+
+    override fun promptYesNo(message: String?): Boolean {
+        // JSch asks once for an unknown key and separately when a stored key changed.
+        // Only the former is accepted (TOFU); changed/revoked keys remain hard failures.
+        return message.orEmpty().contains("can't be established", ignoreCase = true)
+    }
+
+    override fun showMessage(message: String?) = Unit
+
+    override fun promptKeyboardInteractive(
+        destination: String?,
+        name: String?,
+        instruction: String?,
+        prompt: Array<out String>?,
+        echo: BooleanArray?,
+    ): Array<String>? = if (password.isNotEmpty()) {
+        Array(prompt?.size ?: 0) { password }
+    } else {
+        null
     }
 }

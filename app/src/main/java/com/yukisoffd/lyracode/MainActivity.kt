@@ -187,6 +187,7 @@ import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
 import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
 import com.yukisoffd.lyracode.ssh.SshExecutor
+import com.yukisoffd.lyracode.ssh.SshTerminalSessionManager
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.tasks.DownloadTaskManager
 import com.yukisoffd.lyracode.tasks.ScheduledTaskManager
@@ -218,6 +219,7 @@ class MainActivity : ComponentActivity() {
     private var controller: ChatController? = null
     private var miniServerManager: MiniServerManager? = null
     private var localMcpServerManager: LocalMcpServerManager? = null
+    private var sshTerminalSessionManager: SshTerminalSessionManager? = null
 
     override fun attachBaseContext(newBase: Context) {
         val languageMode = AppSettings(newBase).languageMode
@@ -247,6 +249,8 @@ class MainActivity : ComponentActivity() {
         val responseCache = AiResponseCache(cacheDir)
         val mcpClientManager = McpClientManager(this, settings)
         val sshExecutor = SshExecutor(settings)
+        val sshTerminalSessionManager = SshTerminalSessionManager(sshExecutor)
+        this.sshTerminalSessionManager = sshTerminalSessionManager
         val systemCommandExecutor = SystemCommandExecutor(this, settings)
         val webDavClient = WebDavClient()
         val fileTransferClient = FileTransferClient(this)
@@ -328,6 +332,7 @@ class MainActivity : ComponentActivity() {
                         termuxExecutor = termuxExecutor,
                         mcpClientManager = mcpClientManager,
                         sshExecutor = sshExecutor,
+                        sshTerminalSessionManager = sshTerminalSessionManager,
                         systemCommandExecutor = systemCommandExecutor,
                         webDavClient = webDavClient,
                         fileTransferClient = fileTransferClient,
@@ -387,6 +392,7 @@ class MainActivity : ComponentActivity() {
         controller?.close()
         miniServerManager?.close()
         localMcpServerManager?.close()
+        sshTerminalSessionManager?.close()
         if (isFinishing) {
             AppSettings(this).clearChatInputDrafts()
         }

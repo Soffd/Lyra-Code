@@ -79,6 +79,7 @@ import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
 import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
 import com.yukisoffd.lyracode.ssh.SshExecutor
+import com.yukisoffd.lyracode.ssh.SshTerminalSessionManager
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.tasks.DownloadTaskManager
 import com.yukisoffd.lyracode.tasks.ScheduledTaskManager
@@ -94,11 +95,12 @@ import java.net.URL
 
 private const val PAGE_CHAT = 0
 private const val PAGE_FILES = 1
-private const val PAGE_LOG = 2
-private const val PAGE_STATS = 3
-private const val PAGE_TASKS = 4
-private const val PAGE_ARCHIVE = 5
-private const val PAGE_SETTINGS = 6
+private const val PAGE_TERMINAL = 2
+private const val PAGE_LOG = 3
+private const val PAGE_STATS = 4
+private const val PAGE_TASKS = 5
+private const val PAGE_ARCHIVE = 6
+private const val PAGE_SETTINGS = 7
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
@@ -109,6 +111,7 @@ internal fun LyraCodeApp(
     termuxExecutor: TermuxExecutor,
     mcpClientManager: McpClientManager,
     sshExecutor: SshExecutor,
+    sshTerminalSessionManager: SshTerminalSessionManager,
     systemCommandExecutor: SystemCommandExecutor,
     webDavClient: WebDavClient,
     fileTransferClient: FileTransferClient,
@@ -137,6 +140,7 @@ internal fun LyraCodeApp(
     val pages = listOf(
         context.getString(R.string.nav_tab_ai_chat),
         context.getString(R.string.nav_tab_files),
+        context.getString(R.string.nav_tab_terminal),
         context.getString(R.string.nav_tab_log),
         context.getString(R.string.nav_tab_statistics),
         context.getString(R.string.nav_tab_tasks),
@@ -577,6 +581,10 @@ internal fun LyraCodeApp(
                             settings = settings,
                             termuxExecutor = termuxExecutor,
                             onExit = { selectedPage = PAGE_CHAT },
+                        )
+                        PAGE_TERMINAL -> SshTerminalScreen(
+                            settings = settings,
+                            sessionManager = sshTerminalSessionManager,
                         )
                         PAGE_LOG -> LogScreen(auditLogStore)
                         PAGE_STATS -> UsageStatsScreen(

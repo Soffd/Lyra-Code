@@ -638,13 +638,12 @@ private fun NewProjectButton(onClick: () -> Unit) {
 private fun functionPageIcon(index: Int): ImageVector = when (index) {
     0 -> Icons.Default.ChatBubble
     1 -> Icons.Default.FolderOpen
-    2 -> Icons.Default.ReceiptLong
-    3 -> Icons.Default.BarChart
-    4 -> Icons.Default.TaskAlt
-    5 -> Icons.Default.Inventory2
-    6 -> Icons.Default.Settings
-    7 -> Icons.Default.School
-    8 -> Icons.Default.Description
+    2 -> Icons.Default.Terminal
+    3 -> Icons.Default.ReceiptLong
+    4 -> Icons.Default.BarChart
+    5 -> Icons.Default.TaskAlt
+    6 -> Icons.Default.Inventory2
+    7 -> Icons.Default.Settings
     else -> Icons.Default.Info
 }
 
