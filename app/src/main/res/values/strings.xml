@@ -3,6 +3,21 @@
 
     <!-- AppShell.kt -->
     <string name="nav_tab_ai_chat">Chat</string>
+    <string name="nav_tab_terminal">Terminal</string>
+    <string name="ssh_terminal_no_servers">No available SSH servers</string>
+    <string name="ssh_terminal_address_hidden">Address hidden for privacy</string>
+    <string name="ssh_terminal_select_server">Select server</string>
+    <string name="ssh_terminal_connect">Connect</string>
+    <string name="ssh_terminal_disconnect">Disconnect</string>
+    <string name="ssh_terminal_idle">Select a server to start a persistent connection</string>
+    <string name="ssh_terminal_connecting">Establishing a secure connection…</string>
+    <string name="ssh_terminal_connected">Securely connected</string>
+    <string name="ssh_terminal_reconnecting">Connection interrupted, reconnect attempt %1$d…</string>
+    <string name="ssh_terminal_disconnected">Disconnected</string>
+    <string name="ssh_terminal_host_key_changed">Host key changed; connection rejected for your security</string>
+    <string name="ssh_terminal_auth_failed">Authentication failed; check the username and credentials</string>
+    <string name="ssh_terminal_timeout">Connection timed out; check the server and network</string>
+    <string name="ssh_terminal_connection_failed">SSH connection failed; tap Connect to retry</string>
     <string name="nav_tab_log">Logs</string>
     <string name="nav_tab_statistics">Statistics</string>
     <string name="nav_tab_tasks">Tasks</string>
