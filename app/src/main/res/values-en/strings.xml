@@ -1207,7 +1207,7 @@
     <string name="no_update_prompt_desc">No Update Prompt Desc</string>
     <string name="label_app_id">App ID</string>
     <string name="section_repos">Repository</string>
-    <string name="label_website">Official website and documentation</string>
+    <string name="label_website">Official website</string>
     <string name="section_build_info">Section Build Info</string>
     <string name="menu_device_info">Device info</string>
     <string name="menu_update_manifest">Menu Update Manifest</string>

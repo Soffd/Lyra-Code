@@ -1284,7 +1284,7 @@
     <string name="no_update_prompt_desc">关闭进入软件时每日一次的新版本弹窗，不影响手动检测更新。</string>
     <string name="label_app_id">应用 ID</string>
     <string name="section_repos">仓库</string>
-    <string name="label_website">官网与使用文档</string>
+    <string name="label_website">官网</string>
     <string name="section_build_info">构建信息</string>
     <string name="menu_device_info">手机信息</string>
     <string name="menu_update_manifest">更新清单</string>

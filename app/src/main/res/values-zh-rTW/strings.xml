@@ -1284,7 +1284,7 @@
     <string name="no_update_prompt_desc">關閉進入軟體時每日一次的新版本彈窗，不影響手動檢測更新。</string>
     <string name="label_app_id">應用 ID</string>
     <string name="section_repos">倉庫</string>
-    <string name="label_website">官網與使用文件</string>
+    <string name="label_website">官網</string>
     <string name="section_build_info">構建資訊</string>
     <string name="menu_device_info">手機資訊</string>
     <string name="menu_update_manifest">更新清單</string>
