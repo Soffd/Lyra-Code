@@ -475,7 +475,7 @@ internal class AgentToolSchemaFactory(
                 }
         }
         val disabled = settings.disabledTools()
-        return JSONArray().apply {
+        val visible = JSONArray().apply {
             for (index in 0 until definitions.length()) {
                 val item = definitions.getJSONObject(index)
                 val name = item.optJSONObject("function")?.optString("name").orEmpty()
@@ -484,6 +484,7 @@ internal class AgentToolSchemaFactory(
                 }
             }
         }
+        return canonicalToolDefinitions(visible)
     }
 
     fun anthropicTools(
