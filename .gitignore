@@ -75,3 +75,8 @@ desktop.ini
 /temp/
 aisvg/
 llm.txt
+# VitePress docs
+docs/node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
+*.bak
