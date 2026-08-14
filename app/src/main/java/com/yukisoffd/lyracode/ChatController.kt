@@ -16,6 +16,7 @@ import com.yukisoffd.lyracode.ai.OpenAiAgent
 import com.yukisoffd.lyracode.ai.ModelReachabilityResult
 import com.yukisoffd.lyracode.ai.ProviderReachabilityReport
 import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
+import com.yukisoffd.lyracode.ai.RUNTIME_CONTEXT_ROLE
 import com.yukisoffd.lyracode.ai.ToolApprovalDecision
 import com.yukisoffd.lyracode.ai.ToolApprovalRequest
 import com.yukisoffd.lyracode.ai.TodoItem
@@ -1094,7 +1095,11 @@ class ChatController(
         _messages.value = if (id <= 0) {
             emptyList()
         } else {
-            enrichToolRecords(conversationStore.messages(id).map { it.toRecord() })
+            enrichToolRecords(
+                conversationStore.messages(id)
+                    .filterNot { it.role == RUNTIME_CONTEXT_ROLE }
+                    .map { it.toRecord() },
+            )
         }
         lastMessageReloadAt = System.currentTimeMillis()
     }
