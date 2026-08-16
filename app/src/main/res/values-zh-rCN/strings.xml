@@ -1834,6 +1834,7 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="ui_sent">已发送</string>
     <string name="ui_generating">输出中</string>
     <string name="ui_cache_hit">缓存命中</string>
+    <string name="deepseek_cache_hit_rate">%1$.1f%%</string>
     <string name="ui_model_completed">模型完成</string>
     <string name="ui_tool_complete">工具完成：</string>
     <string name="ui_request_interrupted_after_1_s_automatic_retries_this_turn">请求中断：已自动重试 %1$s 次，仍无法继续。已保留本轮已输出的思维链和正文；可切换模型，或待 API 恢复后继续任务。</string>

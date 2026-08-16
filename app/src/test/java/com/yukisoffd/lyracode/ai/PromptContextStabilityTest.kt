@@ -47,11 +47,38 @@ class PromptContextStabilityTest {
         )
     }
 
+    @Test
+    fun `local request errors are excluded from model history`() {
+        val marked = message(
+            id = 1L,
+            role = "assistant",
+            content = "请求中断：AI 请求失败 400",
+            rawJson = JSONObject()
+                .put("role", "assistant")
+                .put("content", "请求中断：AI 请求失败 400")
+                .put(LOCAL_REQUEST_ERROR_KEY, true)
+                .toString(),
+        )
+        val legacy = message(2L, "assistant", "Request interrupted: AI request failed 400")
+        val legacyPlaceholder = message(4L, "assistant", "")
+        val actualModelOutput = message(
+            id = 3L,
+            role = "assistant",
+            content = "Request interrupted is the phrase shown by the app.",
+            rawJson = JSONObject().put("role", "assistant").put("content", "real output").toString(),
+        )
+
+        assertTrue(marked.isLocalRequestErrorMessage())
+        assertTrue(legacy.isLocalRequestErrorMessage())
+        assertTrue(legacyPlaceholder.isEmptyAssistantPlaceholder())
+        assertFalse(actualModelOutput.isLocalRequestErrorMessage())
+    }
+
     private fun tool(name: String): JSONObject = JSONObject()
         .put("type", "function")
         .put("function", JSONObject().put("name", name).put("parameters", JSONObject()))
 
-    private fun message(id: Long, role: String, content: String): ChatMessage = ChatMessage(
+    private fun message(id: Long, role: String, content: String, rawJson: String? = null): ChatMessage = ChatMessage(
         id = id,
         conversationId = 1L,
         role = role,
@@ -60,7 +87,7 @@ class PromptContextStabilityTest {
         profileId = "profile",
         model = "model",
         toolCallId = null,
-        rawJson = null,
+        rawJson = rawJson,
         createdAt = id,
     )
 }

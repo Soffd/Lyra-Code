@@ -60,4 +60,25 @@ class ChatRenderItemsTest {
         assertEquals("plan two", items[4].process.single().thinking)
         assertEquals("intermediate two", items[5].message?.content)
     }
+
+    @Test
+    fun `keeps completed history collapsed while latest turn is streaming`() {
+        val messages = listOf(
+            ChatRecord(id = 1L, role = "user", content = "first request", createdAt = 1_000L),
+            ChatRecord(id = 2L, role = "assistant", content = "intermediate", thinking = "plan", createdAt = 2_000L),
+            ChatRecord(id = 3L, role = "tool", content = "tool result", createdAt = 3_000L),
+            ChatRecord(id = 4L, role = "assistant", content = "first answer", createdAt = 4_000L),
+            ChatRecord(id = 5L, role = "user", content = "second request", createdAt = 5_000L),
+            ChatRecord(id = 6L, role = "assistant", content = "streaming answer", thinking = "working", createdAt = 6_000L),
+        )
+
+        val items = chatRenderItems(messages, isStreaming = true)
+
+        assertEquals(
+            listOf("message-1", "process-2", "message-4", "message-5", "process-6", "message-6"),
+            items.map { it.key },
+        )
+        assertEquals(listOf(2L, 3L), items[1].process.map { it.id })
+        assertEquals("working", items[4].process.single().thinking)
+    }
 }

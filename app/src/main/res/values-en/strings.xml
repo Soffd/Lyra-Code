@@ -1751,6 +1751,7 @@ Revocation stops new access through that permission but does not automatically e
     <string name="ui_sent">Sent</string>
     <string name="ui_generating">Generating</string>
     <string name="ui_cache_hit">Cache hit</string>
+    <string name="deepseek_cache_hit_rate">%1$.1f%%</string>
     <string name="ui_model_completed">Model completed</string>
     <string name="ui_tool_complete">Tool complete: </string>
     <string name="ui_request_interrupted_after_1_s_automatic_retries_this_turn">Request interrupted after %1$s automatic retries. This turn\'s reasoning and response have been preserved; switch models or continue the task after the API recovers.</string>

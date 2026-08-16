@@ -7,11 +7,44 @@ import org.json.JSONObject
 
 internal const val RESPONSES_REPLAY_ITEMS_KEY = "_lyra_responses_replay_items"
 
+internal fun isDeepSeekApiProfile(profile: ApiProfile): Boolean {
+    return profile.presetId == "deepseek" || ProviderCatalog.match(profile)?.id == "deepseek"
+}
+
 /** DeepSeek's built-in web search is a server-side Responses API tool, not Lyra's web_search function. */
 internal fun supportsDeepSeekNativeWebSearch(profile: ApiProfile): Boolean {
     return profile.useResponsesApi &&
         profile.apiFormat == ApiProfile.API_FORMAT_OPENAI &&
-        (profile.presetId == "deepseek" || ProviderCatalog.match(profile)?.id == "deepseek")
+        isDeepSeekApiProfile(profile)
+}
+
+/** Returns a percentage in [0, 100] when DeepSeek cache usage is present. */
+internal fun deepSeekCacheHitRate(usage: JSONObject?): Double? {
+    usage ?: return null
+    if (usage.has("prompt_cache_hit_tokens") && usage.has("prompt_cache_miss_tokens")) {
+        val hit = usage.optLong("prompt_cache_hit_tokens", -1L)
+        val miss = usage.optLong("prompt_cache_miss_tokens", -1L)
+        if (hit < 0L || miss < 0L) return null
+        val total = hit + miss
+        return if (total > 0L) (hit.toDouble() / total.toDouble() * 100.0).coerceIn(0.0, 100.0) else 0.0
+    }
+
+    val inputTokens = when {
+        usage.has("prompt_tokens") -> usage.optLong("prompt_tokens", -1L)
+        usage.has("input_tokens") -> usage.optLong("input_tokens", -1L)
+        else -> -1L
+    }
+    val cachedTokens = usage.optJSONObject("prompt_tokens_details")?.optLong("cached_tokens", -1L)
+        ?.takeIf { it >= 0L }
+        ?: usage.optJSONObject("input_tokens_details")?.optLong("cached_tokens", -1L)
+            ?.takeIf { it >= 0L }
+        ?: return null
+    if (inputTokens < 0L) return null
+    return if (inputTokens > 0L) {
+        (cachedTokens.toDouble() / inputTokens.toDouble() * 100.0).coerceIn(0.0, 100.0)
+    } else {
+        0.0
+    }
 }
 
 internal fun buildResponsesToolDefinitions(chatTools: JSONArray, includeDeepSeekWebSearch: Boolean): JSONArray {

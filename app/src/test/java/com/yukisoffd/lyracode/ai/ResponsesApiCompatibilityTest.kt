@@ -145,6 +145,25 @@ class ResponsesApiCompatibilityTest {
         )
     }
 
+    @Test
+    fun deepSeekCacheRateUsesHitAndMissInputTokens() {
+        val usage = JSONObject()
+            .put("prompt_cache_hit_tokens", 750)
+            .put("prompt_cache_miss_tokens", 250)
+
+        assertEquals(75.0, deepSeekCacheHitRate(usage)!!, 0.0001)
+    }
+
+    @Test
+    fun deepSeekCacheRateSupportsResponsesUsageAndRejectsMissingUsage() {
+        val usage = JSONObject()
+            .put("input_tokens", 400)
+            .put("input_tokens_details", JSONObject().put("cached_tokens", 100))
+
+        assertEquals(25.0, deepSeekCacheHitRate(usage)!!, 0.0001)
+        assertEquals(null, deepSeekCacheHitRate(JSONObject().put("prompt_tokens", 400)))
+    }
+
     private fun profile(baseUrl: String, useResponsesApi: Boolean) = ApiProfile(
         id = "test",
         name = "Test",
