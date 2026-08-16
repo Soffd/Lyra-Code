@@ -821,6 +821,16 @@ class ChatController(
         conversationStore.conversation(conversationId)?.let { workspaceManager.setActiveWorkspaceUri(it.workspaceUri) }
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
+        // Publish the running state before starting the request so Compose
+        // removes the interrupted action in the same update that starts the
+        // streaming layout. The agent repeats this write defensively on IO.
+        conversationStore.setConversationMeta(
+            conversationId,
+            status = ConversationStore.STATUS_RUNNING,
+            profileId = profile.id,
+            model = model,
+        )
+        reloadConversations()
         jobs[conversationId] = scope.launch {
             status.value = appContext.getString(R.string.status_continue)
             agent.continueConversation(conversationId, profile, model) {
@@ -1218,6 +1228,7 @@ class ChatController(
             content = update.content,
             thinking = update.thinking,
             tokensPerSecond = update.tokensPerSecond.takeIf { value -> value > 0.0 } ?: current[index].tokensPerSecond,
+            deepSeekCacheHitRate = update.deepSeekCacheHitRate ?: current[index].deepSeekCacheHitRate,
         )
         _messages.value = current.toMutableList().also { it[index] = updated }
         lastMessageReloadAt = System.currentTimeMillis()

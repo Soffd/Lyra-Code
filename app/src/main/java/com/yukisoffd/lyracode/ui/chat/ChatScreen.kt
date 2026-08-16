@@ -302,6 +302,10 @@ internal fun ChatScreen(
         if (navigationRevealToken == token) navigationVisible = false
     }
     val isInterrupted = controller.activeConversation()?.status == ConversationStore.STATUS_INTERRUPTED
+    val showInterruptedAction = isInterrupted && messageSnapshot.isNotEmpty()
+    // This is the declarative index of the final anchor, independent of the
+    // previous LazyColumn measurement kept in listState.layoutInfo.
+    val bottomAnchorIndex = renderItems.size + if (showInterruptedAction) 1 else 0
     if (contextInfoOpen) {
         ContextWindowInfoDialog(
             controller = controller,
@@ -457,14 +461,19 @@ internal fun ChatScreen(
                 isRunning && listState.isScrollInProgress -> autoFollowOutput = false
             }
         }
-        LaunchedEffect(messageSnapshot.lastOrNull()?.id, messageSnapshot.lastOrNull()?.content?.length, messageSnapshot.lastOrNull()?.thinking?.length) {
+        LaunchedEffect(
+            messageSnapshot.lastOrNull()?.id,
+            messageSnapshot.lastOrNull()?.content?.length,
+            messageSnapshot.lastOrNull()?.thinking?.length,
+            bottomAnchorIndex,
+        ) {
             if (messageSnapshot.isNotEmpty() && (autoFollowOutput || isNearOutputEnd)) {
-                listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+                listState.scrollToItem(bottomAnchorIndex)
             }
         }
         LaunchedEffect(resolvedKeyboardLiftPx) {
             if (resolvedKeyboardLiftPx > 0 && messageSnapshot.isNotEmpty() && keyboardShouldLiftOutput) {
-                listState.scrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0))
+                listState.scrollToItem(bottomAnchorIndex)
             }
         }
         val blankTapInteraction = remember { MutableInteractionSource() }
@@ -511,7 +520,7 @@ internal fun ChatScreen(
                         )
                     }
                 }
-                if (isInterrupted && messageSnapshot.isNotEmpty()) {
+                if (showInterruptedAction) {
                     item(key = "continue-interrupted") {
                         ContinueInterruptedRow(onContinue = { controller.continueActive() })
                     }
@@ -540,7 +549,7 @@ internal fun ChatScreen(
                             ?: (listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)
                         scope.launch { listState.animateScrollToItem(target) }
                     },
-                    onBottom = { scope.launch { listState.animateScrollToItem((listState.layoutInfo.totalItemsCount - 1).coerceAtLeast(0)) } },
+                    onBottom = { scope.launch { listState.animateScrollToItem(bottomAnchorIndex) } },
                 )
             }
         }

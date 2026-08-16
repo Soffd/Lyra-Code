@@ -49,6 +49,7 @@ data class ChatMessage(
     val toolCallId: String?,
     val rawJson: String?,
     val tokensPerSecond: Double = 0.0,
+    val deepSeekCacheHitRate: Double? = null,
     val createdAt: Long,
 )
 
@@ -72,7 +73,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     appContext.applicationContext,
     "lyra_conversations.db",
     null,
-    10,
+    11,
 ) {
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -112,6 +113,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 tool_call_id TEXT,
                 raw_json TEXT,
                 tokens_per_second REAL NOT NULL DEFAULT 0,
+                deepseek_cache_hit_rate REAL NOT NULL DEFAULT -1,
                 created_at INTEGER NOT NULL
             )
             """.trimIndent(),
@@ -230,6 +232,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             db.execSQL("ALTER TABLE conversations ADD COLUMN project_id INTEGER NOT NULL DEFAULT 0")
             createProjectsTable(db)
         }
+        if (oldVersion < 11) {
+            db.execSQL("ALTER TABLE messages ADD COLUMN deepseek_cache_hit_rate REAL NOT NULL DEFAULT -1")
+        }
     }
 
     fun createConversation(
@@ -311,6 +316,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                         put("tool_call_id", sourceMessage.toolCallId)
                         put("raw_json", sourceMessage.rawJson)
                         put("tokens_per_second", sourceMessage.tokensPerSecond)
+                        put("deepseek_cache_hit_rate", sourceMessage.deepSeekCacheHitRate ?: -1.0)
                         put("created_at", sourceMessage.createdAt)
                     },
                 )
@@ -726,6 +732,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         toolCallId: String? = null,
         rawJson: String? = null,
         tokensPerSecond: Double = 0.0,
+        deepSeekCacheHitRate: Double? = null,
     ): Long {
         val now = System.currentTimeMillis()
         val id = writableDatabase.insert(
@@ -741,6 +748,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("tool_call_id", toolCallId)
                 put("raw_json", rawJson)
                 put("tokens_per_second", tokensPerSecond.coerceAtLeast(0.0))
+                put("deepseek_cache_hit_rate", deepSeekCacheHitRate?.coerceIn(0.0, 100.0) ?: -1.0)
                 put("created_at", now)
             },
         )
@@ -759,6 +767,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         toolCallId: String? = null,
         rawJson: String? = null,
         tokensPerSecond: Double = 0.0,
+        deepSeekCacheHitRate: Double? = null,
         createdAt: Long,
     ): Long {
         val id = writableDatabase.insert(
@@ -774,6 +783,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 put("tool_call_id", toolCallId)
                 put("raw_json", rawJson)
                 put("tokens_per_second", tokensPerSecond.coerceAtLeast(0.0))
+                put("deepseek_cache_hit_rate", deepSeekCacheHitRate?.coerceIn(0.0, 100.0) ?: -1.0)
                 put("created_at", createdAt)
             },
         )
@@ -781,12 +791,20 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         return id
     }
 
-    fun updateMessage(id: Long, content: String? = null, thinking: String? = null, rawJson: String? = null, tokensPerSecond: Double? = null) {
+    fun updateMessage(
+        id: Long,
+        content: String? = null,
+        thinking: String? = null,
+        rawJson: String? = null,
+        tokensPerSecond: Double? = null,
+        deepSeekCacheHitRate: Double? = null,
+    ) {
         val values = ContentValues().apply {
             content?.let { put("content", it) }
             thinking?.let { put("thinking", it) }
             rawJson?.let { put("raw_json", it) }
             tokensPerSecond?.let { put("tokens_per_second", it.coerceAtLeast(0.0)) }
+            deepSeekCacheHitRate?.let { put("deepseek_cache_hit_rate", it.coerceIn(0.0, 100.0)) }
         }
         writableDatabase.update("messages", values, "id=?", arrayOf(id.toString()))
         val conversationId = readableDatabase.query("messages", arrayOf("conversation_id"), "id=?", arrayOf(id.toString()), null, null, null).use {
@@ -798,7 +816,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun message(id: Long): ChatMessage? {
         return readableDatabase.query(
             "messages",
-            arrayOf("id", "conversation_id", "role", "content", "thinking", "profile_id", "model", "tool_call_id", "raw_json", "tokens_per_second", "created_at"),
+            arrayOf("id", "conversation_id", "role", "content", "thinking", "profile_id", "model", "tool_call_id", "raw_json", "tokens_per_second", "deepseek_cache_hit_rate", "created_at"),
             "id=?",
             arrayOf(id.toString()),
             null,
@@ -817,7 +835,8 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                 toolCallId = if (it.isNull(7)) null else it.getString(7),
                 rawJson = if (it.isNull(8)) null else it.getString(8),
                 tokensPerSecond = it.getDouble(9),
-                createdAt = it.getLong(10),
+                deepSeekCacheHitRate = it.getDouble(10).takeIf { rate -> rate >= 0.0 },
+                createdAt = it.getLong(11),
             )
         }
     }
@@ -935,7 +954,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
     fun messages(conversationId: Long): List<ChatMessage> {
         val cursor = readableDatabase.query(
             "messages",
-            arrayOf("id", "conversation_id", "role", "content", "thinking", "profile_id", "model", "tool_call_id", "raw_json", "tokens_per_second", "created_at"),
+            arrayOf("id", "conversation_id", "role", "content", "thinking", "profile_id", "model", "tool_call_id", "raw_json", "tokens_per_second", "deepseek_cache_hit_rate", "created_at"),
             "conversation_id=?",
             arrayOf(conversationId.toString()),
             null,
@@ -957,7 +976,8 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                             toolCallId = if (it.isNull(7)) null else it.getString(7),
                             rawJson = if (it.isNull(8)) null else it.getString(8),
                             tokensPerSecond = it.getDouble(9),
-                            createdAt = it.getLong(10),
+                            deepSeekCacheHitRate = it.getDouble(10).takeIf { rate -> rate >= 0.0 },
+                            createdAt = it.getLong(11),
                         ),
                     )
                 }
@@ -1015,6 +1035,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                                             .put("toolCallId", message.toolCallId)
                                             .put("rawJson", message.rawJson)
                                             .put("tokensPerSecond", message.tokensPerSecond)
+                                            .put("deepSeekCacheHitRate", message.deepSeekCacheHitRate)
                                             .put("createdAt", message.createdAt),
                                     )
                                 }
@@ -1116,6 +1137,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                     toolCallId = message.optString("toolCallId").ifBlank { null },
                     rawJson = message.optString("rawJson").ifBlank { null },
                     tokensPerSecond = message.optDouble("tokensPerSecond", 0.0),
+                    deepSeekCacheHitRate = message.optDouble("deepSeekCacheHitRate", -1.0).takeIf { it >= 0.0 },
                     createdAt = message.optLong("createdAt", exportedCreatedAt + messageIndex),
                 )
                 importedMessages++

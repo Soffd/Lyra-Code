@@ -11,6 +11,7 @@ data class ChatRecord(
     val model: String = "",
     val createdAt: Long = System.currentTimeMillis(),
     val tokensPerSecond: Double = 0.0,
+    val deepSeekCacheHitRate: Double? = null,
     val toolCallId: String? = null,
     val rawJson: String? = null,
     val toolName: String = "",
@@ -23,6 +24,7 @@ data class ChatUpdate(
     val status: String,
     val messageId: Long = 0L,
     val tokensPerSecond: Double = 0.0,
+    val deepSeekCacheHitRate: Double? = null,
 )
 
 

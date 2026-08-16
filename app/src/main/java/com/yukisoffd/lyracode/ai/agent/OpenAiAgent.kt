@@ -253,6 +253,7 @@ private data class StreamingResult(
     val rawMessage: JSONObject,
     val toolCalls: List<ToolCall>,
     val tokensPerSecond: Double = 0.0,
+    val deepSeekCacheHitRate: Double? = null,
     val fromCache: Boolean = false,
 )
 
@@ -725,11 +726,13 @@ class OpenAiAgent(
         onUpdate: suspend (ChatUpdate) -> Unit,
         propagateErrors: Boolean = false,
     ) {
+        var activeAssistantId = 0L
         try {
             while (true) {
                 currentCoroutineContext().ensureActive()
                 ensureRuntimeContextSnapshot(conversationId, profile, model)
                 val assistantId = conversationStore.addMessage(conversationId, "assistant", "", profileId = profile.id, model = model)
+                activeAssistantId = assistantId
                 val result = streamModel(
                     conversationId = conversationId,
                     excludeMessageId = assistantId,
@@ -766,13 +769,23 @@ class OpenAiAgent(
                     thinking = result.thinking,
                     rawJson = result.rawMessage.toString(),
                     tokensPerSecond = result.tokensPerSecond,
+                    deepSeekCacheHitRate = result.deepSeekCacheHitRate,
                 )
                 conversationStore.recordUsageModelRequest(
                     assistantId,
                     estimatedPromptInputTokens(conversationId, assistantId),
                     estimatedAssistantOutputTokens(result.content, result.thinking, result.rawMessage.toString()),
                 )
-                onUpdate(ChatUpdate(result.content, result.thinking, if (result.fromCache) uiText(R.string.ui_cache_hit) else uiText(R.string.ui_model_completed), assistantId, result.tokensPerSecond))
+                onUpdate(
+                    ChatUpdate(
+                        content = result.content,
+                        thinking = result.thinking,
+                        status = if (result.fromCache) uiText(R.string.ui_cache_hit) else uiText(R.string.ui_model_completed),
+                        messageId = assistantId,
+                        tokensPerSecond = result.tokensPerSecond,
+                        deepSeekCacheHitRate = result.deepSeekCacheHitRate,
+                    ),
+                )
                 if (result.toolCalls.isEmpty()) {
                     conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_IDLE, profileId = profile.id, model = model)
                     return
@@ -807,8 +820,41 @@ class OpenAiAgent(
             } else {
                 uiText(R.string.ui_request_interrupted) + error.message.orEmpty()
             }
-            conversationStore.addMessage(conversationId, "assistant", finalError, profileId = profile.id, model = model)
-            onUpdate(ChatUpdate("", "", finalError))
+            val failedMessage = activeAssistantId.takeIf { it > 0L }?.let(conversationStore::message)
+            val localErrorRaw = JSONObject()
+                .put("role", "assistant")
+                .put("content", finalError)
+                .put(LOCAL_REQUEST_ERROR_KEY, true)
+                .toString()
+            val errorMessageId = when {
+                failedMessage == null -> conversationStore.addMessage(
+                    conversationId,
+                    "assistant",
+                    finalError,
+                    profileId = profile.id,
+                    model = model,
+                    rawJson = localErrorRaw,
+                )
+                failedMessage.content.isBlank() && failedMessage.thinking.isBlank() -> {
+                    conversationStore.updateMessage(activeAssistantId, content = finalError, thinking = "", rawJson = localErrorRaw)
+                    activeAssistantId
+                }
+                else -> {
+                    conversationStore.updateMessage(
+                        activeAssistantId,
+                        rawJson = assistantRawMessage(failedMessage.content, failedMessage.thinking, emptyList()).toString(),
+                    )
+                    conversationStore.addMessage(
+                        conversationId,
+                        "assistant",
+                        finalError,
+                        profileId = profile.id,
+                        model = model,
+                        rawJson = localErrorRaw,
+                    )
+                }
+            }
+            onUpdate(ChatUpdate(finalError, "", finalError, errorMessageId))
             if (propagateErrors) throw error
         }
     }
@@ -930,6 +976,7 @@ class OpenAiAgent(
         val thinking = StringBuilder()
         val startedAtNanos = System.nanoTime()
         var outputTokens = 0L
+        var cacheHitRate: Double? = null
         var streamCompleted = false
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         val replayableItems = JSONArray()
@@ -1002,7 +1049,9 @@ class OpenAiAgent(
                         "response.completed", "response.incomplete" -> {
                             streamCompleted = true
                             event.optJSONObject("response")?.let { completed ->
-                                outputTokens = completed.optJSONObject("usage")?.optLong("output_tokens", outputTokens) ?: outputTokens
+                                val usage = completed.optJSONObject("usage")
+                                outputTokens = usage?.optLong("output_tokens", outputTokens) ?: outputTokens
+                                if (isDeepSeekApiProfile(profile)) cacheHitRate = deepSeekCacheHitRate(usage)
                                 collectCompletedResponseItems(completed, content, thinking, toolBuilders)
                                 collectReplayableResponseItems(completed, replayableItems)
                             }
@@ -1026,7 +1075,14 @@ class OpenAiAgent(
         val raw = assistantRawMessage(cleanContent, cleanThinking, calls).also {
             if (replayableItems.length() > 0) it.put(RESPONSES_REPLAY_ITEMS_KEY, replayableItems)
         }
-        return StreamingResult(cleanContent, cleanThinking, raw, calls, outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos))
+        return StreamingResult(
+            cleanContent,
+            cleanThinking,
+            raw,
+            calls,
+            outputTokensPerSecond(cleanContent, outputTokens, startedAtNanos),
+            cacheHitRate,
+        )
     }
 
     private suspend fun streamOpenAiModel(
@@ -1075,6 +1131,7 @@ class OpenAiAgent(
         var promptTokens = 0L
         var completionTokens = 0L
         var cachedPromptTokens = 0L
+        var cacheHitRate: Double? = null
         var streamCompleted = false
         val toolBuilders = linkedMapOf<Int, ToolCallBuilder>()
         client.newCall(request).execute().use { response ->
@@ -1101,6 +1158,7 @@ class OpenAiAgent(
                         cachedPromptTokens = usage.optJSONObject("prompt_tokens_details")
                             ?.optLong("cached_tokens", cachedPromptTokens)
                             ?: cachedPromptTokens
+                        if (isDeepSeekApiProfile(profile)) cacheHitRate = deepSeekCacheHitRate(usage)
                     }
                     val choice = root.optJSONArray("choices")?.optJSONObject(0) ?: return@forEach
                     if (!choice.isNull("finish_reason")) streamCompleted = true
@@ -1146,7 +1204,14 @@ class OpenAiAgent(
                 ),
             )
         }
-        return StreamingResult(cleanContent, cleanThinking, message, calls, outputTokensPerSecond(cleanContent, completionTokens, startedAtNanos))
+        return StreamingResult(
+            cleanContent,
+            cleanThinking,
+            message,
+            calls,
+            outputTokensPerSecond(cleanContent, completionTokens, startedAtNanos),
+            cacheHitRate,
+        )
     }
 
     private fun isFreshSingleUserTurn(conversationId: Long, excludeMessageId: Long): Boolean {
@@ -1601,7 +1666,12 @@ class OpenAiAgent(
     private fun contextHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
         val conversation = conversationStore.conversation(conversationId)
         val source = conversationStore.messages(conversationId)
-            .filter { it.id != excludeMessageId && it.id > (conversation?.compressedThroughMessageId ?: 0L) }
+            .filter {
+                    it.id != excludeMessageId &&
+                    it.id > (conversation?.compressedThroughMessageId ?: 0L) &&
+                    !it.isLocalRequestErrorMessage() &&
+                    !it.isEmptyAssistantPlaceholder()
+            }
         val summary = conversation?.compressedContext.orEmpty().trim()
         if (summary.isBlank()) return source
         val compressedContextMarker = if (summary.startsWith("LYRA_STRUCTURED_CONTEXT_V2")) {
@@ -5347,6 +5417,23 @@ private fun JSONObject.booleanOrNull(name: String): Boolean? {
     return optBoolean(name)
 }
 
+internal const val LOCAL_REQUEST_ERROR_KEY = "_lyra_local_request_error"
+
+internal fun ChatMessage.isLocalRequestErrorMessage(): Boolean {
+    if (role != "assistant") return false
+    val raw = rawJson?.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
+    if (raw?.optBoolean(LOCAL_REQUEST_ERROR_KEY, false) == true) return true
+    if (raw != null) return false
+    val normalized = content.trimStart()
+    return normalized.startsWith("Request interrupted") ||
+        normalized.startsWith("请求中断：") ||
+        normalized.startsWith("請求中斷：")
+}
+
+internal fun ChatMessage.isEmptyAssistantPlaceholder(): Boolean {
+    return role == "assistant" && content.isBlank() && thinking.isBlank() && rawJson.isNullOrBlank()
+}
+
 private fun cleanGeneratedText(text: String): String {
     return text.replace(Regex("(?:null){4,}", RegexOption.IGNORE_CASE), "").trim()
 }
@@ -5360,6 +5447,7 @@ fun ChatMessage.toRecord(): ChatRecord = ChatRecord(
     model = model,
     createdAt = createdAt,
     tokensPerSecond = tokensPerSecond,
+    deepSeekCacheHitRate = deepSeekCacheHitRate,
     toolCallId = toolCallId,
     rawJson = rawJson,
 )

@@ -100,11 +100,11 @@ internal fun chatRenderItems(
     val result = mutableListOf<ChatRenderItem>()
     val assistantTurn = mutableListOf<ChatRecord>()
 
-    fun flushAssistantTurn() {
+    fun flushAssistantTurn(streamTurn: Boolean) {
         if (assistantTurn.isEmpty()) return
         val turn = assistantTurn.toList()
         assistantTurn.clear()
-        if (isStreaming) {
+        if (streamTurn) {
             turn.forEach { message ->
                 if (message.role == "assistant") {
                     if (message.thinking.isNotBlank() || message.content.isBlank()) {
@@ -167,13 +167,16 @@ internal fun chatRenderItems(
 
     messages.forEach { message ->
         if (message.role == "user") {
-            flushAssistantTurn()
+            // Completed turns must keep the same item structure while a later
+            // turn is streaming. Re-expanding all history invalidates the
+            // LazyColumn's measured item indices and can move its viewport.
+            flushAssistantTurn(streamTurn = false)
             result += ChatRenderItem("message-${message.id}", message = message)
         } else {
             assistantTurn += message
         }
     }
-    flushAssistantTurn()
+    flushAssistantTurn(streamTurn = isStreaming)
     return result
 }
 
@@ -912,11 +915,22 @@ internal fun MessageCard(
                                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                                             verticalAlignment = Alignment.CenterVertically,
                                         ) {
-                                            Text(
-                                                formatTokensPerSecond(message.tokensPerSecond),
-                                                color = KimiMuted,
-                                                style = MaterialTheme.typography.labelSmall,
-                                            )
+                                            formatTokensPerSecond(message.tokensPerSecond)
+                                                .takeIf { it.isNotBlank() }
+                                                ?.let { speed ->
+                                                    Text(
+                                                        speed,
+                                                        color = KimiMuted,
+                                                        style = MaterialTheme.typography.labelSmall,
+                                                    )
+                                                }
+                                            message.deepSeekCacheHitRate?.let { rate ->
+                                                Text(
+                                                    uiText(R.string.deepseek_cache_hit_rate, rate.coerceIn(0.0, 100.0)),
+                                                    color = KimiMuted,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                            }
                                             Spacer(Modifier.weight(1f))
                                             if (!isStreaming) {
                                                 Box {
