@@ -247,6 +247,31 @@ The LGPL permits an application to link with the Library under terms of the appl
 
 The complete, verbatim LGPL 2.1 text is distributed in the Sora Editor upstream repository and source package. Source: https://github.com/Rosemoe/sora-editor"""
 
+    const val PROOT_GPL_NOTICE = """PRoot for Android — source, copyright, and license notice
+
+Lyra Code distributes the following ARM64 PRoot object-code files inside the APK:
+- lib/arm64-v8a/libproot_exec.so
+- lib/arm64-v8a/libproot_loader.so
+
+PRoot copyright remains with STMicroelectronics and the respective PRoot contributors. The source files state that PRoot may be redistributed and modified under GNU GPL version 2 or, at the recipient's option, any later version (SPDX: GPL-2.0-or-later).
+
+Lyra Code exercises the "any later version" option and conveys these PRoot binaries under GNU GPL version 3 when distributing them with the AGPL-v3 Lyra Code application. This selection does not relicense upstream source that a recipient chooses to use under GPLv2; it records the GPLv3 option used for this distribution.
+
+Corresponding source and upstream chain:
+- Maintained corresponding-source fork: https://github.com/Soffd/proot
+- Immediate upstream: https://github.com/termux/proot
+- Original upstream: https://github.com/proot-me/proot
+
+Binary provenance for this build:
+- Distribution snapshot: https://github.com/rikkahub/rikkahub/tree/693c2ce53fe28d4eb03517edffd7824f9f99f682/workspace/src/main/jniLibs/arm64-v8a
+- libproot_exec.so SHA-256: d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c
+- libproot_loader.so SHA-256: 44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04
+
+The RikkaHub binaries were built from termux/proot, whose upstream is proot-me/proot. The Soffd/proot fork is provided as the maintained corresponding-source location for Lyra Code recipients. Source modifications, build material, and notices published there remain governed by their applicable licenses.
+
+PRoot is provided without warranty. The complete GNU GPL version 3 terms selected for this distribution follow.
+"""
+
     const val TEXTMATE_ASSET_NOTICES = """Sora Editor demo TextMate assets
 
 Lyra Code includes TextMate grammar, language-configuration, and color-theme files copied from the official Sora Editor demo application for Java, Kotlin, Python, JavaScript, HTML, XML, Markdown, and Lua editing.

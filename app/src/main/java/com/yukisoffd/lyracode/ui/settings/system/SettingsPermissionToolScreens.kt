@@ -7,6 +7,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.provider.OpenableColumns
 import android.webkit.WebView
 import android.content.pm.PackageManager
 import androidx.compose.foundation.background
@@ -24,10 +25,14 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -36,6 +41,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -59,6 +66,8 @@ import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.termux.TermuxExecutor
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
+import com.yukisoffd.lyracode.debian.ProotLinuxManager
+import com.yukisoffd.lyracode.debian.ProotOperationPhase
 import kotlinx.coroutines.launch
 import java.net.URL
 import rikka.shizuku.Shizuku
@@ -247,10 +256,15 @@ internal fun PermissionSettings(termuxExecutor: TermuxExecutor) {
 
 @Composable
 internal fun AgentToolSettings(settings: AppSettings, termuxExecutor: TermuxExecutor, externalRevision: Int = 0) {
+    val context = LocalContext.current
+    val prootRuntime = remember(context) { com.yukisoffd.lyracode.debian.ProotLinuxManager.getInstance(context) }
+    val prootState by prootRuntime.state.collectAsState()
     var disabled by remember(externalRevision) { mutableStateOf(settings.disabledTools()) }
     var query by rememberSaveable { mutableStateOf("") }
     var showReachabilityPage by rememberSaveable { mutableStateOf(false) }
-    val localTools = agentToolCatalog()
+    val localTools = agentToolCatalog().filter {
+        it.name != "proot_command" || prootState.instances.any { instance -> instance.enabled }
+    }
     val mcpTools = remember(disabled, externalRevision) { settings.enabledMcpTools() }
     val sshToolsEnabled = remember(disabled, externalRevision) { settings.sshServers().any { it.enabled } }
     val termuxGranted = termuxExecutor.hasRunCommandPermission()
@@ -354,6 +368,199 @@ internal fun TermuxSettings(settings: AppSettings, termuxExecutor: TermuxExecuto
         KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_termux_path), workspaceManager.termuxRootPath() ?: uiText(R.string.termux_path_primary))
     }
     TermuxSetupGuide()
+}
+
+@Composable
+internal fun ProotLinuxSettings() {
+    val context = LocalContext.current
+    val runtime = remember(context) { ProotLinuxManager.getInstance(context) }
+    val state by runtime.state.collectAsState()
+    val scope = rememberCoroutineScope()
+    var permissionRevision by remember { mutableIntStateOf(0) }
+    var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
+    var importName by remember { mutableStateOf("") }
+    var deleteId by remember { mutableStateOf<String?>(null) }
+    val allFilesGranted = remember(permissionRevision) { runtime.hasAllFilesAccess() }
+    val allFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
+        permissionRevision++
+    }
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            pendingImportUri = uri
+            importName = runCatching {
+                context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                    if (cursor.moveToFirst()) cursor.getString(0) else null
+                }
+            }.getOrNull()?.substringBeforeLast('.')?.substringBeforeLast('.')?.ifBlank { null } ?: "Imported Linux"
+        }
+    }
+
+    KimiCardBox {
+        KimiMenuRow(
+            Icons.Default.FolderOpen,
+            uiText(R.string.proot_linux_all_files_access),
+            if (allFilesGranted) uiText(R.string.label_granted) else uiText(R.string.label_click_to_grant),
+        ) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                val packageUri = Uri.parse("package:${context.packageName}")
+                val intent = listOf(
+                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri),
+                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri),
+                ).firstOrNull { it.resolveActivity(context.packageManager) != null }
+                if (intent != null) allFilesLauncher.launch(intent)
+            }
+        }
+        Text(
+            uiText(R.string.proot_linux_all_files_access_desc),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+    }
+
+    KimiCardBox {
+        Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Terminal, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                Text(uiText(R.string.proot_linux_title), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    if (runtime.isSupported()) uiText(R.string.proot_linux_count, state.instances.size) else uiText(R.string.debian_runtime_unsupported),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        if (state.phase in setOf(ProotOperationPhase.DOWNLOADING, ProotOperationPhase.IMPORTING)) {
+            LinearProgressIndicator(
+                progress = { state.progressPercent / 100f },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Text(
+                state.message.ifBlank { uiText(R.string.proot_linux_working) },
+                color = KimiMuted,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        if (state.phase == ProotOperationPhase.ERROR) {
+            Text(state.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { scope.launch { runCatching { runtime.downloadDebian() } } },
+                enabled = runtime.isSupported() && state.phase in setOf(ProotOperationPhase.IDLE, ProotOperationPhase.ERROR) && state.instances.none { it.id == "debian" },
+                modifier = Modifier.weight(1f),
+            ) { Text(uiText(R.string.debian_runtime_install_action)) }
+            OutlinedButton(
+                onClick = { importLauncher.launch(arrayOf("application/gzip", "application/x-gzip", "application/x-tar", "application/octet-stream")) },
+                enabled = runtime.isSupported() && state.phase in setOf(ProotOperationPhase.IDLE, ProotOperationPhase.ERROR),
+                modifier = Modifier.weight(1f),
+            ) { Text(uiText(R.string.proot_linux_import_action)) }
+        }
+    }
+    KimiCardBox {
+        Text(uiText(R.string.proot_linux_supported_files), style = MaterialTheme.typography.titleSmall)
+        Text(uiText(R.string.proot_linux_supported_files_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Text(uiText(R.string.proot_linux_iso_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        KimiDivider()
+        Text(uiText(R.string.proot_linux_download_sources), style = MaterialTheme.typography.titleSmall)
+        SettingsExternalLinkRow(
+            icon = Icons.Default.CloudDownload,
+            title = "Alpine Linux",
+            subtitle = uiText(R.string.proot_linux_alpine_source_hint),
+            url = "https://www.alpinelinux.org/downloads/",
+        )
+        KimiDivider()
+        SettingsExternalLinkRow(
+            icon = Icons.Default.CloudDownload,
+            title = "Ubuntu Base",
+            subtitle = uiText(R.string.proot_linux_ubuntu_source_hint),
+            url = "https://cdimage.ubuntu.com/ubuntu-base/releases/",
+        )
+        KimiDivider()
+        SettingsExternalLinkRow(
+            icon = Icons.Default.CloudDownload,
+            title = "Arch Linux ARM",
+            subtitle = uiText(R.string.proot_linux_arch_source_hint),
+            url = "https://archlinuxarm.org/about/downloads",
+        )
+        KimiDivider()
+        SettingsExternalLinkRow(
+            icon = Icons.Default.Info,
+            title = "Termux PRoot Distro",
+            subtitle = uiText(R.string.proot_linux_proot_distro_hint),
+            url = "https://github.com/termux/proot-distro",
+        )
+    }
+    if (state.instances.isNotEmpty()) {
+        KimiCardBox {
+            state.instances.forEachIndexed { index, linux ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(linux.name, style = MaterialTheme.typography.titleSmall)
+                        Text("Linux ID: ${linux.id}", color = KimiMuted, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Switch(checked = linux.enabled, onCheckedChange = { runtime.setEnabled(linux.id, it) })
+                    IconButton(onClick = { deleteId = linux.id }) {
+                        Icon(Icons.Default.Delete, contentDescription = uiText(R.string.proot_linux_delete_action), tint = MaterialTheme.colorScheme.error)
+                    }
+                }
+                if (index != state.instances.lastIndex) KimiDivider()
+            }
+        }
+    }
+    Text(
+        uiText(R.string.proot_linux_preservation_hint),
+        color = KimiMuted,
+        style = MaterialTheme.typography.bodySmall,
+    )
+
+    pendingImportUri?.let { uri ->
+        AlertDialog(
+            onDismissRequest = { pendingImportUri = null },
+            title = { Text(uiText(R.string.proot_linux_import_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(uiText(R.string.proot_linux_import_hint))
+                    OutlinedTextField(
+                        value = importName,
+                        onValueChange = { importName = it },
+                        label = { Text(uiText(R.string.proot_linux_name)) },
+                        singleLine = true,
+                    )
+                }
+            },
+            confirmButton = {
+                OutlinedButton(
+                    onClick = {
+                        pendingImportUri = null
+                        scope.launch { runCatching { runtime.importRootfs(uri, importName) } }
+                    },
+                    enabled = importName.isNotBlank(),
+                ) { Text(uiText(R.string.proot_linux_import_action)) }
+            },
+            dismissButton = { OutlinedButton(onClick = { pendingImportUri = null }) { Text(uiText(R.string.action_cancel)) } },
+        )
+    }
+    deleteId?.let { id ->
+        val linux = state.instances.firstOrNull { it.id == id }
+        if (linux != null) {
+            AlertDialog(
+                onDismissRequest = { deleteId = null },
+                title = { Text(uiText(R.string.proot_linux_delete_title, linux.name)) },
+                text = { Text(uiText(R.string.proot_linux_delete_warning)) },
+                confirmButton = {
+                    OutlinedButton(
+                        onClick = {
+                            deleteId = null
+                            scope.launch { runCatching { runtime.delete(id) } }
+                        },
+                    ) { Text(uiText(R.string.proot_linux_delete_action), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { OutlinedButton(onClick = { deleteId = null }) { Text(uiText(R.string.action_cancel)) } },
+            )
+        }
+    }
 }
 
 internal data class PermissionRow(
@@ -473,7 +680,7 @@ internal fun agentToolCatalog(): List<AgentToolInfo> = listOf(
     AgentToolInfo("import_backup", uiText(R.string.title_import_backup), uiText(R.string.tool_import_backup_desc)),
     AgentToolInfo("set_todo_list", uiText(R.string.tool_set_todo), uiText(R.string.tool_set_todo_desc)),
     AgentToolInfo("update_todo_item", uiText(R.string.tool_update_todo), uiText(R.string.tool_update_todo_desc)),
-)
+) + prootAgentToolCatalog()
 
 @Composable
 internal fun TermuxSetupGuide() {

@@ -293,6 +293,7 @@ internal fun SettingsScreen(
                     "system_permissions" -> SystemPermissionSettings(settings, systemCommandExecutor)
                     "tools" -> AgentToolSettings(settings, termuxExecutor, controller.settingsRevision.intValue)
                     "termux" -> TermuxSettings(settings, termuxExecutor, workspaceManager)
+                    "debian" -> ProotLinuxSettings()
                     "mcp" -> McpSettings(settings, mcpClientManager, controller.settingsRevision.intValue)
                     "local_mcp" -> LocalMcpServerSettings(settings, localMcpServerManager, controller.settingsRevision.intValue)
                     "ssh" -> SshSettings(settings, sshExecutor, controller.settingsRevision.intValue)
@@ -359,6 +360,7 @@ internal fun SettingsScreen(
             SettingsMenuEntry(Icons.Default.AccountTree, context.getString(R.string.menu_sub_agents), context.getString(R.string.menu_sub_agents_desc), "sub_agents"),
             SettingsMenuEntry(Icons.Default.TravelExplore, context.getString(R.string.menu_web_search), context.getString(R.string.menu_web_search_desc), "web_search"),
             SettingsMenuEntry(Icons.Default.Terminal, context.getString(R.string.menu_termux), context.getString(R.string.menu_termux_desc), "termux"),
+            SettingsMenuEntry(Icons.Default.Computer, context.getString(R.string.menu_debian), context.getString(R.string.menu_debian_desc), "debian"),
             SettingsMenuEntry(ImageVector.vectorResource(R.drawable.ic_mcp), context.getString(R.string.menu_mcp_server), context.getString(R.string.menu_mcp_server_desc), "mcp"),
             SettingsMenuEntry(Icons.Default.Hub, context.getString(R.string.menu_local_mcp), context.getString(R.string.menu_local_mcp_desc), "local_mcp"),
             SettingsMenuEntry(Icons.Default.Key, context.getString(R.string.menu_ssh), context.getString(R.string.menu_ssh_desc), "ssh"),
@@ -565,6 +567,7 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "tools" -> context.getString(R.string.detail_tools)
     "storage" -> context.getString(R.string.detail_storage)
     "termux" -> context.getString(R.string.detail_termux)
+    "debian" -> context.getString(R.string.menu_debian)
     "mcp" -> context.getString(R.string.detail_mcp)
     "local_mcp" -> context.getString(R.string.detail_local_mcp)
     "ssh" -> context.getString(R.string.detail_ssh)

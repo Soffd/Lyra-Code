@@ -1269,6 +1269,7 @@
     <string name="title_licenses">開源許可證</string>
     <string name="licenses_desc">Lyra Code 使用以下開源元件。點選條目可檢視內建的原始許可證文字。</string>
     <string name="license_sora_editor_note">檔案編輯器、行號、搜尋、自動換行以及 TextMate 語法高亮執行庫。</string>
+    <string name="license_proot_note">應用程式內 Linux 行程虛擬化。原始碼鏈：Soffd/proot → termux/proot → proot-me/proot。上游採用 GPL-2.0-or-later；Lyra Code 與 AGPL-v3 應用程式一同散布時選擇 GPLv3。點選檢視二進位校驗值、原始碼連結和完整條款。</string>
     <string name="license_textmate_assets_note">程式碼編輯器使用的語言語法、語言配置和配色主題資源；各資源保留其上游許可證。</string>
 
     <!-- About Software -->

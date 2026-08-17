@@ -1,0 +1,37 @@
+<resources>
+    <string name="tool_proot_command">PRoot Linux Command</string>
+    <string name="tool_proot_command_desc">Run shell commands in an installed app-internal PRoot Linux selected by Linux ID.</string>
+    <string name="menu_debian">PRoot Linux</string>
+    <string name="menu_debian_desc">Download or import and manage multiple local Linux environments.</string>
+    <string name="debian_runtime_title">Debian runtime</string>
+    <string name="debian_runtime_unsupported">Currently available on arm64-v8a devices only.</string>
+    <string name="debian_runtime_not_installed">Not installed. The rootfs download is about 50 MB.</string>
+    <string name="debian_runtime_downloading">Downloading… %1$d%%</string>
+    <string name="debian_runtime_installing">Installing Debian…</string>
+    <string name="debian_runtime_installed">Installed. Local terminal and debian_command are available.</string>
+    <string name="debian_runtime_install_failed">Installation failed.</string>
+    <string name="debian_runtime_install_action">Download and install Debian</string>
+    <string name="debian_runtime_preservation_hint">Disabling Debian only hides its terminal and Agent tool. App updates never replace the configured rootfs; uninstalling or clearing app data still removes it.</string>
+    <string name="debian_terminal_local">Local Debian</string>
+    <string name="proot_linux_title">Local PRoot Linux environments</string>
+    <string name="proot_linux_count">%1$d installed</string>
+    <string name="proot_linux_working">Processing Linux rootfs…</string>
+    <string name="proot_linux_import_action">Import rootfs</string>
+    <string name="proot_linux_import_title">Import Linux rootfs</string>
+    <string name="proot_linux_import_hint">Select a compatible arm64 tar.gz/tgz or uncompressed tar rootfs containing /bin/sh or /bin/bash. Ubuntu, Alpine, Debian, and other PRoot-compatible distributions can coexist.</string>
+    <string name="proot_linux_name">Display name</string>
+    <string name="proot_linux_delete_action">Delete</string>
+    <string name="proot_linux_delete_title">Delete %1$s?</string>
+    <string name="proot_linux_delete_warning">This permanently deletes the whole Linux rootfs, including every installed package, user file, and system configuration. This cannot be undone.</string>
+    <string name="proot_linux_preservation_hint">Each environment has a stable Linux ID used by the terminal and proot_command. Disabling preserves its data; app updates never overwrite rootfs data.</string>
+    <string name="proot_linux_all_files_access">Shared storage access</string>
+    <string name="proot_linux_all_files_access_desc">Grant Android All files access to mount Android shared storage under /storage inside every PRoot Linux, with primary storage also at /sdcard. Without it, only the selected workspace and Linux-internal files are available. Reconnect an open terminal after changing this permission. PRoot remains limited by the app UID and SELinux.</string>
+    <string name="proot_linux_supported_files">Import requirements</string>
+    <string name="proot_linux_supported_files_desc">Supported files: .tar.gz, .tgz, or uncompressed .tar rootfs archives. Supported architecture: ARM64, also named arm64 or aarch64. The archive must contain /bin/sh or /bin/bash.</string>
+    <string name="proot_linux_iso_warning">Not supported: ISO installer/live images, APK packages, amd64/x86_64 images, .tar.xz, and .tar.zst. Decompress XZ/Zstandard archives to .tar before importing.</string>
+    <string name="proot_linux_download_sources">Official rootfs downloads</string>
+    <string name="proot_linux_alpine_source_hint">Choose “Mini root filesystem” → aarch64 → .tar.gz, not Standard/Virtual ISO.</string>
+    <string name="proot_linux_ubuntu_source_hint">Choose a release and download ubuntu-base-…-arm64.tar.gz.</string>
+    <string name="proot_linux_arch_source_hint">Choose an ARMv8/AArch64 generic root filesystem tar.gz.</string>
+    <string name="proot_linux_proot_distro_hint">Compatibility reference and examples; ISO images are not PRoot rootfs archives.</string>
+</resources>

@@ -140,6 +140,8 @@ gradle/                      Gradle Wrapper 配置
 .\gradlew.bat assembleDebug
 ```
 
+所有 APK 都只包含体积很小的 PRoot 引擎，不打包 Linux rootfs。arm64 用户可以在“设置 > PRoot Linux”下载经过校验的 Debian，也可以导入多个兼容的 arm64 `tar.gz`、`tgz` 或未压缩 tar rootfs，例如 Ubuntu、Alpine。每个环境都有稳定的 Linux ID，即使未选择工作区也能通过共用终端及 `proot_command(linux_id, ...)` 使用。授予 Android“所有文件访问”权限后，Android 共享存储会挂载到 `/storage`，主存储也可通过 `/sdcard` 访问；访问仍受应用 UID 与 SELinux 限制。原有 `run_command` 仍按原逻辑调用外部 Termux。生命周期和存储设计见 [docs/DEBIAN_RUNTIME.md](docs/DEBIAN_RUNTIME.md)。
+
 生成文件通常位于：
 
 ```text

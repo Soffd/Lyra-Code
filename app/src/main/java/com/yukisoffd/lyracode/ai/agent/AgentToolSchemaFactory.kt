@@ -16,6 +16,7 @@ internal class AgentToolSchemaFactory(
     private val settings: AppSettings,
     private val termuxExecutor: TermuxExecutor,
     private val systemCommandExecutor: SystemCommandExecutor,
+    private val prootAvailable: () -> Boolean,
 ) {
     fun toolDefinitions(
         allowSubAgents: Boolean = false,
@@ -249,6 +250,7 @@ internal class AgentToolSchemaFactory(
                 ),
             )
         }
+        if (prootAvailable()) definitions.put(prootCommandToolDefinition())
         definitions
         .put(function("web_search", "Search the web in the embedded WebView and return candidate titles, URLs, and snippets. User-blocked sites are filtered. Use for current or web-specific information, then verify candidates with read_web_page.", "query" to "string", "limit" to "integer"))
         .put(function("read_web_page", "Open an HTTP/HTTPS page in the embedded WebView and extract its body. User-blocked domains are rejected. Read trustworthy candidates and base factual claims on page content, not search snippets.", "url" to "string"))

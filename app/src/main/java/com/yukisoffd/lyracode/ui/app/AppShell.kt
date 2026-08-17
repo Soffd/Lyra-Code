@@ -80,6 +80,7 @@ import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
 import com.yukisoffd.lyracode.ssh.SshExecutor
 import com.yukisoffd.lyracode.ssh.SshTerminalSessionManager
+import com.yukisoffd.lyracode.ssh.LocalProotTerminalSessionManager
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.tasks.DownloadTaskManager
 import com.yukisoffd.lyracode.tasks.ScheduledTaskManager
@@ -112,6 +113,7 @@ internal fun LyraCodeApp(
     mcpClientManager: McpClientManager,
     sshExecutor: SshExecutor,
     sshTerminalSessionManager: SshTerminalSessionManager,
+    localProotTerminalSessionManager: LocalProotTerminalSessionManager,
     systemCommandExecutor: SystemCommandExecutor,
     webDavClient: WebDavClient,
     fileTransferClient: FileTransferClient,
@@ -582,9 +584,10 @@ internal fun LyraCodeApp(
                             termuxExecutor = termuxExecutor,
                             onExit = { selectedPage = PAGE_CHAT },
                         )
-                        PAGE_TERMINAL -> SshTerminalScreen(
+                        PAGE_TERMINAL -> TerminalScreen(
                             settings = settings,
                             sessionManager = sshTerminalSessionManager,
+                            localSessionManager = localProotTerminalSessionManager,
                         )
                         PAGE_LOG -> LogScreen(auditLogStore)
                         PAGE_STATS -> UsageStatsScreen(

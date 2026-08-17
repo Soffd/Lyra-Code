@@ -27,6 +27,7 @@ import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.data.SubAgentConfig
 import com.yukisoffd.lyracode.data.SshServerConfig
 import com.yukisoffd.lyracode.data.WebDavServerConfig
+import com.yukisoffd.lyracode.debian.ProotCommandExecutor
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
 import com.yukisoffd.lyracode.email.EmailClient
 import com.yukisoffd.lyracode.email.EmailComposeRequest
@@ -324,6 +325,8 @@ class OpenAiAgent(
     private val scheduledTaskManager: ScheduledTaskManager,
     private val responseCache: AiResponseCache? = null,
 ) {
+    private val prootCommandExecutor = ProotCommandExecutor(context)
+
     var approvalHandler: suspend (ToolApprovalRequest) -> ToolApprovalDecision = { ToolApprovalDecision.Approved }
     var todoSetHandler: suspend (Long, List<TodoItem>) -> String = { _, _ -> "TODO list recorded." }
     var todoUpdateHandler: suspend (Long, String, String, String) -> String = { _, _, _, _ -> "TODO item updated." }
@@ -2366,6 +2369,26 @@ class OpenAiAgent(
                         if (result.ok) ToolExecution(result.message) else error(result.message)
                     }
                 }
+                "proot_command" -> {
+                    val command = args.toolCommandArgument()
+                    if (isFileSearchCommand(command)) {
+                        ToolExecution(
+                            "ERROR: FILE_SEARCH_COMMAND_BLOCKED\n" +
+                                "Use search_files for file-name/path discovery instead of find, fd, or locate through proot_command.",
+                            ok = false,
+                        )
+                    } else {
+                        ToolExecution(
+                            prootCommandExecutor.execute(
+                                linuxId = args.cleanString("linux_id"),
+                                command = command,
+                                workspaceRoot = workspaceManager.termuxRootPath(),
+                                workDir = args.cleanString("workDir"),
+                                timeoutSeconds = args.optInt("timeout_seconds", 60).coerceIn(5, 600),
+                            ),
+                        )
+                    }
+                }
                 "web_search" -> ToolExecution(webAgent.search(args.getString("query"), args.optInt("limit", 6)))
                 "read_web_page" -> ToolExecution(webAgent.readPage(args.getString("url")))
                 "mark_web_sources" -> ToolExecution(webSourceMarkResult(args))
@@ -4168,6 +4191,17 @@ class OpenAiAgent(
             } else {
                 null
             }
+            "proot_command" -> if (requiresCommandApproval(args.toolCommandArgument())) {
+                ToolApprovalRequest(
+                    conversationId,
+                    call.name,
+                    call.rawArguments,
+                    "在 PRoot Linux ${args.cleanString("linux_id")} 中执行命令: ${args.toolCommandArgument()}",
+                    "命令可能修改工作区、已授权的共享存储、安装软件包或改变所选的应用内 Linux 环境。",
+                )
+            } else {
+                null
+            }
             "execute_shell_command" -> ToolApprovalRequest(
                 conversationId,
                 call.name,
@@ -4952,8 +4986,8 @@ class OpenAiAgent(
             The current tool list is authoritative. A missing tool is unavailable, disabled, or not permitted; do not invent it or assume shell access.
             Choose the narrowest tool that matches the job:
             - Use list_directory for a known directory, search_files for workspace file-name/path discovery, global_search_files only for likely shared-storage files, get_file_info for metadata, and read_file/read_file_lines for content.
-            - search_files does not search file contents. When content search is needed and run_command exists, use a targeted rg command, then a targeted grep fallback if rg is missing. If run_command is absent, inspect the most likely files with native reads; do not pretend a name search was a content search.
-            - Use native edit_file/write_file tools for text mutations. Use run_command for builds, tests, Git, package managers, scripts, content search, or CLI-only operations, not as a substitute for safer native file reads and edits.
+            - search_files does not search file contents. When content search is needed and a command tool exists, use a targeted rg command, then a targeted grep fallback if rg is missing. If no command tool is present, inspect the most likely files with native reads; do not pretend a name search was a content search.
+            - Use native edit_file/write_file tools for text mutations. Use run_command${if (prootCommandExecutor.isAvailable()) " or proot_command" else ""} for builds, tests, Git, package managers, scripts, content search, or CLI-only operations, not as a substitute for safer native file reads and edits.
             - Use web_search only for current, web-specific, or externally sourced facts; use device, app, server, history, memory, remote, scheduled-task, backup, and configuration tools only when the request actually concerns those domains.
             Batch independent reads or searches into one round when supported. Do not issue speculative calls whose results cannot affect the next decision.
 
@@ -4972,6 +5006,7 @@ class OpenAiAgent(
 
             # Termux and Android commands
             run_command executes Bash in Termux as the Termux app user; it is not Android's Shizuku shell and is not root. It defaults to the selected workspace. Omit workDir for the root or pass a workspace-relative directory; never use cd merely to change the working directory. Use command_lines for multiline or indentation-sensitive commands.
+            ${if (prootCommandExecutor.isAvailable()) "proot_command executes a shell in an app-private PRoot Linux environment and does not require Termux. Installed Linux IDs: ${prootCommandExecutor.inventoryForAgent()}. Always pass the intended linux_id. When a directly accessible workspace is selected it is mounted at /workspace; otherwise the command defaults to /root and remains usable. ${if (prootCommandExecutor.hasAllFilesAccess()) "Android All files access is granted, so Android shared storage is mounted under /storage and primary storage is also available at /sdcard; workDir may point there." else "Android All files access is not granted, so shared storage outside the selected workspace is unavailable; absolute Linux-internal paths remain usable."} It is foreground-only; do not start persistent or interactive processes." else ""}
             Use execute_shell_command only for Android shell operations that actually require Shizuku, and execute_root_command only when root is necessary and the user-approved tool is present. Never escalate from Termux to Shizuku or root merely to make a failing command pass.
             Quote paths containing spaces or shell metacharacters. Use non-interactive flags. Join dependent steps with && so later steps stop on failure; keep unrelated commands separate or batch them as independent tool calls. Before a destructive command, resolve and inspect the exact target, minimize its scope, and prefer a recoverable operation when available.
             Do not run interactive processes. For a persistent service or watcher, set run_command background=true instead of manually composing nohup or a terminal ampersand. Background mode closes inherited input/output, returns launcher_pid and output_file promptly, and waits at most 15 seconds for acknowledgement; launch acceptance does not prove the service is healthy, so inspect the process or log in a separate foreground call before claiming success. Raw standalone ampersands are auto-detected only for compatibility. For foreground commands, choose a realistic timeout from 5 to 600 seconds. When stdout_original_length or stderr_original_length exceeds the visible text, rerun a narrower query or redirect bounded output to a workspace file and inspect it with native tools. Do not install a convenience utility solely because rg or another preferred command is missing.
@@ -5006,7 +5041,12 @@ class OpenAiAgent(
             """.trimIndent(),
         )
 
-    private val toolSchemaFactory = AgentToolSchemaFactory(settings, termuxExecutor, systemCommandExecutor)
+    private val toolSchemaFactory = AgentToolSchemaFactory(
+        settings,
+        termuxExecutor,
+        systemCommandExecutor,
+        prootCommandExecutor::isAvailable,
+    )
 
     private fun toolDefinitions(allowSubAgents: Boolean = false): JSONArray =
         toolSchemaFactory.toolDefinitions(allowSubAgents)
@@ -5202,6 +5242,7 @@ class OpenAiAgent(
         )
         private val UNSCOPED_WORKSPACE_MUTATION_TOOLS = setOf(
             "run_command",
+            "proot_command",
             "execute_shell_command",
             "execute_root_command",
             "download_file",
@@ -5281,6 +5322,7 @@ class OpenAiAgent(
             "ask_user",
             "set_todo_list",
             "update_todo_item",
+            "proot_command",
         )
         private val FILE_SEARCH_COMMAND_PATTERNS = listOf(
             Regex("""(^|[;&|()\n]\s*)find\s+.+\s-(i)?name\s+"""),
