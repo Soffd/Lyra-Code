@@ -6,6 +6,9 @@
    See https://developer.android.com/about/versions/12/backup-restore
 -->
 <full-backup-content>
+    <!-- Debian can be several GB and is managed through its own future export flow. -->
+    <exclude domain="file" path="debian-runtime/" />
+    <exclude domain="file" path="proot-linux/" />
     <!--
    <include domain="sharedpref" path="."/>
    <exclude domain="sharedpref" path="device.xml"/>

@@ -1195,6 +1195,7 @@
     <string name="title_licenses">Open-source licenses</string>
     <string name="licenses_desc">Lyra Code uses the following open-source components. Tap an item to view its bundled license notice.</string>
     <string name="license_sora_editor_note">Code editor runtime providing line numbers, search, word wrapping, and TextMate syntax highlighting.</string>
+    <string name="license_proot_note">App-internal Linux process virtualization. Source chain: Soffd/proot → termux/proot → proot-me/proot. Upstream is GPL-2.0-or-later; Lyra Code selects GPLv3 for distribution with the AGPL-v3 application. Tap for binary hashes, source links, and complete terms.</string>
     <string name="license_textmate_assets_note">Language grammars, language configurations, and color themes used by the editor; each asset remains under its upstream license.</string>
     <string name="about_description">A local AI Agent tool for Android with multi-provider models, streaming chat, Termux, workspace file tools, web search, MCP, Skills, TODO progress, and file change review.</string>
     <string name="section_version_update">Version and updates</string>

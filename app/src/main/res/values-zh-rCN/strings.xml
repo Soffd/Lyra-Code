@@ -1269,6 +1269,7 @@
     <string name="title_licenses">开源许可证</string>
     <string name="licenses_desc">Lyra Code 使用以下开源组件。点击条目可查看内置的原始许可证文本。</string>
     <string name="license_sora_editor_note">文件编辑器、行号、搜索、自动换行以及 TextMate 语法高亮运行库。</string>
+    <string name="license_proot_note">应用内 Linux 进程虚拟化。源码链：Soffd/proot → termux/proot → proot-me/proot。上游采用 GPL-2.0-or-later；Lyra Code 与 AGPL-v3 应用一同分发时选择 GPLv3。点击查看二进制校验值、源码链接和完整条款。</string>
     <string name="license_textmate_assets_note">代码编辑器使用的语言语法、语言配置和配色主题资源；各资源保留其上游许可证。</string>
 
     <!-- About Software -->

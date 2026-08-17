@@ -47,6 +47,17 @@ data class SshTerminalState(
     val connectedAt: Long = 0L,
 )
 
+/** Transport-neutral contract shared by remote SSH and the local Debian terminal. */
+interface TerminalSession : AutoCloseable {
+    val state: StateFlow<SshTerminalState>
+    val screen: StateFlow<TerminalSnapshot>
+    fun connect()
+    fun disconnect(markRequested: Boolean = true)
+    fun write(bytes: ByteArray): Boolean
+    fun write(text: String): Boolean
+    fun resize(newCols: Int, newRows: Int, widthPx: Int, heightPx: Int)
+}
+
 /**
  * Owns app-long SSH shell channels. A screen can detach and attach again without closing the PTY,
  * so running jobs and editors survive navigation. Sessions use SSH keepalives and bounded reconnects.
@@ -73,7 +84,7 @@ class TerminalConnection internal constructor(
     initialServer: SshServerConfig,
     private val executor: SshExecutor,
     private val scope: CoroutineScope,
-) : AutoCloseable {
+) : TerminalSession {
     @Volatile private var server = initialServer
     @Volatile private var transport: TerminalTransport? = null
     @Volatile private var requestedClose = false
@@ -91,13 +102,15 @@ class TerminalConnection internal constructor(
     }
 
     private val _state = MutableStateFlow(SshTerminalState())
-    val state: StateFlow<SshTerminalState> = _state.asStateFlow()
+    override val state: StateFlow<SshTerminalState> = _state.asStateFlow()
     private val _output = MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)
     val outputBytes: SharedFlow<ByteArray> = _output.asSharedFlow()
     private val _screen = MutableStateFlow(terminal.snapshot())
-    val screen: StateFlow<TerminalSnapshot> = _screen.asStateFlow()
+    override val screen: StateFlow<TerminalSnapshot> = _screen.asStateFlow()
 
-    fun connect(updatedServer: SshServerConfig = server) {
+    override fun connect() = connect(server)
+
+    fun connect(updatedServer: SshServerConfig) {
         server = updatedServer
         if (connectionJob?.isActive == true || transport?.channel?.isConnected == true) return
         requestedClose = false
@@ -120,7 +133,7 @@ class TerminalConnection internal constructor(
     }
 
     /** Queues terminal input without performing socket I/O on Android's main/IME thread. */
-    fun write(bytes: ByteArray): Boolean {
+    override fun write(bytes: ByteArray): Boolean {
         val active = transport
         Log.d(
             TAG,
@@ -160,10 +173,10 @@ class TerminalConnection internal constructor(
     }.onFailure { Log.e(TAG, "write failed type=${it.javaClass.simpleName}", it) }
         .getOrDefault(false)
 
-    fun write(text: String): Boolean = write(text.toByteArray(Charsets.UTF_8))
+    override fun write(text: String): Boolean = write(text.toByteArray(Charsets.UTF_8))
 
     @Synchronized
-    fun resize(newCols: Int, newRows: Int, widthPx: Int, heightPx: Int) {
+    override fun resize(newCols: Int, newRows: Int, widthPx: Int, heightPx: Int) {
         // Once connected, the PTY and emulator must remain the same size. This also protects a
         // persistent connection when the Compose screen is recreated after navigation/config change.
         if (transport?.channel?.isConnected == true || transport?.session?.isConnected == true) return
@@ -263,7 +276,7 @@ class TerminalConnection internal constructor(
         }
     }
 
-    fun disconnect(markRequested: Boolean = true) {
+    override fun disconnect(markRequested: Boolean) {
         requestedClose = markRequested
         generation.incrementAndGet()
         connectionJob?.cancel()

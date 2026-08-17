@@ -70,12 +70,15 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.zIndex
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.SshServerConfig
+import com.yukisoffd.lyracode.debian.ProotLinuxManager
 import com.yukisoffd.lyracode.ssh.DEFAULT_TERMINAL_BACKGROUND
+import com.yukisoffd.lyracode.ssh.LocalProotTerminalSessionManager
 import com.yukisoffd.lyracode.ssh.SshTerminalSessionManager
 import com.yukisoffd.lyracode.ssh.SshTerminalMessage
 import com.yukisoffd.lyracode.ssh.SshTerminalState
 import com.yukisoffd.lyracode.ssh.SshTerminalStatus
 import com.yukisoffd.lyracode.ssh.TerminalConnection
+import com.yukisoffd.lyracode.ssh.TerminalSession
 import com.yukisoffd.lyracode.ssh.TerminalInputEncoder
 import com.yukisoffd.lyracode.ssh.TerminalInputView
 import com.yukisoffd.lyracode.ssh.TerminalPosition
@@ -86,14 +89,31 @@ import com.yukisoffd.lyracode.ssh.TerminalSnapshot
 import kotlin.math.ceil
 
 @Composable
-internal fun SshTerminalScreen(
+internal fun TerminalScreen(
     settings: AppSettings,
     sessionManager: SshTerminalSessionManager,
+    localSessionManager: LocalProotTerminalSessionManager,
 ) {
+    val context = LocalContext.current
+    val runtime = remember(context) { ProotLinuxManager.getInstance(context) }
+    val runtimeState by runtime.state.collectAsState()
     val servers = remember { settings.sshServers().filter { it.enabled } }
-    var selectedId by rememberSaveable { mutableStateOf(servers.firstOrNull()?.id.orEmpty()) }
-    val selected = servers.firstOrNull { it.id == selectedId } ?: servers.firstOrNull()
-    val connection = remember(selected?.id) { selected?.let(sessionManager::connection) }
+    val localInstances = runtimeState.instances.filter { it.enabled }
+    val targets = buildList {
+        localInstances.forEach { linux ->
+            add(TerminalTarget("proot:${linux.id}", "${linux.name} · ${linux.id}", linuxId = linux.id))
+        }
+        servers.forEach { add(TerminalTarget(it.id, it.name, it)) }
+    }
+    var selectedId by rememberSaveable { mutableStateOf(localInstances.firstOrNull()?.let { "proot:${it.id}" } ?: servers.firstOrNull()?.id.orEmpty()) }
+    val selectedTarget = targets.firstOrNull { it.id == selectedId } ?: targets.firstOrNull()
+    LaunchedEffect(selectedTarget?.id) {
+        if (selectedTarget != null && selectedTarget.id != selectedId) selectedId = selectedTarget.id
+    }
+    val connection: TerminalSession? = remember(selectedTarget?.id) {
+        selectedTarget?.linuxId?.let(localSessionManager::connection)
+            ?: selectedTarget?.server?.let(sessionManager::connection)
+    }
     val state by connection?.state?.collectAsState() ?: remember { mutableStateOf(SshTerminalState()) }
     val screen by connection?.screen?.collectAsState() ?: remember { mutableStateOf(com.yukisoffd.lyracode.ssh.TerminalEmulator().snapshot()) }
     var pickerExpanded by remember { mutableStateOf(false) }
@@ -120,17 +140,17 @@ internal fun SshTerminalScreen(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xffe8edf5)),
                 ) {
                     Text(
-                        selected?.name ?: uiText(R.string.ssh_terminal_no_servers),
+                        selectedTarget?.label ?: uiText(R.string.ssh_terminal_no_servers),
                         modifier = Modifier.weight(1f),
                         maxLines = 1,
                     )
                     Icon(Icons.Default.KeyboardArrowDown, contentDescription = uiText(R.string.ssh_terminal_select_server))
                 }
                 DropdownMenu(expanded = pickerExpanded, onDismissRequest = { pickerExpanded = false }) {
-                    servers.forEach { server ->
+                    targets.forEach { target ->
                         DropdownMenuItem(
-                            text = { Text(server.name) },
-                            onClick = { selectedId = server.id; pickerExpanded = false },
+                            text = { Text(target.label) },
+                            onClick = { selectedId = target.id; pickerExpanded = false },
                         )
                     }
                 }
@@ -143,7 +163,14 @@ internal fun SshTerminalScreen(
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = Color(0xffe8edf5)),
                 ) { Text(uiText(R.string.ssh_terminal_disconnect)) }
             } else {
-                Button(onClick = { if (selected != null) connection?.connect(selected) }, enabled = selected != null, shape = RoundedCornerShape(12.dp)) { Text(uiText(R.string.ssh_terminal_connect)) }
+                Button(
+                    onClick = {
+                        val server = selectedTarget?.server
+                        if (server != null) (connection as? TerminalConnection)?.connect(server) else connection?.connect()
+                    },
+                    enabled = selectedTarget != null,
+                    shape = RoundedCornerShape(12.dp),
+                ) { Text(uiText(R.string.ssh_terminal_connect)) }
             }
         }
         TerminalStatusBar(state)
@@ -186,7 +213,7 @@ private fun terminalStatusText(state: SshTerminalState): String = when (state.me
 }
 
 @Composable
-private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalConnection?, enabled: Boolean) {
+private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSession?, enabled: Boolean) {
     val density = LocalDensity.current
     val context = LocalContext.current
     val keyboardOffsetPx = rememberAnimatedKeyboardAvoidanceOffsetPx()
@@ -548,6 +575,13 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalConnec
         )
     }
 }
+
+private data class TerminalTarget(
+    val id: String,
+    val label: String,
+    val server: SshServerConfig? = null,
+    val linuxId: String? = null,
+)
 
 @Composable
 private fun TerminalSelectionHandle(

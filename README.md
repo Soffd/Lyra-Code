@@ -140,6 +140,8 @@ Build a debug APK:
 .\gradlew.bat assembleDebug
 ```
 
+Every APK includes the small PRoot engine but no Linux rootfs. On arm64 devices, **Settings > PRoot Linux** can download the verified Debian seed or import multiple compatible arm64 `tar.gz`/`tgz`/uncompressed-tar rootfs archives such as Ubuntu or Alpine. Each environment has a stable Linux ID; enabled environments are exposed through `proot_command(linux_id, ...)` and the shared terminal UI even when no workspace is selected. Granting Android All files access mounts Android shared storage under `/storage`, with primary storage also available at `/sdcard`; app-UID and SELinux restrictions still apply. The existing `run_command` path continues to call external Termux. See [docs/DEBIAN_RUNTIME.md](docs/DEBIAN_RUNTIME.md) for lifecycle and storage details.
+
 The generated APK is usually under:
 
 ```text

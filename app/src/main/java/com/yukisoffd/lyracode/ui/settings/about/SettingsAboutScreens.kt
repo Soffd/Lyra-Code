@@ -93,6 +93,13 @@ internal data class LicenseNotice(
 internal fun OpenSourceLicensesScreen() {
     val context = LocalContext.current
     var selectedNotice by remember { mutableStateOf<LicenseNotice?>(null) }
+    val gpl3Text = remember(context) {
+        runCatching {
+            context.assets.open("org/scilab/forge/jlatexmath/licences/GPL-3.0.txt")
+                .bufferedReader()
+                .use { it.readText() }
+        }.getOrElse { "GNU GPL version 3: https://www.gnu.org/licenses/gpl-3.0.txt" }
+    }
     val notices = remember(context) {
         listOf(
             LicenseNotice("AndroidX Core KTX", "Apache License 2.0", uiText(R.string.ui_android_kotlin_extensions_and_compatibility_layer), LicenseTexts.APACHE_2_0),
@@ -126,6 +133,12 @@ internal fun OpenSourceLicensesScreen() {
             LicenseNotice("Android Gradle Plugin", "Apache License 2.0", uiText(R.string.ui_android_build_toolchain), LicenseTexts.APACHE_2_0),
             LicenseNotice("Kotlin", "Apache License 2.0", uiText(R.string.ui_main_development_language_and_compiler), LicenseTexts.APACHE_2_0),
             LicenseNotice("JSch / mwiede fork", "BSD 3-Clause License", uiText(R.string.ui_ssh_connections_and_remote_command_execution), LicenseTexts.BSD_3_CLAUSE),
+            LicenseNotice(
+                "PRoot for Android / Soffd fork",
+                "GPL-2.0-or-later; GPLv3 selected",
+                context.getString(R.string.license_proot_note),
+                LicenseTexts.PROOT_GPL_NOTICE + "\n\n" + gpl3Text,
+            ),
             LicenseNotice("JLatexMath Android / Soffd fork", "GPL v2 or later with linking exception; GPL v3 selected", uiText(R.string.ui_local_latex_math_rendering_source_is_kept_under_third), LicenseTexts.JLATEXMATH_GPL_WITH_EXCEPTION),
             LicenseNotice("JLatexMath core fonts", "OFL / Knuth / permissive terms / Public Domain", uiText(R.string.ui_math_rendering_fonts_full_font_licenses_are_distributed_under), LicenseTexts.JLATEXMATH_FONT_LICENSES),
             LicenseNotice("JSON-java / org.json", "JSON License", uiText(R.string.ui_json_parsing_and_serialization), LicenseTexts.JSON_LICENSE),

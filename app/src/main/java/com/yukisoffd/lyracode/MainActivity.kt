@@ -188,6 +188,7 @@ import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
 import com.yukisoffd.lyracode.ssh.SshExecutor
 import com.yukisoffd.lyracode.ssh.SshTerminalSessionManager
+import com.yukisoffd.lyracode.ssh.LocalProotTerminalSessionManager
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.tasks.DownloadTaskManager
 import com.yukisoffd.lyracode.tasks.ScheduledTaskManager
@@ -220,6 +221,7 @@ class MainActivity : ComponentActivity() {
     private var miniServerManager: MiniServerManager? = null
     private var localMcpServerManager: LocalMcpServerManager? = null
     private var sshTerminalSessionManager: SshTerminalSessionManager? = null
+    private var localProotTerminalSessionManager: LocalProotTerminalSessionManager? = null
 
     override fun attachBaseContext(newBase: Context) {
         val languageMode = AppSettings(newBase).languageMode
@@ -251,6 +253,10 @@ class MainActivity : ComponentActivity() {
         val sshExecutor = SshExecutor(settings)
         val sshTerminalSessionManager = SshTerminalSessionManager(sshExecutor)
         this.sshTerminalSessionManager = sshTerminalSessionManager
+        val localProotTerminalSessionManager = LocalProotTerminalSessionManager(this) {
+            workspaceManager.termuxRootPath()
+        }
+        this.localProotTerminalSessionManager = localProotTerminalSessionManager
         val systemCommandExecutor = SystemCommandExecutor(this, settings)
         val webDavClient = WebDavClient()
         val fileTransferClient = FileTransferClient(this)
@@ -333,6 +339,7 @@ class MainActivity : ComponentActivity() {
                         mcpClientManager = mcpClientManager,
                         sshExecutor = sshExecutor,
                         sshTerminalSessionManager = sshTerminalSessionManager,
+                        localProotTerminalSessionManager = localProotTerminalSessionManager,
                         systemCommandExecutor = systemCommandExecutor,
                         webDavClient = webDavClient,
                         fileTransferClient = fileTransferClient,
@@ -393,6 +400,7 @@ class MainActivity : ComponentActivity() {
         miniServerManager?.close()
         localMcpServerManager?.close()
         sshTerminalSessionManager?.close()
+        localProotTerminalSessionManager?.close()
         if (isFinishing) {
             AppSettings(this).clearChatInputDrafts()
         }

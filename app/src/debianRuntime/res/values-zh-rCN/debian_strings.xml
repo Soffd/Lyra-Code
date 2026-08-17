@@ -1,0 +1,37 @@
+<resources>
+    <string name="tool_proot_command">PRoot Linux 命令</string>
+    <string name="tool_proot_command_desc">按 Linux ID 在已安装的应用内 PRoot Linux 中执行 Shell 命令。</string>
+    <string name="menu_debian">PRoot Linux</string>
+    <string name="menu_debian_desc">下载、导入并管理多个本地 Linux 环境。</string>
+    <string name="debian_runtime_title">Debian 运行环境</string>
+    <string name="debian_runtime_unsupported">当前仅支持 arm64-v8a 设备。</string>
+    <string name="debian_runtime_not_installed">尚未安装，rootfs 下载约 50 MB。</string>
+    <string name="debian_runtime_downloading">正在下载… %1$d%%</string>
+    <string name="debian_runtime_installing">正在安装 Debian…</string>
+    <string name="debian_runtime_installed">已安装，可以使用本地终端和 debian_command。</string>
+    <string name="debian_runtime_install_failed">安装失败。</string>
+    <string name="debian_runtime_install_action">下载并安装 Debian</string>
+    <string name="debian_runtime_preservation_hint">禁用 Debian 只会隐藏终端入口和 Agent 工具。应用更新绝不会覆盖已配置的 rootfs；卸载或清除应用数据仍会将其删除。</string>
+    <string name="debian_terminal_local">本地 Debian</string>
+    <string name="proot_linux_title">本地 PRoot Linux 环境</string>
+    <string name="proot_linux_count">已安装 %1$d 个</string>
+    <string name="proot_linux_working">正在处理 Linux rootfs…</string>
+    <string name="proot_linux_import_action">导入 rootfs</string>
+    <string name="proot_linux_import_title">导入 Linux rootfs</string>
+    <string name="proot_linux_import_hint">请选择包含 /bin/sh 或 /bin/bash 的兼容 arm64 tar.gz/tgz 或未压缩 tar rootfs。Ubuntu、Alpine、Debian 等兼容 PRoot 的发行版可以共存。</string>
+    <string name="proot_linux_name">显示名称</string>
+    <string name="proot_linux_delete_action">删除</string>
+    <string name="proot_linux_delete_title">删除 %1$s？</string>
+    <string name="proot_linux_delete_warning">这会永久删除整个 Linux rootfs，包括其中安装的所有软件包、用户文件和系统配置，且无法撤销。</string>
+    <string name="proot_linux_preservation_hint">每个环境都有稳定的 Linux ID，供终端和 proot_command 使用。禁用不会删除数据，应用更新也不会覆盖 rootfs。</string>
+    <string name="proot_linux_all_files_access">共享存储访问</string>
+    <string name="proot_linux_all_files_access_desc">授予 Android“所有文件访问”权限后，会把 Android 共享存储挂载到每个 PRoot Linux 的 /storage，主存储也可通过 /sdcard 访问。未授权时仅可访问已选择的工作区和 Linux 内部文件。权限改变后请重新连接已打开的终端。PRoot 仍受应用 UID 与 SELinux 限制。</string>
+    <string name="proot_linux_supported_files">导入要求</string>
+    <string name="proot_linux_supported_files_desc">支持的文件：.tar.gz、.tgz 或未压缩的 .tar rootfs。支持的架构：ARM64，也写作 arm64 或 aarch64。压缩包内必须包含 /bin/sh 或 /bin/bash。</string>
+    <string name="proot_linux_iso_warning">不支持：ISO 安装/Live 镜像、APK 包、amd64/x86_64 镜像、.tar.xz 和 .tar.zst。XZ/Zstandard 压缩包请先解压为 .tar 再导入。</string>
+    <string name="proot_linux_download_sources">官方 rootfs 下载</string>
+    <string name="proot_linux_alpine_source_hint">选择“Mini root filesystem”→ aarch64 → .tar.gz，不要下载 Standard/Virtual ISO。</string>
+    <string name="proot_linux_ubuntu_source_hint">选择版本后下载 ubuntu-base-…-arm64.tar.gz。</string>
+    <string name="proot_linux_arch_source_hint">选择 ARMv8/AArch64 Generic root filesystem tar.gz。</string>
+    <string name="proot_linux_proot_distro_hint">兼容性和使用示例参考；ISO 并不是 PRoot rootfs。</string>
+</resources>
