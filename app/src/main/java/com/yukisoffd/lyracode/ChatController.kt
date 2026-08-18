@@ -4,6 +4,7 @@ import android.net.Uri
 import android.graphics.Bitmap
 import android.os.Environment
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.State
@@ -34,6 +35,7 @@ import com.yukisoffd.lyracode.workspace.UploadedFileManager
 import com.yukisoffd.lyracode.workspace.WorkspaceManager
 import com.yukisoffd.lyracode.workspace.WorkspaceFileReference
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
@@ -88,8 +90,14 @@ class ChatController(
     private val workspaceManager: WorkspaceManager,
     private val agent: OpenAiAgent,
 ) {
+    private enum class ConversationOperation {
+        GENERATING,
+        COMPRESSING,
+    }
+
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val jobs = mutableMapOf<Long, Job>()
+    private val conversationOperations = mutableStateMapOf<Long, ConversationOperation>()
     private var editorContextPath = ""
     private var editorMutationId = 0L
     private var editorActivityId = 0L
@@ -316,6 +324,7 @@ class ChatController(
 
     fun deleteConversation(id: Long) {
         jobs.remove(id)?.cancel()
+        conversationOperations.remove(id)
         autoApprovedConversations.remove(id)
         todoByConversation.remove(id)
         conversationStore.deleteConversation(id)
@@ -608,7 +617,14 @@ class ChatController(
             onDone(Result.failure(IllegalStateException(appContext.getString(R.string.error_no_history_to_compress))))
             return
         }
-        if (jobs[conversationId]?.isActive == true) return
+        if (jobs[conversationId]?.isActive == true) {
+            onDone(
+                Result.failure(
+                    IllegalStateException(appContext.getString(R.string.error_history_compression_conversation_busy)),
+                ),
+            )
+            return
+        }
         val throughMessageId = conversationStore.messages(conversationId).lastOrNull()?.id ?: run {
             onDone(Result.failure(IllegalStateException(appContext.getString(R.string.error_no_history_to_compress))))
             return
@@ -621,7 +637,7 @@ class ChatController(
         settings.historyCompressionChunkCount = normalizedChunkCount
         conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_RUNNING)
         reloadConversations()
-        jobs[conversationId] = scope.launch {
+        launchConversationJob(conversationId, ConversationOperation.COMPRESSING) {
             status.value = appContext.getString(R.string.status_compressing_history)
             val result = runCatching {
                 val summary = agent.compressConversationHistory(
@@ -668,6 +684,7 @@ class ChatController(
         if (!shouldCompress) return null
         val throughMessageId = conversationStore.messages(conversationId).lastOrNull()?.id ?: return null
         val (profile, model) = historyCompressionTarget(conversationId)
+        conversationOperations[conversationId] = ConversationOperation.COMPRESSING
         status.value = appContext.getString(R.string.status_auto_compressing_history)
         return runCatching {
             agent.compressConversationHistory(
@@ -776,7 +793,7 @@ class ChatController(
                     }
             }
         }
-        jobs[conversationId] = scope.launch {
+        launchConversationJob(conversationId, ConversationOperation.GENERATING) {
             status.value = appContext.getString(R.string.status_running)
             agent.chat(conversationId, userInput, profile, model, userMessagePersisted = true, forcedSkillIds = forcedSkillIds) {
                 withContext(Dispatchers.Main) {
@@ -795,6 +812,7 @@ class ChatController(
     fun stopActive() {
         val conversationId = activeConversationId.value.takeIf { it > 0 } ?: return
         jobs.remove(conversationId)?.cancel()
+        conversationOperations.remove(conversationId)
         conversationStore.setConversationMeta(conversationId, status = ConversationStore.STATUS_INTERRUPTED)
         pendingToolApproval.value?.takeIf { it.request.conversationId == conversationId }?.let { pending ->
             approvalWaiters.remove(pending.id)?.complete(
@@ -831,7 +849,7 @@ class ChatController(
             model = model,
         )
         reloadConversations()
-        jobs[conversationId] = scope.launch {
+        launchConversationJob(conversationId, ConversationOperation.GENERATING) {
             status.value = appContext.getString(R.string.status_continue)
             agent.continueConversation(conversationId, profile, model) {
                 withContext(Dispatchers.Main) {
@@ -860,7 +878,7 @@ class ChatController(
         reloadConversations()
         val profile = currentProfile()
         val model = activeModel.value.ifBlank { profile.selectedModel }
-        jobs[conversationId] = scope.launch {
+        launchConversationJob(conversationId, ConversationOperation.GENERATING) {
             status.value = appContext.getString(R.string.status_regenerate)
             agent.continueConversation(conversationId, profile, model) {
                 withContext(Dispatchers.Main) {
@@ -1152,7 +1170,37 @@ class ChatController(
         todoItems.addAll(todoByConversation[activeConversationId.value].orEmpty())
     }
 
-    fun isActiveConversationRunning(): Boolean = jobs[activeConversationId.value]?.isActive == true
+    private fun launchConversationJob(
+        conversationId: Long,
+        operation: ConversationOperation,
+        block: suspend CoroutineScope.() -> Unit,
+    ): Job {
+        lateinit var launchedJob: Job
+        launchedJob = scope.launch(start = CoroutineStart.LAZY) {
+            try {
+                block()
+            } finally {
+                // A cancelled job may finish after a new operation has already
+                // started for this conversation. Only clear our own state.
+                if (jobs[conversationId] === launchedJob) {
+                    jobs.remove(conversationId)
+                    conversationOperations.remove(conversationId)
+                }
+            }
+        }
+        jobs[conversationId] = launchedJob
+        conversationOperations[conversationId] = operation
+        launchedJob.start()
+        return launchedJob
+    }
+
+    fun isActiveConversationRunning(): Boolean = conversationOperations.containsKey(activeConversationId.value)
+
+    fun isActiveConversationGenerating(): Boolean =
+        conversationOperations[activeConversationId.value] == ConversationOperation.GENERATING
+
+    fun isActiveHistoryCompressionRunning(): Boolean =
+        conversationOperations[activeConversationId.value] == ConversationOperation.COMPRESSING
 
     fun activeConversation(): Conversation? = conversationStore.conversation(activeConversationId.value)
 

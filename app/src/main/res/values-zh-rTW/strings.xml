@@ -630,10 +630,12 @@
     <string name="custom_compression_instruction_hint">例如：重點保留程式碼改動與未完成事項。預設結果會按目標、事實、任務、注意事項等欄位整理。</string>
     <string name="action_compress_history">壓縮歷史</string>
     <string name="status_compressing_history">正在分段壓縮併合並會話歷史，完成前暫時無法傳送訊息…</string>
+    <string name="status_history_compression_wait_for_response">AI 正在回覆，回覆完成後才能壓縮歷史。目前仍可查看上下文資訊或關閉視窗。</string>
     <string name="status_auto_compressing_history">已達到自動壓縮條件，正在分段壓縮併合並會話歷史…</string>
     <string name="status_history_compressed">會話歷史壓縮完成</string>
     <string name="error_history_compression_failed">會話歷史壓縮失敗，原上下文已保留</string>
     <string name="error_no_history_to_compress">當前會話沒有可壓縮的歷史</string>
+    <string name="error_history_compression_conversation_busy">請等待目前回覆或操作完成後再壓縮歷史</string>
     <string name="title_auto_compression">自動壓縮</string>
     <string name="action_auto_compression">自動壓縮</string>
     <string name="auto_compression_session_hint">僅對當前會話生效</string>
