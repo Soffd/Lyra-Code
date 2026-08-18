@@ -1545,7 +1545,7 @@
     <string name="compliance_user_scope_title">一、協議主體與適用範圍</string>
     <string name="compliance_user_scope_body">產品名稱：Lyra Code。
 開發者及專案維護者：Soffd / Lyra Code 專案維護者。
-聯絡渠道：https://github.com/Soffd/Lyra-Code/issues 。
+聯絡渠道：https://github.com/lyracode-app/Lyra-Code/issues 。
 
 本協議適用於應用本體及隨版本提供的本地功能。使用者自行接入的模型平臺、網站、MCP 或遠端伺服器由相應服務方負責，並適用其另行公佈的協議和政策。</string>
     <string name="compliance_user_service_title">二、服務內容</string>
@@ -1601,7 +1601,7 @@ API Key、密碼、私鑰和遠端服務費用由使用者自行管理。請勿�
     <string name="compliance_privacy_children_title">七、未成年人</string>
     <string name="compliance_privacy_children_body">應用並非專門面向未成年人。未成年人應在監護人指導下使用，不應向模型、網站或遠端伺服器提交身份、位置、學校、聯絡方式等敏感資訊。監護人可透過系統許可權和清除應用資料進行管理。</string>
     <string name="compliance_privacy_changes_title">八、政策更新與聯絡</string>
-    <string name="compliance_privacy_changes_body">功能、許可權、第三方服務或資訊處理方式發生重要變化時，應更新本政策和清單並修改日期。聯絡渠道：https://github.com/Soffd/Lyra-Code/issues 。公開反饋時請先刪除敏感資訊。</string>
+    <string name="compliance_privacy_changes_body">功能、許可權、第三方服務或資訊處理方式發生重要變化時，應更新本政策和清單並修改日期。聯絡渠道：https://github.com/lyracode-app/Lyra-Code/issues 。公開反饋時請先刪除敏感資訊。</string>
 
     <string name="compliance_personal_summary">本清單按當前版本列出應用可能處理的資訊。標註“按需”的專案不會因安裝應用而自動讀取；是否傳送到外部取決於使用者的操作、工具呼叫和服務配置。</string>
     <string name="compliance_personal_optional_profile_title">暱稱與頭像（可選）</string>

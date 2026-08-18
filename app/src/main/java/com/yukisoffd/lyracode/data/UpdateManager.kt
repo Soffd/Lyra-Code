@@ -24,7 +24,13 @@ data class AppUpdateInfo(
     val webUrl: String,
     val mandatory: Boolean,
 ) {
-    fun isNewerThan(currentVersionCode: Long): Boolean = versionCode > currentVersionCode
+    fun isNewerThan(currentVersionCode: Long, currentVersionName: String): Boolean {
+        return if (versionCode > 0L) {
+            versionCode > currentVersionCode
+        } else {
+            compareVersionNames(versionName, currentVersionName)?.let { it > 0 } == true
+        }
+    }
 }
 
 data class UpdateDownloadProgress(
@@ -48,28 +54,52 @@ class UpdateManager(private val context: Context) {
     fun manifestUrl(): String = com.yukisoffd.lyracode.BuildConfig.LYRA_UPDATE_MANIFEST_URL.trim()
 
     fun currentVersionCode(): Long {
-        val info = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            appContext.packageManager.getPackageInfo(appContext.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
-        } else {
-            @Suppress("DEPRECATION")
-            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
-        }
+        val info = packageInfo()
         return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else {
             @Suppress("DEPRECATION")
             info.versionCode.toLong()
         }
     }
 
-    fun checkForUpdate(): Result<AppUpdateInfo?> = runCatching {
-        val url = manifestUrl()
-        require(url.isNotBlank()) { "未配置更新清单地址，请在 gradle.properties 设置 lyra.updateManifestUrl" }
-        val request = Request.Builder().url(url).get().build()
-        client.newCall(request).execute().use { response ->
-            require(response.isSuccessful) { "版本检测失败：HTTP ${response.code}" }
-            val json = JSONObject(response.body?.string().orEmpty())
-            val info = parseUpdateInfo(json)
-            if (info.isNewerThan(currentVersionCode())) info else null
+    fun currentVersionName(): String = packageInfo().versionName.orEmpty()
+
+    private fun packageInfo(): android.content.pm.PackageInfo {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            appContext.packageManager.getPackageInfo(appContext.packageName, android.content.pm.PackageManager.PackageInfoFlags.of(0))
+        } else {
+            @Suppress("DEPRECATION")
+            appContext.packageManager.getPackageInfo(appContext.packageName, 0)
         }
+    }
+
+    fun checkForUpdate(): Result<AppUpdateInfo?> = runCatching {
+        val sources = buildList<Pair<String, () -> AppUpdateInfo>> {
+            manifestUrl().takeIf { it.isNotBlank() }?.let { url ->
+                add("网站 JSON" to { parseUpdateInfo(fetchJson(url)) })
+            }
+            add("GitHub" to {
+                parseReleaseUpdateInfo(
+                    json = fetchJson(GITHUB_LATEST_RELEASE_API),
+                    fallbackWebUrl = GITHUB_RELEASES_URL,
+                )
+            })
+            add("Gitee" to {
+                parseReleaseUpdateInfo(
+                    json = fetchJson(GITEE_LATEST_RELEASE_API),
+                    fallbackWebUrl = GITEE_RELEASES_URL,
+                )
+            })
+        }
+        val failures = mutableListOf<String>()
+        for ((name, load) in sources) {
+            try {
+                val info = load()
+                return@runCatching if (info.isNewerThan(currentVersionCode(), currentVersionName())) info else null
+            } catch (error: Exception) {
+                failures += "$name：${error.message.orEmpty().ifBlank { error.javaClass.simpleName }}"
+            }
+        }
+        error("版本检测失败，所有更新来源均不可用：${failures.joinToString("；")}")
     }
 
     fun checkDailyForUpdateIfNeeded(): Result<AppUpdateInfo?> = runCatching {
@@ -77,8 +107,8 @@ class UpdateManager(private val context: Context) {
         if (prefs.getString(KEY_LAST_DAILY_CHECK_DATE, "") == today) {
             return@runCatching latestAvailableUpdate()
         }
-        prefs.edit().putString(KEY_LAST_DAILY_CHECK_DATE, today).apply()
         val info = checkForUpdate().getOrThrow()
+        prefs.edit().putString(KEY_LAST_DAILY_CHECK_DATE, today).apply()
         if (info == null) {
             clearLatestAvailableUpdate()
         } else {
@@ -89,11 +119,7 @@ class UpdateManager(private val context: Context) {
 
     fun latestAvailableUpdate(): AppUpdateInfo? {
         val versionCode = prefs.getLong(KEY_LATEST_VERSION_CODE, 0L)
-        if (versionCode <= currentVersionCode()) {
-            clearLatestAvailableUpdate()
-            return null
-        }
-        return AppUpdateInfo(
+        val info = AppUpdateInfo(
             versionName = prefs.getString(KEY_LATEST_VERSION_NAME, "").orEmpty(),
             versionCode = versionCode,
             apkUrl = prefs.getString(KEY_LATEST_APK_URL, "").orEmpty(),
@@ -103,6 +129,11 @@ class UpdateManager(private val context: Context) {
             webUrl = prefs.getString(KEY_LATEST_WEB_URL, "").orEmpty(),
             mandatory = prefs.getBoolean(KEY_LATEST_MANDATORY, false),
         )
+        if (!info.isNewerThan(currentVersionCode(), currentVersionName())) {
+            clearLatestAvailableUpdate()
+            return null
+        }
+        return info
     }
 
     fun hasAvailableUpdate(): Boolean = latestAvailableUpdate() != null
@@ -228,7 +259,13 @@ class UpdateManager(private val context: Context) {
             return null
         }
         val pendingVersionCode = prefs.getLong(KEY_PENDING_VERSION_CODE, 0L)
-        if (pendingVersionCode > 0L && currentVersionCode() >= pendingVersionCode) {
+        val pendingVersionName = prefs.getString(KEY_PENDING_VERSION_NAME, "").orEmpty()
+        val installedTargetVersion = if (pendingVersionCode > 0L) {
+            currentVersionCode() >= pendingVersionCode
+        } else {
+            compareVersionNames(currentVersionName(), pendingVersionName)?.let { it >= 0 } == true
+        }
+        if (installedTargetVersion) {
             clearPendingApk()
             pruneCachedUpdateArtifacts()
             return null
@@ -301,6 +338,8 @@ class UpdateManager(private val context: Context) {
         val versionCode = json.optLong("versionCode").takeIf { it > 0 }
             ?: json.optLong("version_code").takeIf { it > 0 }
             ?: error("更新清单缺少 versionCode")
+        val apkUrl = json.optString("apkUrl").ifBlank { json.optString("apk_url") }
+        require(apkUrl.startsWith("https://") || apkUrl.startsWith("http://")) { "更新清单缺少有效的 apkUrl" }
         val releaseNotesUrl = json.optString("releaseNotesUrl").ifBlank { json.optString("release_notes_url") }
         val inlineNotes = json.optString("releaseNotes").ifBlank { json.optString("release_notes") }
         val releaseNotes = if (inlineNotes.isNotBlank() || releaseNotesUrl.isBlank()) {
@@ -316,13 +355,28 @@ class UpdateManager(private val context: Context) {
         return AppUpdateInfo(
             versionName = json.optString("versionName").ifBlank { json.optString("version_name") },
             versionCode = versionCode,
-            apkUrl = json.optString("apkUrl").ifBlank { json.optString("apk_url") },
+            apkUrl = apkUrl,
             apkSha256 = json.optString("apkSha256").ifBlank { json.optString("apk_sha256").ifBlank { json.optString("sha256") } },
             releaseNotes = releaseNotes.ifBlank { "发现新版本，暂无更新说明。" },
             releaseNotesUrl = releaseNotesUrl,
             webUrl = json.optString("webUrl").ifBlank { json.optString("web_url") },
             mandatory = json.optBoolean("mandatory", false),
         )
+    }
+
+    private fun fetchJson(url: String): JSONObject {
+        val request = Request.Builder()
+            .url(url)
+            .header("Accept", "application/json")
+            .header("User-Agent", "LyraCode/${currentVersionCode()} AndroidUpdateClient")
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            require(response.isSuccessful) { "HTTP ${response.code}" }
+            val body = response.body?.string().orEmpty()
+            require(body.isNotBlank()) { "响应为空" }
+            return JSONObject(body)
+        }
     }
 
     private fun sha256(file: File): String {
@@ -399,7 +453,60 @@ class UpdateManager(private val context: Context) {
         const val KEY_LATEST_MANDATORY = "latest_mandatory"
         const val KEY_UPDATE_PROMPT_DISABLED = "update_prompt_disabled"
         const val KEY_LAST_UPDATE_PROMPT_DATE = "last_update_prompt_date"
+
+        const val GITHUB_LATEST_RELEASE_API = "https://api.github.com/repos/lyracode-app/Lyra-Code/releases/latest"
+        const val GITHUB_RELEASES_URL = "https://github.com/lyracode-app/Lyra-Code/releases"
+        const val GITEE_LATEST_RELEASE_API = "https://gitee.com/api/v5/repos/yukisoffd/lyra-code/releases/latest"
+        const val GITEE_RELEASES_URL = "https://gitee.com/yukisoffd/lyra-code/releases"
     }
+}
+
+internal fun parseReleaseUpdateInfo(json: JSONObject, fallbackWebUrl: String): AppUpdateInfo {
+    val tagName = json.optString("tag_name").trim()
+    require(versionComponents(tagName) != null) { "Release 缺少可识别的版本号" }
+    val assets = json.optJSONArray("assets") ?: error("Release 缺少安装包")
+    val apkUrl = (0 until assets.length())
+        .asSequence()
+        .mapNotNull { assets.optJSONObject(it) }
+        .firstOrNull { asset -> asset.optString("name").endsWith(".apk", ignoreCase = true) }
+        ?.optString("browser_download_url")
+        .orEmpty()
+    require(apkUrl.startsWith("https://") || apkUrl.startsWith("http://")) {
+        "Release 缺少 APK 的 browser_download_url"
+    }
+    val versionName = tagName.removePrefix("v").removePrefix("V")
+    val webUrl = json.optString("html_url").ifBlank { fallbackWebUrl }
+    return AppUpdateInfo(
+        versionName = versionName,
+        versionCode = 0L,
+        apkUrl = apkUrl,
+        apkSha256 = "",
+        releaseNotes = json.optString("body").ifBlank { "发现新版本，暂无更新说明。" },
+        releaseNotesUrl = webUrl,
+        webUrl = webUrl,
+        mandatory = false,
+    )
+}
+
+internal fun compareVersionNames(left: String, right: String): Int? {
+    val leftComponents = versionComponents(left) ?: return null
+    val rightComponents = versionComponents(right) ?: return null
+    val componentCount = maxOf(leftComponents.size, rightComponents.size)
+    for (index in 0 until componentCount) {
+        val comparison = (leftComponents.getOrNull(index) ?: 0L)
+            .compareTo(rightComponents.getOrNull(index) ?: 0L)
+        if (comparison != 0) return comparison
+    }
+    return 0
+}
+
+private fun versionComponents(value: String): List<Long>? {
+    val version = Regex("(?i)(?:^|[^0-9])v?(\\d+(?:\\.\\d+)*)(?:$|[^0-9])")
+        .find(value.trim())
+        ?.groupValues
+        ?.getOrNull(1)
+        ?: return null
+    return version.split('.').map { component -> component.toLongOrNull() ?: return null }
 }
 
 internal fun deleteCachedUpdateArtifacts(directory: File, keepFile: File? = null): Int {

@@ -1462,7 +1462,7 @@
     <string name="compliance_user_scope_title">1. Scope and parties</string>
     <string name="compliance_user_scope_body">Product: Lyra Code.
 Developer and maintainer: Soffd / Lyra Code project maintainers.
-Contact: https://github.com/Soffd/Lyra-Code/issues .
+Contact: https://github.com/lyracode-app/Lyra-Code/issues .
 
 This agreement covers the app and bundled local features. Providers of models, websites, MCP, and remote servers selected by you remain responsible for their services and may apply separate terms.</string>
     <string name="compliance_user_service_title">2. Services</string>
@@ -1518,7 +1518,7 @@ For access, correction, deletion, or complaints concerning information maintaine
     <string name="compliance_privacy_children_title">7. Children</string>
     <string name="compliance_privacy_children_body">The app is not specifically directed to children. Minors should use it with guardian guidance and should not submit identity, location, school, contact, or similar sensitive details to models, sites, or remote servers.</string>
     <string name="compliance_privacy_changes_title">8. Updates and contact</string>
-    <string name="compliance_privacy_changes_body">Material changes to features, permissions, third parties, or processing should be reflected in this policy and its date. Contact: https://github.com/Soffd/Lyra-Code/issues . Remove sensitive data before public feedback.</string>
+    <string name="compliance_privacy_changes_body">Material changes to features, permissions, third parties, or processing should be reflected in this policy and its date. Contact: https://github.com/lyracode-app/Lyra-Code/issues . Remove sensitive data before public feedback.</string>
 
     <string name="compliance_personal_summary">This list covers information the current version may process. “On demand” items are not read merely because the app is installed. External transmission depends on your actions, tool calls, and configuration.</string>
     <string name="compliance_personal_optional_profile_title">Nickname and avatar (optional)</string>
