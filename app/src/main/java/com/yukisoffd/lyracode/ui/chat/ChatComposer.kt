@@ -417,7 +417,8 @@ private fun composerSystemAccentColors(): Triple<Color, Color, Color> {
 internal fun ContextWindowInfoDialog(
     controller: ChatController,
     settings: AppSettings,
-    isRunning: Boolean,
+    isGenerating: Boolean,
+    isCompressing: Boolean,
     onDismiss: () -> Unit,
 ) {
     val usage = controller.contextWindowUsage.value
@@ -429,8 +430,9 @@ internal fun ContextWindowInfoDialog(
     val chunkCount = chunkCountText.toIntOrNull()
     val chunkCountValid = chunkCount != null && chunkCount in
         AppSettings.MIN_HISTORY_COMPRESSION_CHUNKS..AppSettings.MAX_HISTORY_COMPRESSION_CHUNKS
+    val dialogState = contextCompressionDialogState(isGenerating, isCompressing)
     AlertDialog(
-        onDismissRequest = { if (!isRunning) onDismiss() },
+        onDismissRequest = { if (dialogState.canDismiss) onDismiss() },
         title = { Text(stringResource(R.string.title_context_window_usage)) },
         text = {
             Column(
@@ -466,7 +468,7 @@ internal fun ContextWindowInfoDialog(
                         chunkCountText = value.filter(Char::isDigit).take(2)
                     },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isRunning,
+                    enabled = dialogState.canEdit,
                     label = { Text(stringResource(R.string.label_compression_chunk_count)) },
                     supportingText = {
                         Text(
@@ -485,22 +487,32 @@ internal fun ContextWindowInfoDialog(
                     value = customInstruction,
                     onValueChange = { customInstruction = it },
                     modifier = Modifier.fillMaxWidth(),
-                    enabled = !isRunning,
+                    enabled = dialogState.canEdit,
                     label = { Text(stringResource(R.string.label_custom_compression_instruction)) },
                     supportingText = { Text(stringResource(R.string.custom_compression_instruction_hint)) },
                     minLines = 3,
                     maxLines = 6,
                 )
-                if (isRunning) {
-                    Text(stringResource(R.string.status_compressing_history), color = MaterialTheme.colorScheme.primary)
-                } else if (resultMessage.isNotBlank()) {
-                    Text(resultMessage, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                when (dialogState.status) {
+                    ContextCompressionDialogStatus.COMPRESSING -> {
+                        Text(stringResource(R.string.status_compressing_history), color = MaterialTheme.colorScheme.primary)
+                    }
+                    ContextCompressionDialogStatus.WAITING_FOR_RESPONSE -> {
+                        Text(
+                            stringResource(R.string.status_history_compression_wait_for_response),
+                            color = KimiMuted,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    ContextCompressionDialogStatus.IDLE -> if (resultMessage.isNotBlank()) {
+                        Text(resultMessage, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = !isRunning && usage.contextMessageCount > 0 && !usage.updating && chunkCountValid,
+                enabled = dialogState.canStart && usage.contextMessageCount > 0 && !usage.updating && chunkCountValid,
                 onClick = {
                     resultMessage = ""
                     settings.historyCompressionChunkCount = chunkCount!!
@@ -514,12 +526,39 @@ internal fun ContextWindowInfoDialog(
             ) { Text(stringResource(R.string.action_compress_history)) }
         },
         dismissButton = {
-            TextButton(enabled = !isRunning, onClick = onDismiss) {
+            TextButton(enabled = dialogState.canDismiss, onClick = onDismiss) {
                 Text(stringResource(R.string.action_close))
             }
         },
     )
 }
+
+internal enum class ContextCompressionDialogStatus {
+    IDLE,
+    WAITING_FOR_RESPONSE,
+    COMPRESSING,
+}
+
+internal data class ContextCompressionDialogState(
+    val canDismiss: Boolean,
+    val canEdit: Boolean,
+    val canStart: Boolean,
+    val status: ContextCompressionDialogStatus,
+)
+
+internal fun contextCompressionDialogState(
+    isGenerating: Boolean,
+    isCompressing: Boolean,
+): ContextCompressionDialogState = ContextCompressionDialogState(
+    canDismiss = !isCompressing,
+    canEdit = !isCompressing,
+    canStart = !isGenerating && !isCompressing,
+    status = when {
+        isCompressing -> ContextCompressionDialogStatus.COMPRESSING
+        isGenerating -> ContextCompressionDialogStatus.WAITING_FOR_RESPONSE
+        else -> ContextCompressionDialogStatus.IDLE
+    },
+)
 
 private val SelectionListNestedScrollConnection = object : NestedScrollConnection {
     override fun onPostScroll(

@@ -252,6 +252,8 @@ internal fun ChatScreen(
     val messageSnapshot = controller.messages.value
     val pendingUploads = controller.pendingUploads
     val isRunning = controller.isActiveConversationRunning()
+    val isGenerating = controller.isActiveConversationGenerating()
+    val isCompressing = controller.isActiveHistoryCompressionRunning()
     val renderItems = remember(messageSnapshot, isRunning) {
         chatRenderItems(messageSnapshot, isStreaming = isRunning)
     }
@@ -310,7 +312,8 @@ internal fun ChatScreen(
         ContextWindowInfoDialog(
             controller = controller,
             settings = settings,
-            isRunning = isRunning,
+            isGenerating = isGenerating,
+            isCompressing = isCompressing,
             onDismiss = { contextInfoOpen = false },
         )
     }

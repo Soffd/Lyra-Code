@@ -609,10 +609,12 @@
     <string name="custom_compression_instruction_hint">For example: prioritize code changes and unfinished work. By default, results are organized into goals, facts, tasks, attention items, and other structured fields.</string>
     <string name="action_compress_history">Compress history</string>
     <string name="status_compressing_history">Segmenting and merging conversation history. Messages cannot be sent until it finishes…</string>
+    <string name="status_history_compression_wait_for_response">The AI is still responding. You can compress history after the response finishes.</string>
     <string name="status_auto_compressing_history">The automatic compression condition was reached. Segmenting and merging conversation history…</string>
     <string name="status_history_compressed">Conversation history compressed</string>
     <string name="error_history_compression_failed">Conversation history compression failed. The original context was preserved.</string>
     <string name="error_no_history_to_compress">There is no conversation history to compress</string>
+    <string name="error_history_compression_conversation_busy">Wait for the current response or operation to finish before compressing history</string>
     <string name="title_auto_compression">Automatic compression</string>
     <string name="action_auto_compression">Automatic compression</string>
     <string name="auto_compression_session_hint">Applies only to the current conversation</string>
