@@ -263,13 +263,17 @@ Corresponding source and upstream chain:
 - Original upstream: https://github.com/proot-me/proot
 
 Binary provenance for this build:
-- Distribution snapshot: https://github.com/rikkahub/rikkahub/tree/693c2ce53fe28d4eb03517edffd7824f9f99f682/workspace/src/main/jniLibs/arm64-v8a
-- libproot_exec.so SHA-256: d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c
-- libproot_loader.so SHA-256: 44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04
+- Source: https://github.com/Soffd/proot
+- Build target: aarch64-linux-android24
+- PRoot version: 5.1.107.91-lyra.1
+- Toolchain: Android NDK r29
+- Configuration: external loader, ARG_MAX=131072, libandroid-shmem disabled
+- libproot_exec.so SHA-256: ee618f314c472910cf43e774d013676697f4d6d5a25c66f62d66899c043b04d1
+- libproot_loader.so SHA-256: 39f8d98f345bd2f0cff53b6a9ee54418cec340f4738d6bdd2fb03112654a6183
 
-Lyra Code stores verified copies of these two files in its own source repository and packages them without downloading build inputs from RikkaHub.
+The executable statically links talloc 2.5.0, copyright its respective Samba contributors, under LGPL-3.0-or-later. Its source and license material are included with the maintained corresponding source. The resulting combined binary is conveyed under GPLv3 as part of this AGPL-v3 application distribution.
 
-The RikkaHub binaries were built from termux/proot, whose upstream is proot-me/proot. The Soffd/proot fork is provided as the maintained corresponding-source location for Lyra Code recipients. Source modifications, build material, and notices published there remain governed by their applicable licenses.
+The packaged binaries are built locally from the maintained Soffd/proot corresponding source. Verified RikkaHub-derived binaries remain in the source tree only as an unpackaged recovery reference and are not included in the APK.
 
 PRoot is provided without warranty. The complete GNU GPL version 3 terms selected for this distribution follow.
 """
