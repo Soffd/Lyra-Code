@@ -1309,9 +1309,9 @@
     <string name="title_fullscreen_input">Fullscreen input</string>
     <!-- File manager and editor -->
     <string name="nav_tab_files">Files</string>
-    <string name="file_permission_title">All files access required</string>
-    <string name="file_permission_message">The file manager needs shared-storage access to browse, edit, move, and copy files under /storage/emulated/0. Allow Lyra Code to manage all files in system settings.</string>
-    <string name="file_permission_grant">Grant access</string>
+    <string name="file_permission_title">Shared-storage access</string>
+    <string name="file_permission_message">Shared-storage access is needed only for files under /storage/emulated/0. App-private PRoot Linux files remain available without this permission.</string>
+    <string name="file_permission_grant">Grant shared-storage access</string>
     <string name="file_permission_retry">Check again</string>
     <string name="file_permission_settings_unavailable">Unable to open permission settings. Open the app details page and allow all-files access manually.</string>
     <string name="file_folder_count">Folders: %1$d</string>
@@ -1629,7 +1629,11 @@ Revocation stops new access through that permission but does not automatically e
     <string name="action_more">More actions</string>
     <string name="file_privileged_access">Restricted directory access</string>
     <string name="file_privileged_access_message">Use Root or Shizuku Shell for directories the app process cannot read directly, including Android/data, Android/obb, and /data. Normal permissions remain preferred; the selected channel is used only for restricted paths.</string>
-    <string name="file_open_android_data">Open Android/data</string>
+    <string name="file_open_proot_instances">Open PRoot Linux instances</string>
+    <string name="file_open_shared_storage">Open shared storage</string>
+    <string name="file_proot_instances_warning">These are live app-private Linux files. Changes take effect immediately and can break an installed environment. Stop its terminal and commands before copying a backup; delete whole environments from the PRoot Linux management page so related state is cleaned up safely.</string>
+    <string name="file_proot_instances_empty">No valid PRoot Linux rootfs was found.</string>
+    <string name="file_proot_instance_id">Linux ID: %1$s</string>
     <string name="file_privileged_use_root">Get and use Root</string>
     <string name="file_privileged_use_shizuku">Get and use Shizuku Shell</string>
     <string name="file_privileged_test_access">Test restricted access</string>
