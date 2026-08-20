@@ -73,6 +73,9 @@ desktop.ini
 /logs/
 /tmp/
 /temp/
+
+# Other
 aisvg/
 llm.txt
 dsh/
+proot/

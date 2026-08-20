@@ -1,7 +1,3 @@
-import java.net.URI
-import java.net.HttpURLConnection
-import java.nio.file.Files
-import java.nio.file.StandardCopyOption
 import java.security.MessageDigest
 
 plugins {
@@ -9,20 +5,20 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
-val debianRuntimeRoot = layout.buildDirectory.dir("generated/debianRuntime")
+val bundledProotRuntimeDir = layout.projectDirectory.dir("src/debianRuntime/jniLibs/arm64-v8a")
+val bundledProotRuntimeHashes = mapOf(
+    "libproot_exec.so" to "d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c",
+    "libproot_loader.so" to "44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04",
+)
 
 android {
     namespace = "com.yukisoffd.lyracode"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.yukisoffd.lyracode"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 69
         versionName = "3.7.0"
 
@@ -34,6 +30,19 @@ android {
         )
     }
 
+    signingConfigs {
+        getByName("debug") {
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+        create("release") {
+            // Android Studio injects the release key at build time. Keeping a DSL
+            // config attached to the variant makes the injected signer inherit V3.
+            enableV2Signing = true
+            enableV3Signing = true
+        }
+    }
+
     buildTypes {
         debug {
             applicationIdSuffix = ".debug"
@@ -41,6 +50,7 @@ android {
         }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -74,98 +84,40 @@ android {
             assets.directories.add(rootProject.file("deepseek_v3_tokenizer/deepseek_v3_tokenizer").absolutePath)
             kotlin.directories.add("src/debianRuntime/java")
             res.directories.add("src/debianRuntime/res")
-            jniLibs.directories.add(debianRuntimeRoot.get().dir("jniLibs").asFile.absolutePath)
+            jniLibs.directories.add("src/debianRuntime/jniLibs")
         }
     }
 }
 
-val prepareDebianRuntime by tasks.registering {
-    group = "build setup"
-    description = "Downloads and verifies the small arm64 PRoot engine bundled in every APK."
-
-    val outputRoot = debianRuntimeRoot.get().asFile
-    val proot = outputRoot.resolve("jniLibs/arm64-v8a/libproot_exec.so")
-    val loader = outputRoot.resolve("jniLibs/arm64-v8a/libproot_loader.so")
-    outputs.files(proot, loader)
+val verifyBundledProotRuntime by tasks.registering {
+    group = "verification"
+    description = "Verifies the repository-local ARM64 PRoot binaries without network access."
+    inputs.files(bundledProotRuntimeHashes.keys.map { bundledProotRuntimeDir.file(it) })
 
     doLast {
-            fun sha256(file: File): String {
-                val digest = MessageDigest.getInstance("SHA-256")
-                file.inputStream().buffered().use { input ->
-                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-                    while (true) {
-                        val count = input.read(buffer)
-                        if (count < 0) break
-                        digest.update(buffer, 0, count)
-                    }
+        fun sha256(file: File): String {
+            val digest = MessageDigest.getInstance("SHA-256")
+            file.inputStream().buffered().use { input ->
+                val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    digest.update(buffer, 0, count)
                 }
-                return digest.digest().joinToString("") { "%02x".format(it) }
             }
-
-            fun downloadVerified(url: String, destination: File, expectedSha256: String, cacheName: String) {
-                if (destination.isFile && sha256(destination) == expectedSha256) return
-                val cacheDir = File(gradle.gradleUserHomeDir, "caches/lyracode-debian-runtime")
-                cacheDir.mkdirs()
-                val cached = File(cacheDir, cacheName)
-                val temporary = File(cacheDir, "$cacheName.part")
-                var lastError: Throwable? = null
-                for (attempt in 0 until if (cached.isFile && sha256(cached) == expectedSha256) 0 else 3) {
-                    temporary.delete()
-                    try {
-                        val connection = URI(url).toURL().openConnection() as HttpURLConnection
-                        connection.connectTimeout = 30_000
-                        connection.readTimeout = 120_000
-                        connection.instanceFollowRedirects = true
-                        connection.setRequestProperty("User-Agent", "LyraCode-Gradle")
-                        try {
-                            connection.inputStream.buffered().use { input ->
-                                temporary.outputStream().buffered().use(input::copyTo)
-                            }
-                        } finally {
-                            connection.disconnect()
-                        }
-                        lastError = null
-                        break
-                    } catch (error: Throwable) {
-                        lastError = error
-                        if (attempt < 2) Thread.sleep(1_000L * (attempt + 1))
-                    }
-                }
-                lastError?.let { throw it }
-                if (temporary.isFile) {
-                    val actual = sha256(temporary)
-                    check(actual == expectedSha256) {
-                        "SHA-256 mismatch for $url: expected $expectedSha256, got $actual"
-                    }
-                    Files.move(temporary.toPath(), cached.toPath(), StandardCopyOption.REPLACE_EXISTING)
-                }
-                check(cached.isFile && sha256(cached) == expectedSha256) { "Verified runtime cache is missing: $cached" }
-                destination.parentFile.mkdirs()
-                val outputTemporary = File(destination.parentFile, "${destination.name}.part")
-                cached.copyTo(outputTemporary, overwrite = true)
-                Files.move(
-                    outputTemporary.toPath(),
-                    destination.toPath(),
-                    StandardCopyOption.REPLACE_EXISTING,
-                )
+            return digest.digest().joinToString("") { "%02x".format(it) }
+        }
+        bundledProotRuntimeHashes.forEach { (name, expected) ->
+            val binary = bundledProotRuntimeDir.file(name).asFile
+            check(binary.isFile) { "Bundled PRoot binary is missing: ${binary.absolutePath}" }
+            val actual = sha256(binary)
+            check(actual == expected) {
+                "Bundled PRoot SHA-256 mismatch for $name: expected $expected, got $actual"
             }
-
-            val rikkaCommit = "693c2ce53fe28d4eb03517edffd7824f9f99f682"
-            downloadVerified(
-                "https://raw.githubusercontent.com/rikkahub/rikkahub/$rikkaCommit/workspace/src/main/jniLibs/arm64-v8a/libproot_exec.so",
-                proot,
-                "d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c",
-                "libproot_exec-arm64-v8a.so",
-            )
-            downloadVerified(
-                "https://raw.githubusercontent.com/rikkahub/rikkahub/$rikkaCommit/workspace/src/main/jniLibs/arm64-v8a/libproot_loader.so",
-                loader,
-                "44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04",
-                "libproot_loader-arm64-v8a.so",
-            )
+        }
     }
 }
-tasks.named("preBuild").configure { dependsOn(prepareDebianRuntime) }
+tasks.named("preBuild").configure { dependsOn(verifyBundledProotRuntime) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)
