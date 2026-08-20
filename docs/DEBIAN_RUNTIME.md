@@ -37,6 +37,8 @@ Android app uninstall or clear-data still removes every app-private rootfs. Root
 
 The bundled ARM64 PRoot executable and loader are GPL-2.0-or-later. Lyra Code exercises the later-version option and distributes them under GPLv3 alongside the AGPL-v3 application. Corresponding source is maintained at <https://github.com/Soffd/proot>; its upstream chain is `Soffd/proot` → `termux/proot` → `proot-me/proot`. The binary distribution snapshot and both SHA-256 values are recorded in the in-app **Open Source Licenses** page and in `THIRD_PARTY_NOTICES.md`, together with the complete GPLv3 terms.
 
+The two verified ARM64 ELF files are stored in `app/src/debianRuntime/jniLibs/arm64-v8a` and are consumed directly by the Android build. Builds do not contact RikkaHub and fail if either local file is missing or its fixed SHA-256 value changes. See the adjacent `jniLibs/README.md` for provenance and the checklist for replacing them with a cross-compiled build from the local `Soffd/proot` checkout.
+
 ## Agent and terminal behavior
 
 The Agent receives `proot_command` only while at least one environment is enabled. Every call specifies `linux_id`, and the Agent prompt lists the currently enabled IDs and display names. When a directly accessible workspace is selected it is mounted at `/workspace`; without a workspace, commands remain available and start in `/root`. The command runs through the selected environment's `/bin/bash -lc` or `/bin/sh -lc`.

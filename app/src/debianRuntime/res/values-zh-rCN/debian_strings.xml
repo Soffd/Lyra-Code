@@ -24,8 +24,6 @@
     <string name="proot_linux_delete_title">删除 %1$s？</string>
     <string name="proot_linux_delete_warning">这会永久删除整个 Linux rootfs，包括其中安装的所有软件包、用户文件和系统配置，且无法撤销。</string>
     <string name="proot_linux_preservation_hint">每个环境都有稳定的 Linux ID，供终端和 proot_command 使用。禁用不会删除数据，应用更新也不会覆盖 rootfs。</string>
-    <string name="proot_linux_all_files_access">共享存储访问</string>
-    <string name="proot_linux_all_files_access_desc">授予 Android“所有文件访问”权限后，会把 Android 共享存储挂载到每个 PRoot Linux 的 /storage，主存储也可通过 /sdcard 访问。未授权时仅可访问已选择的工作区和 Linux 内部文件。权限改变后请重新连接已打开的终端。PRoot 仍受应用 UID 与 SELinux 限制。</string>
     <string name="proot_linux_supported_files">导入要求</string>
     <string name="proot_linux_supported_files_desc">支持的文件：.tar.gz、.tgz 或未压缩的 .tar rootfs。支持的架构：ARM64，也写作 arm64 或 aarch64。压缩包内必须包含 /bin/sh 或 /bin/bash。</string>
     <string name="proot_linux_iso_warning">不支持：ISO 安装/Live 镜像、APK 包、amd64/x86_64 镜像、.tar.xz 和 .tar.zst。XZ/Zstandard 压缩包请先解压为 .tar 再导入。</string>

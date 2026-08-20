@@ -376,14 +376,9 @@ internal fun ProotLinuxSettings() {
     val runtime = remember(context) { ProotLinuxManager.getInstance(context) }
     val state by runtime.state.collectAsState()
     val scope = rememberCoroutineScope()
-    var permissionRevision by remember { mutableIntStateOf(0) }
     var pendingImportUri by remember { mutableStateOf<Uri?>(null) }
     var importName by remember { mutableStateOf("") }
     var deleteId by remember { mutableStateOf<String?>(null) }
-    val allFilesGranted = remember(permissionRevision) { runtime.hasAllFilesAccess() }
-    val allFilesLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        permissionRevision++
-    }
     val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             pendingImportUri = uri
@@ -393,29 +388,6 @@ internal fun ProotLinuxSettings() {
                 }
             }.getOrNull()?.substringBeforeLast('.')?.substringBeforeLast('.')?.ifBlank { null } ?: "Imported Linux"
         }
-    }
-
-    KimiCardBox {
-        KimiMenuRow(
-            Icons.Default.FolderOpen,
-            uiText(R.string.proot_linux_all_files_access),
-            if (allFilesGranted) uiText(R.string.label_granted) else uiText(R.string.label_click_to_grant),
-        ) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                val packageUri = Uri.parse("package:${context.packageName}")
-                val intent = listOf(
-                    Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri),
-                    Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
-                    Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri),
-                ).firstOrNull { it.resolveActivity(context.packageManager) != null }
-                if (intent != null) allFilesLauncher.launch(intent)
-            }
-        }
-        Text(
-            uiText(R.string.proot_linux_all_files_access_desc),
-            color = KimiMuted,
-            style = MaterialTheme.typography.bodySmall,
-        )
     }
 
     KimiCardBox {

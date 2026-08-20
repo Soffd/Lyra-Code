@@ -267,6 +267,8 @@ Binary provenance for this build:
 - libproot_exec.so SHA-256: d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c
 - libproot_loader.so SHA-256: 44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04
 
+Lyra Code stores verified copies of these two files in its own source repository and packages them without downloading build inputs from RikkaHub.
+
 The RikkaHub binaries were built from termux/proot, whose upstream is proot-me/proot. The Soffd/proot fork is provided as the maintained corresponding-source location for Lyra Code recipients. Source modifications, build material, and notices published there remain governed by their applicable licenses.
 
 PRoot is provided without warranty. The complete GNU GPL version 3 terms selected for this distribution follow.

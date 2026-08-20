@@ -24,8 +24,6 @@
     <string name="proot_linux_delete_title">Delete %1$s?</string>
     <string name="proot_linux_delete_warning">This permanently deletes the whole Linux rootfs, including every installed package, user file, and system configuration. This cannot be undone.</string>
     <string name="proot_linux_preservation_hint">Each environment has a stable Linux ID used by the terminal and proot_command. Disabling preserves its data; app updates never overwrite rootfs data.</string>
-    <string name="proot_linux_all_files_access">Shared storage access</string>
-    <string name="proot_linux_all_files_access_desc">Grant Android All files access to mount Android shared storage under /storage inside every PRoot Linux, with primary storage also at /sdcard. Without it, only the selected workspace and Linux-internal files are available. Reconnect an open terminal after changing this permission. PRoot remains limited by the app UID and SELinux.</string>
     <string name="proot_linux_supported_files">Import requirements</string>
     <string name="proot_linux_supported_files_desc">Supported files: .tar.gz, .tgz, or uncompressed .tar rootfs archives. Supported architecture: ARM64, also named arm64 or aarch64. The archive must contain /bin/sh or /bin/bash.</string>
     <string name="proot_linux_iso_warning">Not supported: ISO installer/live images, APK packages, amd64/x86_64 images, .tar.xz, and .tar.zst. Decompress XZ/Zstandard archives to .tar before importing.</string>
