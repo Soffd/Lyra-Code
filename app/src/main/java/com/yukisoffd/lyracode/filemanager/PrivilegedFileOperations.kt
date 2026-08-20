@@ -14,6 +14,13 @@ internal class PrivilegedFileOperations(
     private val executor: SystemCommandExecutor,
 ) {
     private val appContext = context.applicationContext
+    private val directlyAccessibleAppRoots = listOf(
+        appContext.filesDir,
+        appContext.cacheDir,
+        appContext.noBackupFilesDir,
+        appContext.codeCacheDir,
+    ).map(::canonicalPath)
+    private val managedProotInstancesRoot = canonicalPath(File(appContext.filesDir, "proot-linux/instances"))
 
     fun hasConfiguredAccess(): Boolean =
         settings.requestRootAccess || (settings.requestShellAccess && executor.hasShellPermission())
@@ -142,6 +149,7 @@ internal class PrivilegedFileOperations(
     }
 
     suspend fun rename(source: File, name: String): Result<File> {
+        managedInstanceMutationError(source)?.let { return Result.failure(it) }
         val target = safeChild(source.parentFile ?: return Result.failure(IllegalArgumentException("Missing parent")), name)
         if (!isRestricted(source)) {
             LocalFileOperations.rename(source, name).onSuccess { return Result.success(it) }
@@ -163,6 +171,7 @@ internal class PrivilegedFileOperations(
     }
 
     suspend fun move(source: File, destinationDirectory: File): Result<File> {
+        managedInstanceMutationError(source)?.let { return Result.failure(it) }
         val target = File(destinationDirectory, source.name)
         if (!isRestricted(source) && !isRestricted(destinationDirectory)) {
             LocalFileOperations.move(source, destinationDirectory).onSuccess { return Result.success(it) }
@@ -183,6 +192,7 @@ internal class PrivilegedFileOperations(
         runCatching { sources.map { move(it, destinationDirectory).getOrThrow() } }
 
     suspend fun delete(source: File): Result<Unit> {
+        managedInstanceMutationError(source)?.let { return Result.failure(it) }
         if (!isRestricted(source)) {
             LocalFileOperations.delete(source).onSuccess { return Result.success(Unit) }
         }
@@ -301,8 +311,20 @@ internal class PrivilegedFileOperations(
         return child
     }
 
+    private fun managedInstanceMutationError(file: File): IllegalArgumentException? {
+        val path = canonicalPath(file)
+        return if (File(path).parent == managedProotInstancesRoot) {
+            IllegalArgumentException(
+                "Whole PRoot Linux instances must be renamed or deleted from the PRoot Linux management page.",
+            )
+        } else null
+    }
+
     private fun isRestricted(file: File): Boolean {
         val path = canonicalPath(file)
+        if (directlyAccessibleAppRoots.any { root -> path == root || path.startsWith("$root${File.separator}") }) {
+            return false
+        }
         return RESTRICTED_PREFIXES.any { path == it || path.startsWith("$it/") }
     }
 

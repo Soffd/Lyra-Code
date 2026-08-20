@@ -109,6 +109,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableFloatStateOf
@@ -145,6 +146,8 @@ import com.yukisoffd.lyracode.rememberPredictiveBackGestureState
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.AgentFileEditResult
 import com.yukisoffd.lyracode.data.AppSettings
+import com.yukisoffd.lyracode.debian.ProotLinuxInstance
+import com.yukisoffd.lyracode.debian.ProotLinuxManager
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
 import com.yukisoffd.lyracode.termux.TermuxExecutor
 import kotlinx.coroutines.Dispatchers
@@ -176,39 +179,40 @@ internal fun FileManagerScreen(
         permissionRevision++
     }
     val hasPermission = remember(permissionRevision) { hasFileManagerPermission(context) }
-    BackHandler(enabled = !settings.predictiveBackEnabled, onBack = onExit)
-    if (!hasPermission) {
-        FilePermissionRequest(
-            onGrant = {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                    val packageUri = Uri.parse("package:${context.packageName}")
-                    val permissionIntents = listOf(
-                        Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri),
-                        Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
-                        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri),
-                    )
-                    val launched = permissionIntents.any { intent ->
-                        runCatching {
-                            permissionLauncher.launch(intent)
-                            true
-                        }.getOrDefault(false)
-                    }
-                    if (!launched) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.file_permission_settings_unavailable),
-                            Toast.LENGTH_LONG,
-                        ).show()
-                    }
-                } else {
-                    runCatching { legacyPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE) }
-                        .onFailure { showError(context, it) }
-                }
-            },
-            onRetry = { permissionRevision++ },
-        )
-        return
+    val prootInstancesDirectory = remember(context) {
+        File(context.filesDir, "proot-linux/instances").apply { mkdirs() }
     }
+    val prootLinuxManager = remember(context) { ProotLinuxManager.getInstance(context) }
+    val prootLinuxState by prootLinuxManager.state.collectAsState()
+    LaunchedEffect(prootLinuxManager) { prootLinuxManager.refresh() }
+    val requestSharedStorageAccess: () -> Unit = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            val packageUri = Uri.parse("package:${context.packageName}")
+            val permissionIntents = listOf(
+                Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION, packageUri),
+                Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION),
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageUri),
+            )
+            val launched = permissionIntents.any { intent ->
+                runCatching {
+                    permissionLauncher.launch(intent)
+                    true
+                }.getOrDefault(false)
+            }
+            if (!launched) {
+                Toast.makeText(
+                    context,
+                    context.getString(R.string.file_permission_settings_unavailable),
+                    Toast.LENGTH_LONG,
+                ).show()
+            }
+        } else {
+            runCatching { legacyPermissionLauncher.launch(Manifest.permission.READ_EXTERNAL_STORAGE) }
+                .onFailure { showError(context, it) }
+        }
+        Unit
+    }
+    BackHandler(enabled = !settings.predictiveBackEnabled, onBack = onExit)
 
     var openFile by remember { mutableStateOf<Pair<File, TextFileContent>?>(null) }
     var previewFile by remember { mutableStateOf<Pair<File, MediaPreviewKind>?>(null) }
@@ -249,6 +253,10 @@ internal fun FileManagerScreen(
             systemCommandExecutor = systemCommandExecutor,
             onExit = onExit,
             externalRefreshRevision = aiFileChangeRevision,
+            prootInstancesDirectory = prootInstancesDirectory,
+            prootInstances = prootLinuxState.instances,
+            sharedStorageGranted = hasPermission,
+            onRequestSharedStorageAccess = requestSharedStorageAccess,
             onOpenFile = { file ->
                 if (isAndroidPackageFile(file)) {
                     pendingPackageInstall = file
@@ -477,28 +485,6 @@ private fun PrivilegedFileAccessDialog(
 }
 
 @Composable
-private fun FilePermissionRequest(onGrant: () -> Unit, onRetry: () -> Unit) {
-    val context = LocalContext.current
-    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
-        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-            Column(
-                Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(14.dp),
-            ) {
-                Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(54.dp))
-                Text(context.getString(R.string.file_permission_title), style = MaterialTheme.typography.titleLarge)
-                Text(context.getString(R.string.file_permission_message), color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Button(onClick = onGrant, modifier = Modifier.fillMaxWidth()) {
-                    Text(context.getString(R.string.file_permission_grant))
-                }
-                TextButton(onClick = onRetry) { Text(context.getString(R.string.file_permission_retry)) }
-            }
-        }
-    }
-}
-
-@Composable
 private fun DualPaneFileManager(
     fileOperations: PrivilegedFileOperations,
     settings: AppSettings,
@@ -506,12 +492,20 @@ private fun DualPaneFileManager(
     onOpenFile: (File) -> Unit,
     onExit: () -> Unit,
     externalRefreshRevision: Int,
+    prootInstancesDirectory: File,
+    prootInstances: List<ProotLinuxInstance>,
+    sharedStorageGranted: Boolean,
+    onRequestSharedStorageAccess: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val root = LocalFileOperations.storageRoot.absolutePath
-    var leftPath by rememberSaveable { mutableStateOf(root) }
-    var rightPath by rememberSaveable { mutableStateOf(root) }
+    val privateRoot = prootInstances.firstOrNull()?.rootfsDir ?: prootInstancesDirectory
+    val initialPath = if (sharedStorageGranted) root else privateRoot.absolutePath
+    var leftPath by rememberSaveable(initialPath) { mutableStateOf(initialPath) }
+    var rightPath by rememberSaveable(initialPath) { mutableStateOf(initialPath) }
+    var leftNavigationRootPath by rememberSaveable(initialPath) { mutableStateOf(initialPath) }
+    var rightNavigationRootPath by rememberSaveable(initialPath) { mutableStateOf(initialPath) }
     var leftRefresh by remember { mutableIntStateOf(0) }
     var rightRefresh by remember { mutableIntStateOf(0) }
     var activePane by rememberSaveable { mutableIntStateOf(0) }
@@ -544,6 +538,7 @@ private fun DualPaneFileManager(
     var privilegedStatus by remember { mutableStateOf("") }
     var skipNextLeftTransition by remember { mutableStateOf(false) }
     var skipNextRightTransition by remember { mutableStateOf(false) }
+    var instancesWarningPane by remember { mutableStateOf<Int?>(null) }
     val shizukuPermissionListener = remember {
         Shizuku.OnRequestPermissionResultListener { requestCode, _ ->
             if (requestCode == FILE_SHIZUKU_PERMISSION_REQUEST_CODE) privilegedRevision++
@@ -555,6 +550,7 @@ private fun DualPaneFileManager(
     }
 
     val activePath = if (activePane == 0) leftPath else rightPath
+    val activeNavigationRootPath = if (activePane == 0) leftNavigationRootPath else rightNavigationRootPath
     val activeRefresh = if (activePane == 0) leftRefresh else rightRefresh
     val activeSummary = if (activePane == 0) leftSummary else rightSummary
     val activeSortMode = FileSortMode.valueOf(if (activePane == 0) leftSortName else rightSortName)
@@ -603,14 +599,16 @@ private fun DualPaneFileManager(
         }
     }
 
-    fun navigate(pane: Int, directory: File) {
+    fun navigate(pane: Int, directory: File, navigationRoot: File? = null) {
         activePane = pane
         if (pane == 0) {
             leftSelection = emptySet()
             leftPath = directory.absolutePath
+            navigationRoot?.let { leftNavigationRootPath = it.absolutePath }
         } else {
             rightSelection = emptySet()
             rightPath = directory.absolutePath
+            navigationRoot?.let { rightNavigationRootPath = it.absolutePath }
         }
     }
 
@@ -641,7 +639,8 @@ private fun DualPaneFileManager(
 
     fun navigateActivePaneBack() {
         val current = File(if (activePane == 0) leftPath else rightPath)
-        if (isStorageRoot(current)) {
+        val navigationRoot = File(if (activePane == 0) leftNavigationRootPath else rightNavigationRootPath)
+        if (isFileManagerNavigationRoot(current, navigationRoot)) {
             onExit()
         } else {
             current.parentFile?.let { navigate(activePane, it) } ?: onExit()
@@ -651,7 +650,7 @@ private fun DualPaneFileManager(
     val predictiveBackState = rememberPredictiveBackGestureState(
         // At the storage root the app shell owns the gesture so it can draw the
         // conversation page underneath the complete file-manager surface.
-        enabled = settings.predictiveBackEnabled && !isStorageRoot(File(activePath)),
+        enabled = settings.predictiveBackEnabled && !isFileManagerNavigationRoot(File(activePath), File(activeNavigationRootPath)),
         onBack = {
             if (activePane == 0) skipNextLeftTransition = true else skipNextRightTransition = true
             navigateActivePaneBack()
@@ -674,6 +673,47 @@ private fun DualPaneFileManager(
             onAccessReady = {
                 refreshBoth()
                 privilegedDialogOpen = false
+            },
+        )
+    }
+    instancesWarningPane?.let { pane ->
+        AlertDialog(
+            onDismissRequest = { instancesWarningPane = null },
+            title = { Text(context.getString(R.string.file_open_proot_instances)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(context.getString(R.string.file_proot_instances_warning))
+                    if (prootInstances.isEmpty()) {
+                        Text(
+                            context.getString(R.string.file_proot_instances_empty),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    } else {
+                        prootInstances.forEach { instance ->
+                            TextButton(
+                                onClick = {
+                                    instancesWarningPane = null
+                                    navigate(pane, instance.rootfsDir, instance.rootfsDir)
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Column(Modifier.fillMaxWidth()) {
+                                    Text(instance.name)
+                                    Text(
+                                        context.getString(R.string.file_proot_instance_id, instance.id),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { instancesWarningPane = null }) {
+                    Text(context.getString(android.R.string.cancel))
+                }
             },
         )
     }
@@ -841,9 +881,14 @@ private fun DualPaneFileManager(
                     menuOpen = false
                     privilegedDialogOpen = true
                 },
-                onOpenAndroidData = {
+                sharedStorageGranted = sharedStorageGranted,
+                onOpenProotInstances = {
                     menuOpen = false
-                    navigate(activePane, File(root, "Android/data"))
+                    instancesWarningPane = activePane
+                },
+                onOpenSharedStorage = {
+                    menuOpen = false
+                    if (sharedStorageGranted) navigate(activePane, File(root), File(root)) else onRequestSharedStorageAccess()
                 },
             )
             HorizontalDivider()
@@ -887,6 +932,7 @@ private fun DualPaneFileManager(
                         searchError = if (activePane == 0) searchError else "",
                         searchRoot = File(leftPath),
                         onSummary = { leftSummary = it },
+                        navigationRoot = File(leftNavigationRootPath),
                     )
                 }
             }
@@ -930,6 +976,7 @@ private fun DualPaneFileManager(
                         searchError = if (activePane == 1) searchError else "",
                         searchRoot = File(rightPath),
                         onSummary = { rightSummary = it },
+                        navigationRoot = File(rightNavigationRootPath),
                     )
                 }
             }
@@ -1006,7 +1053,9 @@ private fun FileManagerHeader(
     onSortMode: (FileSortMode) -> Unit,
     onToggleSortDirection: () -> Unit,
     onPrivilegedAccess: () -> Unit,
-    onOpenAndroidData: () -> Unit,
+    sharedStorageGranted: Boolean,
+    onOpenProotInstances: () -> Unit,
+    onOpenSharedStorage: () -> Unit,
 ) {
     val context = LocalContext.current
     Column(Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surface)) {
@@ -1064,9 +1113,20 @@ private fun FileManagerHeader(
                         onClick = onPrivilegedAccess,
                     )
                     DropdownMenuItem(
-                        text = { Text(context.getString(R.string.file_open_android_data)) },
+                        text = { Text(context.getString(R.string.file_open_proot_instances)) },
                         leadingIcon = { Icon(Icons.Default.FolderOpen, contentDescription = null) },
-                        onClick = onOpenAndroidData,
+                        onClick = onOpenProotInstances,
+                    )
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                context.getString(
+                                    if (sharedStorageGranted) R.string.file_open_shared_storage else R.string.file_permission_grant,
+                                ),
+                            )
+                        },
+                        leadingIcon = { Icon(if (sharedStorageGranted) Icons.Default.FolderOpen else Icons.Default.Security, contentDescription = null) },
+                        onClick = onOpenSharedStorage,
                     )
                     DropdownMenuItem(
                         text = { Text(context.getString(R.string.file_manager_search)) },
@@ -1187,6 +1247,7 @@ private fun FilePane(
     searchError: String,
     searchRoot: File,
     onSummary: (PaneSummary) -> Unit,
+    navigationRoot: File,
 ) {
     val context = LocalContext.current
     val directoryPath = directory.absolutePath
@@ -1287,7 +1348,7 @@ private fun FilePane(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             IconButton(
-                enabled = !isStorageRoot(directory),
+                enabled = !isFileManagerNavigationRoot(directory, navigationRoot),
                 onClick = {
                     onActivate()
                     directory.parentFile?.let(onNavigate)
@@ -2381,9 +2442,8 @@ private fun fileNavigationTransition(initialPath: String, targetPath: String): a
 
 private fun pathDepth(path: String): Int = path.replace('\\', '/').trim('/').count { it == '/' }
 
-private fun isStorageRoot(file: File): Boolean = runCatching {
-    file.canonicalPath == LocalFileOperations.storageRoot.canonicalPath
-}.getOrDefault(file.absolutePath == LocalFileOperations.storageRoot.absolutePath)
+internal fun isFileManagerNavigationRoot(file: File, navigationRoot: File): Boolean =
+    filesReferToSamePath(file, navigationRoot)
 
 private fun filesReferToSamePath(first: File, second: File): Boolean = runCatching {
     first.canonicalFile == second.canonicalFile

@@ -1392,9 +1392,9 @@
     <string name="title_fullscreen_input">全屏输入</string>
     <!-- File manager and editor -->
     <string name="nav_tab_files">文件</string>
-    <string name="file_permission_title">需要“管理所有文件”权限</string>
-    <string name="file_permission_message">文件管理器需要访问共享存储，才能在 /storage/emulated/0 中浏览、编辑、移动和复制文件。请在系统设置中允许 Lyra Code 管理所有文件。</string>
-    <string name="file_permission_grant">授予权限</string>
+    <string name="file_permission_title">共享存储访问</string>
+    <string name="file_permission_message">只有访问 /storage/emulated/0 下的共享文件时才需要此权限；应用私有的 PRoot Linux 文件无需授权即可管理。</string>
+    <string name="file_permission_grant">授予共享存储权限</string>
     <string name="file_permission_retry">重新检查</string>
     <string name="file_permission_settings_unavailable">无法打开系统权限设置，请前往应用详情页手动允许“管理所有文件”。</string>
     <string name="file_folder_count">文件夹：%1$d</string>
@@ -1712,7 +1712,11 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="action_more">更多操作</string>
     <string name="file_privileged_access">受限目录访问</string>
     <string name="file_privileged_access_message">使用 Root 或 Shizuku Shell 访问应用进程无法直接读取的目录，例如 Android/data、Android/obb 和 /data。文件操作将优先使用普通权限，仅在受限路径中使用所选通道。</string>
-    <string name="file_open_android_data">打开 Android/data</string>
+    <string name="file_open_proot_instances">进入 PRoot Linux instances</string>
+    <string name="file_open_shared_storage">打开共享存储</string>
+    <string name="file_proot_instances_warning">这里是正在使用的应用私有 Linux 文件，修改会立即生效，并可能破坏已安装环境。复制备份前请停止对应终端和命令；删除整个环境请使用 PRoot Linux 管理页面，以便安全清理关联状态。</string>
+    <string name="file_proot_instances_empty">未找到有效的 PRoot Linux rootfs。</string>
+    <string name="file_proot_instance_id">Linux ID：%1$s</string>
     <string name="file_privileged_use_root">获取并使用 Root</string>
     <string name="file_privileged_use_shizuku">获取并使用 Shizuku Shell</string>
     <string name="file_privileged_test_access">测试受限目录访问</string>
