@@ -7,8 +7,8 @@ plugins {
 
 val bundledProotRuntimeDir = layout.projectDirectory.dir("src/debianRuntime/jniLibs/arm64-v8a")
 val bundledProotRuntimeHashes = mapOf(
-    "libproot_exec.so" to "d4ffbd19e20614c908be774af5dcd9da306094482f556713db037563c353219c",
-    "libproot_loader.so" to "44ef39c1e1a18c09f6e4c4b5d6f8bba82d30596598bd155ec162d05c5122ff04",
+    "libproot_exec.so" to "ee618f314c472910cf43e774d013676697f4d6d5a25c66f62d66899c043b04d1",
+    "libproot_loader.so" to "39f8d98f345bd2f0cff53b6a9ee54418cec340f4738d6bdd2fb03112654a6183",
 )
 
 android {
@@ -19,8 +19,8 @@ android {
         applicationId = "com.yukisoffd.lyracode"
         minSdk = 26
         targetSdk = 37
-        versionCode = 69
-        versionName = "3.7.0"
+        versionCode = 70
+        versionName = "3.7.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField(
