@@ -36,8 +36,6 @@ android {
             enableV3Signing = true
         }
         create("release") {
-            // Android Studio injects the release key at build time. Keeping a DSL
-            // config attached to the variant makes the injected signer inherit V3.
             enableV2Signing = true
             enableV3Signing = true
         }
