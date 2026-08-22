@@ -18,6 +18,7 @@ import android.os.Environment
 import android.os.Handler
 import android.os.LocaleList
 import android.os.Looper
+import android.os.StrictMode
 import android.provider.Settings
 import android.provider.MediaStore
 import android.util.Base64
@@ -164,6 +165,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.core.content.edit
 import com.yukisoffd.lyracode.ai.ChatRecord
 import com.yukisoffd.lyracode.ai.AiResponseCache
 import com.yukisoffd.lyracode.ai.OpenAiAgent
@@ -222,6 +224,11 @@ class MainActivity : ComponentActivity() {
     private var localMcpServerManager: LocalMcpServerManager? = null
     private var sshTerminalSessionManager: SshTerminalSessionManager? = null
     private var localProotTerminalSessionManager: LocalProotTerminalSessionManager? = null
+    private val localNetworkPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) localMcpServerManager?.syncWithSettings()
+    }
 
     override fun attachBaseContext(newBase: Context) {
         val languageMode = AppSettings(newBase).languageMode
@@ -230,7 +237,9 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableAndroid17CompatibilityDiagnostics()
         val settings = AppSettings(this)
+        val compatibilityPreferences = getSharedPreferences(COMPATIBILITY_PREFERENCES, MODE_PRIVATE)
         AppStrings.initialize(this)
         if (savedInstanceState == null) settings.clearChatInputDrafts()
         val auditLogStore = AuditLogStore(this)
@@ -267,7 +276,9 @@ class MainActivity : ComponentActivity() {
         this.localMcpServerManager = localMcpServerManager
         val agent = OpenAiAgent(this, settings, conversationStore, nativeFileManager, globalFileManager, termuxExecutor, workspaceManager, webAgent, mcpClientManager, sshExecutor, systemCommandExecutor, webDavClient, fileTransferClient, backupManager, miniServerManager, downloadTaskManager, scheduledTaskManager, responseCache)
         localMcpServerManager.attachAgent(agent)
-        localMcpServerManager.syncWithSettings()
+        if (Android17Compatibility.hasLocalNetworkAccess(this)) {
+            localMcpServerManager.syncWithSettings()
+        }
         val chatController = ChatController(this, settings, conversationStore, uploadedFileManager, workspaceManager, agent)
         controller = chatController
 
@@ -280,6 +291,13 @@ class MainActivity : ComponentActivity() {
             var fontScaleMode by remember { mutableStateOf(settings.fontScaleMode) }
             var customFontScale by remember { mutableStateOf(settings.customFontScale) }
             var wallpaperColorRevision by remember { mutableIntStateOf(0) }
+            var showLocalNetworkPermissionRationale by rememberSaveable {
+                mutableStateOf(
+                    Android17Compatibility.requiresLocalNetworkPermission() &&
+                        !Android17Compatibility.hasLocalNetworkAccess(this@MainActivity) &&
+                        !compatibilityPreferences.getBoolean(LOCAL_NETWORK_RATIONALE_SEEN, false),
+                )
+            }
             val systemDark = isSystemInDarkTheme()
             val systemFontScale = LocalDensity.current.fontScale
             val settingsRevision = chatController.settingsRevision.intValue
@@ -390,8 +408,62 @@ class MainActivity : ComponentActivity() {
                             settings.customFontScale = it
                         },
                     )
+                    if (showLocalNetworkPermissionRationale) {
+                        AlertDialog(
+                            onDismissRequest = {
+                                showLocalNetworkPermissionRationale = false
+                                compatibilityPreferences.edit {
+                                    putBoolean(LOCAL_NETWORK_RATIONALE_SEEN, true)
+                                }
+                            },
+                            title = { Text(uiText(R.string.local_network_permission_title)) },
+                            text = { Text(uiText(R.string.local_network_permission_rationale)) },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showLocalNetworkPermissionRationale = false
+                                        compatibilityPreferences.edit {
+                                            putBoolean(LOCAL_NETWORK_RATIONALE_SEEN, true)
+                                        }
+                                        requestLocalNetworkPermission()
+                                    },
+                                ) { Text(uiText(R.string.action_enable)) }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = {
+                                        showLocalNetworkPermissionRationale = false
+                                        compatibilityPreferences.edit {
+                                            putBoolean(LOCAL_NETWORK_RATIONALE_SEEN, true)
+                                        }
+                                    },
+                                ) { Text(uiText(R.string.action_later)) }
+                            },
+                        )
+                    }
                 }
             }
+        }
+    }
+
+    internal fun requestLocalNetworkPermission() {
+        if (Android17Compatibility.requiresLocalNetworkPermission() &&
+            !Android17Compatibility.hasLocalNetworkAccess(this)
+        ) {
+            localNetworkPermissionLauncher.launch(
+                Android17Compatibility.ACCESS_LOCAL_NETWORK_PERMISSION,
+            )
+        }
+    }
+
+    private fun enableAndroid17CompatibilityDiagnostics() {
+        if (BuildConfig.DEBUG && Build.VERSION.SDK_INT >= Android17Compatibility.API_LEVEL) {
+            StrictMode.setVmPolicy(
+                StrictMode.VmPolicy.Builder(StrictMode.getVmPolicy())
+                    .detectImplicitUriPermissionGrant()
+                    .penaltyLog()
+                    .build(),
+            )
         }
     }
 
@@ -424,6 +496,8 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         internal const val TERMUX_RUN_COMMAND_PERMISSION = "com.termux.permission.RUN_COMMAND"
+        private const val COMPATIBILITY_PREFERENCES = "android_compatibility"
+        private const val LOCAL_NETWORK_RATIONALE_SEEN = "android_17_local_network_rationale_seen"
     }
 }
 

@@ -847,6 +847,9 @@
     <!-- Permissions -->
     <string name="permission_media">訪問手機媒體檔案</string>
     <string name="permission_location">位置資訊</string>
+    <string name="permission_local_network">本機網路</string>
+    <string name="local_network_permission_title">允許存取本機網路？</string>
+    <string name="local_network_permission_rationale">Android 17 要求先授權，Lyra Code 才能連線區域網內的 SSH、MCP、WebDAV 和檔案傳輸伺服器，或對外提供本機預覽服務。選擇「稍後」不會影響公網存取和離線功能。</string>
     <string name="permission_camera">攝像頭</string>
     <string name="permission_notification">通知</string>
     <string name="permission_app_list">讀取應用列表</string>
@@ -855,7 +858,7 @@
     <string name="permission_status_declared">已宣告</string>
     <string name="permission_status_granted">已允許</string>
     <string name="permission_status_click_grant">點選授予</string>
-    <string name="permission_hint">媒體、定位、通知、攝像頭等許可權會跳轉系統應用資訊頁；Termux 通訊許可權由 Termux 提供，點選後直接彈出授權許可。</string>
+    <string name="permission_hint">Android 17 上點選「本機網路」會直接彈出系統授權；媒體、定位、通知、攝像頭等許可權會跳轉系統應用資訊頁；Termux 通訊許可權由 Termux 提供。</string>
 
     <!-- Agent Tools -->
     <string name="title_search_tools">搜尋工具</string>
@@ -1682,9 +1685,10 @@ API Key、密碼、私鑰和遠端服務費用由使用者自行管理。請勿�
     <string name="compliance_permission_network_title">網路與網路狀態</string>
     <string name="compliance_permission_network_body">INTERNET：連線模型 API、網頁、MCP、遠端伺服器和更新服務。
 ACCESS_NETWORK_STATE：判斷網路連線並顯示診斷資訊。
+ACCESS_LOCAL_NETWORK：Android 17 及更高版本上的區域網直連和本機服務；執行階段申請，使用者可拒絕或撤回。
 CHANGE_WIFI_MULTICAST_STATE：支援區域網服務及多播相關能力。
 
-這些是普通許可權，安裝後由系統授予；僅在使用相應網路功能時產生請求。</string>
+公網存取不依賴本機網路許可權。</string>
     <string name="compliance_permission_location_title">位置</string>
     <string name="compliance_permission_location_body">ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION：在使用者啟用“獲取當前位置”工具時讀取系統最近位置，用於地理感知回答。應用不以此建立後臺行蹤軌跡。可在系統設定中隨時拒絕或撤回。</string>
     <string name="compliance_permission_camera_title">攝像頭</string>
