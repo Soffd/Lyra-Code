@@ -847,6 +847,9 @@
     <!-- Permissions -->
     <string name="permission_media">访问手机媒体文件</string>
     <string name="permission_location">位置信息</string>
+    <string name="permission_local_network">本地网络</string>
+    <string name="local_network_permission_title">允许访问本地网络？</string>
+    <string name="local_network_permission_rationale">Android 17 要求先授权，Lyra Code 才能连接局域网内的 SSH、MCP、WebDAV 和文件传输服务器，或对外提供本地预览服务。选择“稍后”不会影响公网访问和离线功能。</string>
     <string name="permission_camera">摄像头</string>
     <string name="permission_notification">通知</string>
     <string name="permission_app_list">读取应用列表</string>
@@ -855,7 +858,7 @@
     <string name="permission_status_declared">已声明</string>
     <string name="permission_status_granted">已允许</string>
     <string name="permission_status_click_grant">点击授予</string>
-    <string name="permission_hint">媒体、定位、通知、摄像头等权限会跳转系统应用信息页；Termux 通信权限由 Termux 提供，点击后直接弹出授权许可。</string>
+    <string name="permission_hint">Android 17 上点击“本地网络”会直接弹出系统授权；媒体、定位、通知、摄像头等权限会跳转系统应用信息页；Termux 通信权限由 Termux 提供。</string>
 
     <!-- Agent Tools -->
     <string name="title_search_tools">搜索工具</string>
@@ -1682,9 +1685,10 @@ API Key、密码、私钥和远程服务费用由用户自行管理。请勿分�
     <string name="compliance_permission_network_title">网络与网络状态</string>
     <string name="compliance_permission_network_body">INTERNET：连接模型 API、网页、MCP、远程服务器和更新服务。
 ACCESS_NETWORK_STATE：判断网络连接并显示诊断信息。
+ACCESS_LOCAL_NETWORK：Android 17 及更高版本上的局域网直连和本机服务；运行时申请，用户可拒绝或撤回。
 CHANGE_WIFI_MULTICAST_STATE：支持局域网服务及多播相关能力。
 
-这些是普通权限，安装后由系统授予；仅在使用相应网络功能时产生请求。</string>
+公网访问不依赖本地网络权限。</string>
     <string name="compliance_permission_location_title">位置</string>
     <string name="compliance_permission_location_body">ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION：在用户启用“获取当前位置”工具时读取系统最近位置，用于地理感知回答。应用不以此建立后台行踪轨迹。可在系统设置中随时拒绝或撤回。</string>
     <string name="compliance_permission_camera_title">摄像头</string>

@@ -805,6 +805,9 @@
     <string name="status_not_detected">Not Detected</string>
     <string name="permission_media">Permission Media</string>
     <string name="permission_location">Permission Location</string>
+    <string name="permission_local_network">Local network</string>
+    <string name="local_network_permission_title">Allow local network access?</string>
+    <string name="local_network_permission_rationale">Android 17 requires permission before Lyra Code can connect to LAN SSH, MCP, WebDAV, and file-transfer servers or expose local preview services. Public internet access and offline features remain available if you choose Later.</string>
     <string name="permission_camera">Permission Camera</string>
     <string name="permission_notification">Permission Notification</string>
     <string name="permission_app_list">Permission App List</string>
@@ -813,7 +816,7 @@
     <string name="permission_status_declared">Permission Status Declared</string>
     <string name="permission_status_granted">Permission Status Granted</string>
     <string name="permission_status_click_grant">Permission Status Click Grant</string>
-    <string name="permission_hint">Permission Hint</string>
+    <string name="permission_hint">On Android 17, tap Local network to show the system permission dialog. Other Android permissions open the app information page; the Termux communication permission is provided directly by Termux.</string>
     <string name="title_search_tools">SearchTool</string>
     <string name="search_tools_placeholder">Tools Placeholder</string>
     <string name="label_tools_match">Matching %1$d / %2$d tools</string>
@@ -1599,9 +1602,10 @@ Purpose: project information, feedback, or community access.</string>
     <string name="compliance_permission_network_title">Network and network state</string>
     <string name="compliance_permission_network_body">INTERNET: model APIs, web, MCP, remote servers, and updates.
 ACCESS_NETWORK_STATE: connectivity and diagnostics.
+ACCESS_LOCAL_NETWORK: direct LAN connections and locally hosted services on Android 17 and later. Requested at runtime and may be denied or revoked.
 CHANGE_WIFI_MULTICAST_STATE: LAN and multicast-related features.
 
-These are normal Android permissions and generate requests only when network features are used.</string>
+Public internet access does not depend on the local-network permission.</string>
     <string name="compliance_permission_location_title">Location</string>
     <string name="compliance_permission_location_body">ACCESS_COARSE_LOCATION / ACCESS_FINE_LOCATION: read the latest system location for the “current location” tool after authorization. The app does not build a background route history. Revoke at any time in system settings.</string>
     <string name="compliance_permission_camera_title">Camera</string>

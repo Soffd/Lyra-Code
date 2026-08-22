@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Lyra Code connects to user-configured model, MCP, WebDAV, and local preview
+      endpoints. Keep explicit HTTP support for those endpoints while migrating
+      away from the manifest-wide usesCleartextTraffic attribute deprecated by
+      the Android 17 guidance. The minimum supported API is 26, so this
+      configuration is available on every supported Android version.
+    -->
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

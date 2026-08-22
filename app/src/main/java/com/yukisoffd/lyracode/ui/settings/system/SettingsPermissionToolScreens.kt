@@ -3,6 +3,7 @@ package com.yukisoffd.lyracode
 import android.Manifest
 import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -244,6 +245,8 @@ internal fun PermissionSettings(termuxExecutor: TermuxExecutor) {
                 if (row.title == uiText(R.string.permission_termux)) {
                     requestTermuxRunCommandPermission(context)
                     revision++
+                } else if (row.title == uiText(R.string.permission_local_network)) {
+                    context.findMainActivity()?.requestLocalNetworkPermission() ?: openAppSettings(context)
                 } else {
                     openAppSettings(context)
                 }
@@ -555,14 +558,30 @@ internal fun appPermissionRows(context: Context, termuxExecutor: TermuxExecutor)
         true
     }
     val locationGranted = granted(Manifest.permission.ACCESS_FINE_LOCATION) || granted(Manifest.permission.ACCESS_COARSE_LOCATION)
-    return listOf(
-        PermissionRow(Icons.Default.PhotoLibrary, uiText(R.string.permission_media), mediaGranted, uiText(R.string.permission_status_not_allowed)),
-        PermissionRow(Icons.Default.LocationOn, uiText(R.string.permission_location), locationGranted, uiText(R.string.permission_status_not_allowed)),
-        PermissionRow(Icons.Default.PhotoCamera, uiText(R.string.compliance_permission_camera_title), granted(Manifest.permission.CAMERA), uiText(R.string.permission_status_not_allowed)),
-        PermissionRow(Icons.Default.Notifications, uiText(R.string.compliance_permission_notifications_title), notificationGranted, uiText(R.string.permission_status_not_allowed)),
-        PermissionRow(Icons.Default.Apps, uiText(R.string.permission_read_app_list), true, uiText(R.string.permission_status_declared)),
-        PermissionRow(Icons.Default.Terminal, uiText(R.string.permission_termux), termuxExecutor.hasRunCommandPermission(), uiText(R.string.label_click_to_grant)),
-    )
+    return buildList {
+        add(PermissionRow(Icons.Default.PhotoLibrary, uiText(R.string.permission_media), mediaGranted, uiText(R.string.permission_status_not_allowed)))
+        add(PermissionRow(Icons.Default.LocationOn, uiText(R.string.permission_location), locationGranted, uiText(R.string.permission_status_not_allowed)))
+        if (Android17Compatibility.requiresLocalNetworkPermission()) {
+            add(
+                PermissionRow(
+                    Icons.Default.Wifi,
+                    uiText(R.string.permission_local_network),
+                    Android17Compatibility.hasLocalNetworkAccess(context),
+                    uiText(R.string.label_click_to_grant),
+                ),
+            )
+        }
+        add(PermissionRow(Icons.Default.PhotoCamera, uiText(R.string.compliance_permission_camera_title), granted(Manifest.permission.CAMERA), uiText(R.string.permission_status_not_allowed)))
+        add(PermissionRow(Icons.Default.Notifications, uiText(R.string.compliance_permission_notifications_title), notificationGranted, uiText(R.string.permission_status_not_allowed)))
+        add(PermissionRow(Icons.Default.Apps, uiText(R.string.permission_read_app_list), true, uiText(R.string.permission_status_declared)))
+        add(PermissionRow(Icons.Default.Terminal, uiText(R.string.permission_termux), termuxExecutor.hasRunCommandPermission(), uiText(R.string.label_click_to_grant)))
+    }
+}
+
+private tailrec fun Context.findMainActivity(): MainActivity? = when (this) {
+    is MainActivity -> this
+    is ContextWrapper -> baseContext.findMainActivity()
+    else -> null
 }
 
 internal fun openAppSettings(context: Context) {

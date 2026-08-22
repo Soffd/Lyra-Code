@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.Activity
 import android.content.ContentValues
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -152,6 +153,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -411,6 +415,19 @@ internal fun EmbeddedMediaPlayer(source: String, kind: String) {
     val context = LocalContext.current
     val uri = remember(source) { uriForMediaSource(source) }
     var previewOpen by remember(source) { mutableStateOf(false) }
+    val lifecycleOwner = remember(context) { context.findLifecycleOwner() }
+    val videoViewHolder = remember(source) { mutableStateOf<VideoView?>(null) }
+    DisposableEffect(lifecycleOwner, source) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) videoViewHolder.value?.pause()
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose {
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            runCatching { videoViewHolder.value?.stopPlayback() }
+            videoViewHolder.value = null
+        }
+    }
     if (uri == null) {
         Text(uiText(R.string.ui_unrecognized_media_url) + source, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
         return
@@ -424,6 +441,7 @@ internal fun EmbeddedMediaPlayer(source: String, kind: String) {
             .background(Color.Black.copy(alpha = 0.25f)),
         factory = {
             VideoView(it).apply {
+                videoViewHolder.value = this
                 setMediaController(MediaController(context).also { controller -> controller.setAnchorView(this) })
                 setVideoURI(uri)
                 setOnPreparedListener { mediaPlayer ->
@@ -618,8 +636,21 @@ internal fun FullscreenImageContent(source: String, bitmap: Bitmap?, decoded: De
 @Composable
 internal fun FullscreenVideoContent(source: String, decoded: DecodedDataUrl?, kind: String) {
     val context = LocalContext.current
+    val lifecycleOwner = remember(context) { context.findLifecycleOwner() }
+    val videoViewHolder = remember(source) { mutableStateOf<VideoView?>(null) }
     val uri = remember(source, decoded?.bytes) {
         decoded?.let { cacheDecodedPreviewMedia(context, it) } ?: uriForMediaSource(source)
+    }
+    DisposableEffect(lifecycleOwner, source) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) videoViewHolder.value?.pause()
+        }
+        lifecycleOwner?.lifecycle?.addObserver(observer)
+        onDispose {
+            lifecycleOwner?.lifecycle?.removeObserver(observer)
+            runCatching { videoViewHolder.value?.stopPlayback() }
+            videoViewHolder.value = null
+        }
     }
     if (uri == null) {
         Text(uiText(R.string.error_cannot_open_media), modifier = Modifier.fillMaxWidth().padding(top = 80.dp), color = Color.White)
@@ -633,6 +664,7 @@ internal fun FullscreenVideoContent(source: String, decoded: DecodedDataUrl?, ki
             .background(Color.Black),
         factory = {
             VideoView(it).apply {
+                videoViewHolder.value = this
                 setMediaController(MediaController(context).also { controller -> controller.setAnchorView(this) })
                 setVideoURI(uri)
                 setOnPreparedListener { mediaPlayer ->
@@ -649,6 +681,12 @@ internal fun FullscreenVideoContent(source: String, decoded: DecodedDataUrl?, ki
             }
         },
     )
+}
+
+private tailrec fun Context.findLifecycleOwner(): LifecycleOwner? = when (this) {
+    is LifecycleOwner -> this
+    is ContextWrapper -> baseContext.findLifecycleOwner()
+    else -> null
 }
 
 @Composable
