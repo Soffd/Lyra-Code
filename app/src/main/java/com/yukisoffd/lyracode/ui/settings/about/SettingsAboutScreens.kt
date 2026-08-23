@@ -5,6 +5,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.SystemClock
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -42,8 +45,11 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -73,6 +79,7 @@ import com.yukisoffd.lyracode.data.AppUpdateInfo
 import com.yukisoffd.lyracode.data.UpdateDownloadProgress
 import com.yukisoffd.lyracode.data.UpdateManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -88,6 +95,11 @@ internal data class LicenseNotice(
     val note: String,
     val licenseText: String,
 )
+
+private enum class UpdateManifestEasterEggPrompt {
+    FIRST_WARNING,
+    CHOICE,
+}
 
 @Composable
 internal fun OpenSourceLicensesScreen() {
@@ -254,6 +266,51 @@ internal fun AboutSoftwareScreen(
     var downloading by remember { mutableStateOf(false) }
     var pendingApk by remember { mutableStateOf(updateManager.pendingDownloadedApk()) }
     var updatePromptDisabled by remember { mutableStateOf(updateManager.updatePromptDisabled()) }
+    val easterEggSession = remember(context) { UpdateManifestEasterEggRuntime.takeSession(context) }
+    var easterEggPrompt by remember { mutableStateOf<UpdateManifestEasterEggPrompt?>(null) }
+    var easterEggVisible by remember { mutableStateOf(false) }
+    var easterEggCompleted by remember { mutableStateOf(UpdateManifestEasterEggRuntime.isCompleted(context)) }
+    var showEasterEggResetConfirmation by remember { mutableStateOf(false) }
+    var easterEggRevision by remember { mutableIntStateOf(0) }
+
+    fun registerUpdateManifestTap() {
+        if (easterEggCompleted || easterEggVisible) return
+        val now = SystemClock.elapsedRealtime()
+        when (easterEggSession.click(now)) {
+            UpdateManifestEasterEggEvent.SHOW_FIRST_WARNING -> {
+                easterEggPrompt = UpdateManifestEasterEggPrompt.FIRST_WARNING
+            }
+            UpdateManifestEasterEggEvent.SHOW_CHOICE -> {
+                easterEggPrompt = UpdateManifestEasterEggPrompt.CHOICE
+            }
+            UpdateManifestEasterEggEvent.CRASH_ONCE -> {
+                UpdateManifestEasterEggRuntime.prepareIntentionalCrash(context)
+                Handler(Looper.getMainLooper()).post { throw IntentionalUpdateManifestCrashException() }
+            }
+            UpdateManifestEasterEggEvent.OPEN_RECOVERY -> {
+                easterEggVisible = true
+            }
+            UpdateManifestEasterEggEvent.NONE -> Unit
+        }
+        easterEggRevision++
+    }
+
+    fun resumeEasterEggAfterPrompt() {
+        easterEggPrompt = null
+        easterEggSession.resumeAfterPrompt(SystemClock.elapsedRealtime())
+        easterEggRevision++
+    }
+
+    LaunchedEffect(easterEggRevision, easterEggPrompt, easterEggVisible) {
+        if (easterEggPrompt != null || easterEggVisible) return@LaunchedEffect
+        val remaining = easterEggSession.remainingTimeoutMs(SystemClock.elapsedRealtime())
+            ?: return@LaunchedEffect
+        delay(remaining.coerceAtLeast(1L))
+        if (easterEggSession.expire(SystemClock.elapsedRealtime())) easterEggRevision++
+    }
+    DisposableEffect(easterEggSession) {
+        onDispose { easterEggSession.reset() }
+    }
     val installPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         val apk = updateManager.pendingDownloadedApk()
         pendingApk = apk
@@ -337,6 +394,75 @@ internal fun AboutSoftwareScreen(
                         },
                     )
                 }
+            },
+        )
+    }
+
+    when (easterEggPrompt) {
+        UpdateManifestEasterEggPrompt.FIRST_WARNING -> AlertDialog(
+            onDismissRequest = {},
+            text = { Text(uiText(R.string.easter_egg_first_warning)) },
+            confirmButton = {
+                TextButton(onClick = ::resumeEasterEggAfterPrompt) {
+                    Text(uiText(R.string.easter_egg_first_warning_confirm))
+                }
+            },
+        )
+        UpdateManifestEasterEggPrompt.CHOICE -> AlertDialog(
+            onDismissRequest = {},
+            text = { Text(uiText(R.string.easter_egg_choice_warning)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        easterEggPrompt = null
+                        easterEggSession.chooseDefiant(SystemClock.elapsedRealtime())
+                        easterEggRevision++
+                    },
+                ) { Text(uiText(R.string.easter_egg_choice_defiant)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        easterEggPrompt = null
+                        UpdateManifestEasterEggRuntime.stopForCurrentProcess()
+                        easterEggSession.chooseStop()
+                        easterEggRevision++
+                    },
+                ) { Text(uiText(R.string.easter_egg_choice_stop)) }
+            },
+        )
+        null -> Unit
+    }
+    if (showEasterEggResetConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showEasterEggResetConfirmation = false },
+            title = { Text(uiText(R.string.easter_egg_reset_title)) },
+            text = { Text(uiText(R.string.easter_egg_reset_description)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        UpdateManifestEasterEggRuntime.clear(context)
+                        easterEggSession.reset()
+                        easterEggCompleted = false
+                        showEasterEggResetConfirmation = false
+                        easterEggRevision++
+                    },
+                ) { Text(uiText(R.string.action_clear)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEasterEggResetConfirmation = false }) {
+                    Text(uiText(R.string.action_cancel))
+                }
+            },
+        )
+    }
+    if (easterEggVisible) {
+        UpdateManifestRecoveryEasterEgg(
+            onExit = {
+                UpdateManifestEasterEggRuntime.markCompleted(context)
+                easterEggSession.chooseStop()
+                easterEggCompleted = true
+                easterEggVisible = false
             },
         )
     }
@@ -430,7 +556,15 @@ internal fun AboutSoftwareScreen(
             KimiCardBox {
                 KimiMenuRow(Icons.Default.PhoneAndroid, uiText(R.string.title_device_info), "${Build.MANUFACTURER} ${Build.MODEL}", onClick = onOpenDeviceInfo)
                 KimiDivider()
-                KimiMenuRow(Icons.Default.CloudDownload, uiText(R.string.menu_update_manifest), updateManager.manifestUrl().ifBlank { uiText(R.string.label_not_configured_or_na) })
+                KimiMenuRowWithLongClick(
+                    Icons.Default.CloudDownload,
+                    uiText(R.string.menu_update_manifest),
+                    updateManager.manifestUrl().ifBlank { uiText(R.string.label_not_configured_or_na) },
+                    onClick = ::registerUpdateManifestTap,
+                    onLongClick = {
+                        if (easterEggCompleted) showEasterEggResetConfirmation = true
+                    },
+                )
             }
         }
         TransientNotice(

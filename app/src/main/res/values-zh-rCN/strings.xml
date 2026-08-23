@@ -2085,6 +2085,19 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="storage_item_summary">%1$s · %2$s 个文件</string>
     <string name="storage_clearing_item">正在清理 %1$s...</string>
     <string name="ui_clearing_cache">正在清理缓存...</string>
+    <string name="easter_egg_first_warning">你在干什么</string>
+    <string name="easter_egg_first_warning_confirm">我就看看</string>
+    <string name="easter_egg_choice_warning">再点就不让你用了</string>
+    <string name="easter_egg_choice_stop">好吧</string>
+    <string name="easter_egg_choice_defiant">我偏不</string>
+    <string name="easter_egg_reset_title">清空彩蛋状态？</string>
+    <string name="easter_egg_reset_description">清空后可以从头再次触发更新清单彩蛋。</string>
+    <string name="easter_egg_recovery_instruction">使用音量上/下键和电源键。</string>
+    <string name="easter_egg_recovery_corruption">无法加载 Android 系统。你的数据可能已损坏。如果持续看到此消息，可能需要恢复出厂设置，并清除存储在此设备上的所有用户数据。</string>
+    <string name="easter_egg_recovery_try_again">重试</string>
+    <string name="easter_egg_recovery_factory_reset">恢复出厂设置</string>
+    <string name="easter_egg_recovery_tap_to_start">点击屏幕让挡板和小球落下</string>
+    <string name="easter_egg_recovery_exit">退出彩蛋</string>
 </resources>
 
 
