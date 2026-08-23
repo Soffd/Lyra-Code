@@ -358,6 +358,7 @@ class OpenAiAgent(
         .connectTimeout(20, TimeUnit.SECONDS)
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
+    private val deepSeekFilesApi = DeepSeekFilesApi(context, client)
     private val reachabilityClient = client.newBuilder()
         .readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
@@ -958,7 +959,7 @@ class OpenAiAgent(
         val requestJson = JSONObject()
             .put("model", model)
             .put("instructions", responsesInstructions(conversationId, profile))
-            .put("input", responsesInputItems(conversationId, excludeMessageId, profile))
+            .put("input", responsesInputItems(conversationId, excludeMessageId, profile, model))
             .put("tools", responsesToolDefinitions(conversationId, profile))
             .put("tool_choice", "auto")
             .put("stream", true)
@@ -1096,11 +1097,14 @@ class OpenAiAgent(
         onDelta: suspend (String, String) -> Unit,
     ): StreamingResult {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        val messages = promptMessages(conversationId, excludeMessageId).also {
+            if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceOpenAiInlineImages(it, profile)
+        }
         val requestJson = JSONObject()
             .put("model", model)
             .put("tools", toolDefinitionsFor(conversationId))
             .put("tool_choice", "auto")
-            .put("messages", promptMessages(conversationId, excludeMessageId))
+            .put("messages", messages)
             .put("temperature", 0.2)
             .put("stream", true)
         applyProviderCacheHints(requestJson, profile, model, conversationId)
@@ -1287,17 +1291,20 @@ class OpenAiAgent(
             .put("max_tokens", 4096)
             .put("temperature", 0.2)
             .put("system", providerSystemText(conversationId))
-            .put("messages", anthropicMessages(conversationId, excludeMessageId))
+            .put("messages", anthropicMessages(conversationId, excludeMessageId, profile, model))
             .put("tools", anthropicToolsFor(conversationId))
             .put("stream", true)
         applyReasoningDepthHint(requestJson, profile, model)
-        val request = Request.Builder()
+        val requestBuilder = Request.Builder()
             .url(profile.chatEndpoint)
             .addHeader("x-api-key", profile.apiKey)
             .addHeader("anthropic-version", ANTHROPIC_VERSION)
             .addHeader("Content-Type", "application/json")
             .post(stableJson(requestJson).toRequestBody("application/json".toMediaType()))
-            .build()
+        if (supportsDeepSeekFilesApi(profile, model)) {
+            requestBuilder.addHeader("anthropic-beta", DEEPSEEK_ANTHROPIC_FILES_BETA)
+        }
+        val request = requestBuilder.build()
         val content = StringBuilder()
         val thinking = StringBuilder()
         val startedAtNanos = System.nanoTime()
@@ -1526,8 +1533,10 @@ class OpenAiAgent(
             includeDeepSeekWebSearch = supportsDeepSeekNativeWebSearch(profile),
         )
 
-    private fun responsesInputItems(conversationId: Long, excludeMessageId: Long, profile: ApiProfile): JSONArray {
-        val messages = promptMessages(conversationId, excludeMessageId)
+    private fun responsesInputItems(conversationId: Long, excludeMessageId: Long, profile: ApiProfile, model: String): JSONArray {
+        val messages = promptMessages(conversationId, excludeMessageId).also {
+            if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceOpenAiInlineImages(it, profile)
+        }
         val includeReasoningTextFallback = supportsDeepSeekNativeWebSearch(profile)
         return JSONArray().also { output ->
             for (index in 0 until messages.length()) {
@@ -1582,6 +1591,11 @@ class OpenAiAgent(
                             .put("type", "input_image")
                             .put("image_url", part.optJSONObject("image_url")?.optString("url").orEmpty())
                             .put("detail", part.optJSONObject("image_url")?.optString("detail").orEmpty().ifBlank { "auto" }),
+                    )
+                    "file" -> output.put(
+                        JSONObject()
+                            .put("type", "input_image")
+                            .put("file_id", part.optString("file_id")),
                     )
                     "input_audio" -> output.put(part)
                     "video_url" -> output.put(
@@ -1698,7 +1712,12 @@ class OpenAiAgent(
         ) + source
     }
 
-    private fun anthropicMessages(conversationId: Long, excludeMessageId: Long): JSONArray {
+    private fun anthropicMessages(
+        conversationId: Long,
+        excludeMessageId: Long,
+        profile: ApiProfile,
+        model: String,
+    ): JSONArray {
         val output = JSONArray()
         val source = providerHistory(conversationId, excludeMessageId)
         var index = 0
@@ -1735,6 +1754,7 @@ class OpenAiAgent(
             }
             index++
         }
+        if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceAnthropicInlineImages(output, profile)
         return output
     }
 
@@ -5181,6 +5201,7 @@ class OpenAiAgent(
     companion object {
         private const val AGENT_TAG = "LyraAgent"
         private const val ANTHROPIC_VERSION = "2023-06-01"
+        private const val DEEPSEEK_ANTHROPIC_FILES_BETA = "files-api-2025-04-14"
         private const val LOG_ARGUMENT_CHARS = 1_000
         private const val MAX_TOOL_RESULT_CHARS = 500_000
         private const val MAX_SUB_AGENT_TASKS = 6
