@@ -70,6 +70,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -274,7 +276,8 @@ internal fun ChatScreen(
         if (loadedDraftKey == draftKey) controller.saveInputDraft(input)
     }
     LaunchedEffect(input, controller.activeConversationId.value, controller.settingsRevision.intValue) {
-        if (!input.startsWith("@") || !hasWorkspace) {
+        val query = workspaceFilePickerQuery(input)
+        if (query == null || !hasWorkspace) {
             workspaceFileMatches = emptyList()
             workspaceFileSearchLoading = false
             return@LaunchedEffect
@@ -282,8 +285,6 @@ internal fun ChatScreen(
         workspaceFileSearchLoading = true
         try {
             delay(120L)
-            val mentionBody = input.drop(1)
-            val query = mentionBody.substringBefore(' ').trim()
             workspaceFileMatches = withContext(Dispatchers.IO) {
                 controller.searchWorkspaceFiles(query)
             }
@@ -458,10 +459,10 @@ internal fun ChatScreen(
                 keyboardShouldLiftOutput = true
             }
         }
-        LaunchedEffect(isRunning, isNearOutputEnd, listState.isScrollInProgress) {
-            when {
-                isNearOutputEnd -> autoFollowOutput = true
-                isRunning && listState.isScrollInProgress -> autoFollowOutput = false
+        LaunchedEffect(isRunning, listState.isScrollInProgress, listState.canScrollForward) {
+            val userSettledAtBottom = !listState.isScrollInProgress && !listState.canScrollForward
+            if (!isRunning || userSettledAtBottom) {
+                autoFollowOutput = true
             }
         }
         LaunchedEffect(
@@ -470,7 +471,7 @@ internal fun ChatScreen(
             messageSnapshot.lastOrNull()?.thinking?.length,
             bottomAnchorIndex,
         ) {
-            if (messageSnapshot.isNotEmpty() && (autoFollowOutput || isNearOutputEnd)) {
+            if (messageSnapshot.isNotEmpty() && autoFollowOutput) {
                 listState.scrollToItem(bottomAnchorIndex)
             }
         }
@@ -499,7 +500,18 @@ internal fun ChatScreen(
             CompositionLocalProvider(LocalNavigationSwipeGuard provides navigationSwipeGuard) {
             LazyColumn(
                 state = listState,
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(isRunning) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent(PointerEventPass.Initial)
+                                if (isRunning && event.changes.any { it.pressed }) {
+                                    autoFollowOutput = false
+                                }
+                            }
+                        }
+                    },
                 contentPadding = PaddingValues(bottom = if (keyboardShouldLiftOutput) keyboardLiftDp else 0.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
             ) {
@@ -509,6 +521,7 @@ internal fun ChatScreen(
                             messages = item.process,
                             selectionResetKey = selectionResetKey,
                             active = item.key == activeProcessKey,
+                            streamingAnimationMode = settings.streamingAnimationMode,
                             startedAtOverride = item.processStartedAt,
                             finishedAtOverride = item.processFinishedAt,
                         )

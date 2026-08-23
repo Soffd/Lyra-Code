@@ -507,6 +507,65 @@ internal fun KimiMenuRow(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun KimiMenuRowWithLongClick(
+    icon: ImageVector,
+    title: String,
+    value: String = "",
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    val (iconContainer, iconContent) = kimiMenuAccent(title)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(18.dp))
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(iconContainer),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                icon,
+                contentDescription = null,
+                modifier = Modifier.size(23.dp),
+                tint = iconContent,
+            )
+        }
+        Spacer(Modifier.width(14.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Text(
+                title,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (value.isNotBlank()) {
+                Text(
+                    value,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.bodyMedium,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+        Icon(
+            Icons.Default.ChevronRight,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 internal fun PlusBadgeIcon(
     baseIcon: @Composable () -> Unit,

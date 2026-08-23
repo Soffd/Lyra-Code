@@ -237,6 +237,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        UpdateManifestEasterEggRuntime.initialize(this)
+        if (savedInstanceState == null) UpdateManifestEasterEggRuntime.beginFreshAppTask()
         enableAndroid17CompatibilityDiagnostics()
         val settings = AppSettings(this)
         val compatibilityPreferences = getSharedPreferences(COMPATIBILITY_PREFERENCES, MODE_PRIVATE)

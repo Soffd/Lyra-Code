@@ -59,7 +59,14 @@ class WorkspaceManager(
     }
 
     fun searchFiles(query: String, limit: Int = 80): List<WorkspaceFileReference> =
-        fileIndexer.search(query, limit)
+        fileIndexer.search(query, limit, quickReturnOnStrongMatch = true)
+
+    internal fun searchEntries(query: String, basePath: String, limit: Int): List<WorkspaceFileReference> =
+        fileIndexer.search(query, limit, basePath, includeDirectories = true)
+
+    fun invalidateFileIndex() {
+        fileIndexer.invalidate()
+    }
 
     fun termuxRootPath(): String? {
         val uri = rootUri() ?: return null

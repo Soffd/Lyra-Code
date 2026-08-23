@@ -4570,36 +4570,18 @@ class OpenAiAgent(
         return FILE_SEARCH_COMMAND_PATTERNS.any { it.containsMatchIn(lowered) }
     }
 
-    private suspend fun globalSearchFiles(query: String): ToolExecution {
+    private fun globalSearchFiles(query: String): ToolExecution {
         val cleanQuery = query.trim()
         require(cleanQuery.isNotBlank()) { "Search query must not be empty." }
-        val pattern = shellSingleQuote("*$cleanQuery*")
-        val command = buildString {
-            append("find /storage/emulated/0 ")
-            append("\\( -path '/storage/emulated/0/Android/data' -o -path '/storage/emulated/0/Android/data/*' ")
-            append("-o -path '/storage/emulated/0/Android/obb' -o -path '/storage/emulated/0/Android/obb/*' ")
-            append("-o -path '/storage/emulated/0/.Trash*' -o -path '/storage/emulated/0/.MediaTrash*' \\) -prune -o ")
-            append("\\( -iname $pattern -o -ipath $pattern \\) -print 2>/dev/null | head -n $GLOBAL_SEARCH_RESULT_LIMIT")
-        }
-        val result = termuxExecutor.execute(command, workDir = null)
-        if (!result.ok) {
-            error(
-                "Global shared-storage search failed: ${result.message}\n" +
-                    "Ask the user to verify that Termux is installed, allow-external-apps=true is set, and termux-setup-storage has been completed.",
-            )
-        }
+        val result = globalFileManager.searchFiles(cleanQuery, GLOBAL_SEARCH_RESULT_LIMIT).getOrThrow()
         return ToolExecution(
             "GLOBAL_SEARCH_FILES_RESULT\n" +
                 "root=/storage/emulated/0\n" +
                 "query=$cleanQuery\n" +
                 "limit=$GLOBAL_SEARCH_RESULT_LIMIT\n" +
                 "note=These results are outside the workspace and use absolute shared-storage paths. Read them with global_read_file/global_read_file_lines and modify them only with matching global_* tools.\n" +
-                result.message,
+                result.toAgentText(),
         )
-    }
-
-    private fun shellSingleQuote(value: String): String {
-        return "'${value.replace("'", "'\"'\"'")}'"
     }
 
     private fun JSONObject.toolCommandArgument(): String {

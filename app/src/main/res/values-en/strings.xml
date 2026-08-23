@@ -2002,4 +2002,17 @@ Revocation stops new access through that permission but does not automatically e
     <string name="storage_item_summary">%1$s · %2$s files</string>
     <string name="storage_clearing_item">Clearing %1$s...</string>
     <string name="ui_clearing_cache">Clearing cache...</string>
+    <string name="easter_egg_first_warning">What are you doing?</string>
+    <string name="easter_egg_first_warning_confirm">Just looking</string>
+    <string name="easter_egg_choice_warning">Tap again and I won\'t let you use it.</string>
+    <string name="easter_egg_choice_stop">Fine</string>
+    <string name="easter_egg_choice_defiant">I insist</string>
+    <string name="easter_egg_reset_title">Clear easter egg state?</string>
+    <string name="easter_egg_reset_description">This will let you trigger the update-manifest easter egg again from the beginning.</string>
+    <string name="easter_egg_recovery_instruction">Use volume up/down and power.</string>
+    <string name="easter_egg_recovery_corruption">Cannot load Android system. Your data may be corrupt. If you continue to get this message, you may need to perform a factory data reset and erase all user data stored on this device.</string>
+    <string name="easter_egg_recovery_try_again">Try again</string>
+    <string name="easter_egg_recovery_factory_reset">Factory data reset</string>
+    <string name="easter_egg_recovery_tap_to_start">Tap the screen to drop the paddle and ball</string>
+    <string name="easter_egg_recovery_exit">Exit easter egg</string>
 </resources>

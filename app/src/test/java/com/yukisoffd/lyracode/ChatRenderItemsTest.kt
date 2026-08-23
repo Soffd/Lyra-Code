@@ -42,7 +42,7 @@ class ChatRenderItemsTest {
     }
 
     @Test
-    fun `keeps process and intermediate output in arrival order while streaming`() {
+    fun `groups adjacent process activity around intermediate output while streaming`() {
         val messages = listOf(
             ChatRecord(id = 1L, role = "user", content = "start", createdAt = 1_000L),
             ChatRecord(id = 2L, role = "assistant", content = "intermediate one", thinking = "plan one", createdAt = 2_000L),
@@ -52,13 +52,14 @@ class ChatRenderItemsTest {
 
         val items = chatRenderItems(messages, isStreaming = true)
 
-        assertEquals(6, items.size)
+        assertEquals(5, items.size)
         assertEquals("user", items[0].message?.role)
         assertEquals("plan one", items[1].process.single().thinking)
         assertEquals("intermediate one", items[2].message?.content)
-        assertEquals("tool", items[3].process.single().role)
-        assertEquals("plan two", items[4].process.single().thinking)
-        assertEquals("intermediate two", items[5].message?.content)
+        assertEquals(listOf(3L, -4L), items[3].process.map { it.id })
+        assertEquals("tool", items[3].process.first().role)
+        assertEquals("plan two", items[3].process.last().thinking)
+        assertEquals("intermediate two", items[4].message?.content)
     }
 
     @Test
@@ -80,5 +81,23 @@ class ChatRenderItemsTest {
         )
         assertEquals(listOf(2L, 3L), items[1].process.map { it.id })
         assertEquals("working", items[4].process.single().thinking)
+    }
+
+    @Test
+    fun `keeps all adjacent thinking and tools in one active process item`() {
+        val messages = listOf(
+            ChatRecord(id = 1L, role = "user", content = "start", createdAt = 1_000L),
+            ChatRecord(id = 2L, role = "assistant", content = "", thinking = "plan", createdAt = 2_000L),
+            ChatRecord(id = 3L, role = "tool", content = "first result", createdAt = 3_000L),
+            ChatRecord(id = 4L, role = "assistant", content = "", thinking = "inspect result", createdAt = 4_000L),
+            ChatRecord(id = 5L, role = "tool", content = "second result", createdAt = 5_000L),
+        )
+
+        val items = chatRenderItems(messages, isStreaming = true)
+
+        assertEquals(listOf("message-1", "process-2"), items.map { it.key })
+        assertEquals(listOf(2L, 3L, 4L, 5L), items.last().process.map { it.id })
+        assertEquals(2_000L, items.last().processStartedAt)
+        assertEquals(5_000L, items.last().processFinishedAt)
     }
 }
