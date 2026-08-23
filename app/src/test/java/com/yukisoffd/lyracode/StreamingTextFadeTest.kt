@@ -21,4 +21,13 @@ class StreamingTextFadeTest {
 
         assertTrue(later.alphaAt(60) > early.alphaAt(60))
     }
+
+    @Test
+    fun limitsAnimatedGradientToNewestTail() {
+        val fade = StreamingTextFade(contentLength = 1_000, opaquePosition = 100f)
+
+        assertEquals(880, fade.firstFadingSourceIndex)
+        assertEquals(1f, fade.alphaAt(879))
+        assertTrue(fade.alphaAt(999) < 0.15f)
+    }
 }

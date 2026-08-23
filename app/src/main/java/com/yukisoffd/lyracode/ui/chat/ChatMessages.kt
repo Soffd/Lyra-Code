@@ -2,10 +2,13 @@ package com.yukisoffd.lyracode
 
 import android.provider.Settings
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.BorderStroke
@@ -44,6 +47,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,6 +70,8 @@ import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -93,6 +99,8 @@ internal data class ChatRenderItem(
     val processFinishedAt: Long? = null,
 )
 
+private fun sourceMessageId(id: Long): Long = if (id < 0L) -id else id
+
 internal fun chatRenderItems(
     messages: List<ChatRecord>,
     isStreaming: Boolean = false,
@@ -105,6 +113,21 @@ internal fun chatRenderItems(
         val turn = assistantTurn.toList()
         assistantTurn.clear()
         if (streamTurn) {
+            val pendingProcess = mutableListOf<ChatRecord>()
+
+            fun flushPendingProcess() {
+                if (pendingProcess.isEmpty()) return
+                val process = pendingProcess.toList()
+                pendingProcess.clear()
+                val firstSourceId = sourceMessageId(process.first().id)
+                result += ChatRenderItem(
+                    key = "process-$firstSourceId",
+                    process = process,
+                    processStartedAt = process.minOfOrNull { it.createdAt },
+                    processFinishedAt = process.maxOfOrNull { it.createdAt },
+                )
+            }
+
             turn.forEach { message ->
                 if (message.role == "assistant") {
                     if (message.thinking.isNotBlank() || message.content.isBlank()) {
@@ -113,28 +136,22 @@ internal fun chatRenderItems(
                         } else {
                             message
                         }
-                        result += ChatRenderItem(
-                            key = "process-${message.id}",
-                            process = listOf(processMessage),
-                            processStartedAt = message.createdAt,
-                            processFinishedAt = message.createdAt,
-                        )
+                        pendingProcess += processMessage
                     }
                     if (message.content.isNotBlank()) {
+                        // Intermediate prose is a visual boundary: all following
+                        // thinking/tool activity starts a new process card.
+                        flushPendingProcess()
                         result += ChatRenderItem(
                             key = "message-${message.id}",
                             message = message.copy(thinking = ""),
                         )
                     }
                 } else {
-                    result += ChatRenderItem(
-                        key = "process-${message.id}",
-                        process = listOf(message),
-                        processStartedAt = message.createdAt,
-                        processFinishedAt = message.createdAt,
-                    )
+                    pendingProcess += message
                 }
             }
+            flushPendingProcess()
             return
         }
         val finalAnswerIndex = turn.indexOfLast {
@@ -185,13 +202,16 @@ internal fun AgentProcessSummary(
     messages: List<ChatRecord>,
     selectionResetKey: Int,
     active: Boolean = false,
+    streamingAnimationMode: String = AppSettings.STREAMING_ANIMATION_TYPEWRITER,
     startedAtOverride: Long? = null,
     finishedAtOverride: Long? = null,
 ) {
-    var expanded by rememberSaveable(messages.firstOrNull()?.id ?: 0L) { mutableStateOf(false) }
+    // Synthetic thinking-only records use a negative ID. Normalize it so the
+    // expanded state survives both streaming splits and the final merge.
+    val processKey = sourceMessageId(messages.firstOrNull()?.id ?: 0L)
+    var expanded by rememberSaveable(processKey) { mutableStateOf(false) }
     val toolCount = messages.count { it.role == "tool" }
     val thinkingCount = messages.count { it.thinking.isNotBlank() || it.role == "assistant" }
-    val processKey = messages.firstOrNull()?.id ?: 0L
     val fallbackNow = remember(processKey) { System.currentTimeMillis() }
     var wasActive by rememberSaveable(processKey) { mutableStateOf(false) }
     var completedAt by rememberSaveable(processKey) { mutableStateOf<Long?>(null) }
@@ -211,7 +231,9 @@ internal fun AgentProcessSummary(
         uiText(R.string.ui_process_log_collapsed_thinking_1_s_tools_2_s, thinkingCount, toolCount)
     }
     Card(
-        Modifier.fillMaxWidth(),
+        Modifier
+            .fillMaxWidth()
+            .smoothStreamingHeight(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f)),
         shape = RoundedCornerShape(22.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.18f)),
@@ -229,7 +251,19 @@ internal fun AgentProcessSummary(
             )
             AnimatedVisibility(expanded) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    messages.forEach { MessageCard(it, selectionResetKey, inProcessRecord = true) }
+                    messages.forEachIndexed { index, message ->
+                        key(message.id) {
+                            MessageCard(
+                                message = message,
+                                selectionResetKey = selectionResetKey,
+                                inProcessRecord = true,
+                                streamingAnimationMode = streamingAnimationMode,
+                                isStreaming = active &&
+                                    index == messages.lastIndex &&
+                                    message.role == "assistant",
+                            )
+                        }
+                    }
                 }
             }
         }
@@ -878,10 +912,13 @@ internal fun MessageCard(
                                 AnimatedVisibility(showThinking) {
                                     key(selectionResetKey) {
                                         SelectionContainer {
-                                            Text(
-                                                message.thinking,
+                                            StreamingThinkingContent(
+                                                content = message.thinking,
+                                                isStreaming = isStreaming,
+                                                mode = streamingAnimationMode,
                                                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                                                 color = contentColor,
+                                                smoothHeight = !inProcessRecord,
                                             )
                                         }
                                     }
@@ -1044,7 +1081,34 @@ private fun MessageActionsDropdown(
 }
 
 @Composable
-internal fun StreamingAssistantContent(content: String, isStreaming: Boolean, mode: String) {
+internal fun StreamingAssistantContent(
+    content: String,
+    isStreaming: Boolean,
+    mode: String,
+    style: TextStyle = LocalTextStyle.current,
+    textColor: Color = Color.Unspecified,
+    smoothHeight: Boolean = true,
+) {
+    val frame = rememberStreamingTextFrame(content, isStreaming, mode)
+    RichMarkdownContent(
+        frame.content,
+        modifier = if (smoothHeight) Modifier.smoothStreamingHeight() else Modifier,
+        style = style.copy(color = textColor),
+        streamingFade = frame.fade,
+    )
+}
+
+private data class StreamingTextFrame(
+    val content: String,
+    val fade: StreamingTextFade?,
+)
+
+@Composable
+private fun rememberStreamingTextFrame(
+    content: String,
+    isStreaming: Boolean,
+    mode: String,
+): StreamingTextFrame {
     val normalizedMode = AppSettings.normalizeStreamingAnimationMode(mode)
     val latestContent by rememberUpdatedState(content)
     val fadeMode = normalizedMode == AppSettings.STREAMING_ANIMATION_FADE
@@ -1091,18 +1155,50 @@ internal fun StreamingAssistantContent(content: String, isStreaming: Boolean, mo
             delay(12L)
         }
     }
-    val streamingFade = if (
+    val fade = if (
         fadeMode && opaquePosition.value < renderedContent.length
     ) {
         StreamingTextFade(renderedContent.length, opaquePosition.value)
     } else {
         null
     }
-    RichMarkdownContent(
-        renderedContent,
-        streamingFade = streamingFade,
+    return StreamingTextFrame(renderedContent, fade)
+}
+
+@Composable
+private fun StreamingThinkingContent(
+    content: String,
+    isStreaming: Boolean,
+    mode: String,
+    style: TextStyle,
+    color: Color,
+    smoothHeight: Boolean,
+) {
+    val frame = rememberStreamingTextFrame(content, isStreaming, mode)
+    val annotated = remember(frame.content, frame.fade, color) {
+        buildAnnotatedString {
+            appendStreamingFadedText(
+                value = frame.content,
+                sourceStart = 0,
+                streamingFade = frame.fade,
+                baseColor = color,
+            )
+        }
+    }
+    Text(
+        text = annotated,
+        modifier = if (smoothHeight) Modifier.smoothStreamingHeight() else Modifier,
+        style = style.copy(color = color),
     )
 }
+
+private fun Modifier.smoothStreamingHeight(): Modifier = animateContentSize(
+    animationSpec = spring(
+        dampingRatio = Spring.DampingRatioNoBouncy,
+        stiffness = Spring.StiffnessMediumLow,
+    ),
+    alignment = Alignment.TopStart,
+)
 internal fun formatProcessDuration(durationMs: Long): String {
     val totalSeconds = (durationMs / 1000L).coerceAtLeast(0L)
     val hours = totalSeconds / 3600L

@@ -1,14 +1,10 @@
 package com.yukisoffd.lyracode.workspace
 
 import android.content.Context
-import android.database.Cursor
-import android.net.Uri
-import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import java.io.FileNotFoundException
 import java.io.InputStream
-import java.util.ArrayDeque
 
 data class WorkspaceFile(
     val name: String,
@@ -69,6 +65,7 @@ class NativeFileManager(
         val file = findOrCreateFile(path)
         context.contentResolver.openOutputStream(file.uri, "wt")?.bufferedWriter()?.use { it.write(content) }
             ?: throw FileNotFoundException("无法写入: $path")
+        workspaceManager.invalidateFileIndex()
         "已写入 ${content.length} 字符: $path"
     }
 
@@ -76,14 +73,17 @@ class NativeFileManager(
         val file = findOrCreateFile(path)
         context.contentResolver.openOutputStream(file.uri, "wt")?.use { it.write(bytes) }
             ?: throw FileNotFoundException("无法写入: $path")
+        workspaceManager.invalidateFileIndex()
         "已写入 ${bytes.size} 字节: $path"
     }
 
     fun writeStream(path: String, input: InputStream): Result<Long> = runCatching {
         val file = findOrCreateFile(path)
-        context.contentResolver.openOutputStream(file.uri, "wt")?.buffered()?.use { output ->
+        val written = context.contentResolver.openOutputStream(file.uri, "wt")?.buffered()?.use { output ->
             input.copyTo(output)
         } ?: throw FileNotFoundException("无法写入: $path")
+        workspaceManager.invalidateFileIndex()
+        written
     }
 
     fun appendFile(path: String, content: String): Result<String> = runCatching {
@@ -91,6 +91,7 @@ class NativeFileManager(
         val file = findOrCreateFile(path)
         context.contentResolver.openOutputStream(file.uri, "wa")?.bufferedWriter()?.use { it.write(content) }
             ?: throw FileNotFoundException("无法追加: $path")
+        workspaceManager.invalidateFileIndex()
         "已追加 ${content.length} 字符: $path"
     }
 
@@ -102,12 +103,14 @@ class NativeFileManager(
         val parent = resolve(segments.dropLast(1).joinToString("/")) ?: throw FileNotFoundException("父目录不存在")
         parent.findFile(folderName) ?: parent.createDirectory(folderName)
             ?: throw FileNotFoundException("无法创建目录: $path")
+        workspaceManager.invalidateFileIndex()
         "已创建目录: $path"
     }
 
     fun delete(path: String): Result<String> = runCatching {
         val file = resolve(path) ?: throw FileNotFoundException("不存在: $path")
         require(file.delete()) { "删除失败，非空目录请改用 Termux rm -rf 并确认风险" }
+        workspaceManager.invalidateFileIndex()
         "已删除: $path"
     }
 
@@ -117,6 +120,7 @@ class NativeFileManager(
         val targetParent = parentPath(to)
         require(sourceParent == targetParent) { "SAF 原生工具只支持同目录重命名，跨目录移动请使用 Termux" }
         require(source.renameTo(normalize(to).substringAfterLast("/"))) { "重命名失败: $from" }
+        workspaceManager.invalidateFileIndex()
         "已重命名: $from -> $to"
     }
 
@@ -124,29 +128,31 @@ class NativeFileManager(
         val startedAt = System.currentTimeMillis()
         val cleanBasePath = normalize(basePath)
         val base = resolve(cleanBasePath) ?: throw FileNotFoundException("目录不存在: $basePath")
+        require(base.isDirectory) { "不是目录: $basePath" }
         val matcher = FileSearchMatcher(query)
         val results = LinkedHashMap<String, WorkspaceFile>()
-        val stats = SearchStats(query = query, basePath = cleanBasePath, rootUri = workspaceManager.rootUri()?.toString().orEmpty())
-        Log.d(TAG, "search_start query='$query' base='$cleanBasePath' root='${stats.rootUri}'")
-        searchWithDocumentsContract(cleanBasePath, matcher, results, stats)
-        if (results.size < SEARCH_LIMIT) {
-            searchWithDocumentFile(base, cleanBasePath, matcher, results, stats)
+        Log.d(TAG, "search_start query='$query' base='$cleanBasePath' source=workspace_index")
+        workspaceManager.searchEntries(query, cleanBasePath, SEARCH_LIMIT).forEach { file ->
+            results[file.relativePath] = WorkspaceFile(
+                name = file.name,
+                path = file.relativePath,
+                directory = file.directory,
+                size = file.size,
+                modifiedAt = file.modifiedAt,
+            )
         }
         if (results.isEmpty() && cleanBasePath.isBlank()) {
             fuzzyPathCandidates(matcher).forEach { candidate ->
                 resolve(candidate)?.let {
                     results[candidate] = WorkspaceFile(it.name.orEmpty(), candidate, it.isDirectory, it.length(), it.lastModified())
-                    stats.candidateHits++
                 }
             }
         }
-        val sorted = results.values.sortedWith(searchComparator(matcher)).take(SEARCH_LIMIT)
+        val sorted = results.values.toList()
         Log.d(
             TAG,
             "search_end query='$query' base='$cleanBasePath' results=${sorted.size} " +
-                "safVisited=${stats.safVisited} safChildren=${stats.safChildren} safErrors=${stats.safErrors} " +
-                "docVisited=${stats.documentFileVisited} docChildren=${stats.documentFileChildren} " +
-                "candidateHits=${stats.candidateHits} durationMs=${System.currentTimeMillis() - startedAt} " +
+                "source=workspace_index durationMs=${System.currentTimeMillis() - startedAt} " +
                 "sample=${sorted.take(8).joinToString { it.path }}",
         )
         sorted
@@ -224,113 +230,6 @@ class NativeFileManager(
         return current
     }
 
-    private fun searchWithDocumentsContract(
-        basePath: String,
-        matcher: FileSearchMatcher,
-        results: LinkedHashMap<String, WorkspaceFile>,
-        stats: SearchStats,
-    ) {
-        val treeUri = workspaceManager.rootUri() ?: run {
-            Log.d(TAG, "saf_skip no_root_uri")
-            return
-        }
-        val rootDocId = runCatching { DocumentsContract.getTreeDocumentId(treeUri) }
-            .onFailure { Log.w(TAG, "saf_tree_doc_id_failed uri=$treeUri", it) }
-            .getOrNull() ?: return
-        val baseDocId = documentIdForRelativePath(rootDocId, basePath)
-        Log.d(TAG, "saf_start rootDocId='$rootDocId' baseDocId='$baseDocId'")
-        val queue = ArrayDeque<Pair<String, String>>()
-        queue.add(baseDocId to basePath)
-        var visited = 0
-        while (queue.isNotEmpty() && results.size < SEARCH_LIMIT && visited < SEARCH_VISIT_LIMIT) {
-            val (docId, currentPath) = queue.removeFirst()
-            visited++
-            stats.safVisited++
-            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(treeUri, docId)
-            val children = queryChildren(childrenUri, currentPath, stats)
-            stats.safChildren += children.size
-            children.forEach { child ->
-                val childPath = joinPath(currentPath, child.name)
-                if (matcher.matches(child.name, childPath)) {
-                    results[childPath] = WorkspaceFile(child.name, childPath, child.directory, child.size, child.modifiedAt)
-                }
-                if (child.directory) queue.add(child.documentId to childPath)
-            }
-        }
-        Log.d(TAG, "saf_done visited=${stats.safVisited} children=${stats.safChildren} results=${results.size} queue=${queue.size}")
-    }
-
-    private fun queryChildren(childrenUri: Uri, currentPath: String, stats: SearchStats): List<DocumentEntry> {
-        val projection = arrayOf(
-            DocumentsContract.Document.COLUMN_DOCUMENT_ID,
-            DocumentsContract.Document.COLUMN_DISPLAY_NAME,
-            DocumentsContract.Document.COLUMN_MIME_TYPE,
-            DocumentsContract.Document.COLUMN_SIZE,
-            DocumentsContract.Document.COLUMN_LAST_MODIFIED,
-        )
-        return runCatching {
-            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
-                buildList {
-                    val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
-                    val nameIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-                    val mimeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
-                    val sizeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
-                    val modifiedIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_LAST_MODIFIED)
-                    while (cursor.moveToNext()) {
-                        val id = cursor.getStringOrEmpty(idIndex)
-                        val name = cursor.getStringOrEmpty(nameIndex)
-                        if (id.isBlank() || name.isBlank()) continue
-                        val mime = cursor.getStringOrEmpty(mimeIndex)
-                        add(
-                            DocumentEntry(
-                                documentId = id,
-                                name = name,
-                                directory = mime == DocumentsContract.Document.MIME_TYPE_DIR,
-                                size = cursor.getLongOrZero(sizeIndex),
-                                modifiedAt = cursor.getLongOrZero(modifiedIndex),
-                            ),
-                        )
-                    }
-                }
-            }.orEmpty()
-        }.onFailure {
-            stats.safErrors++
-            Log.w(TAG, "saf_query_failed path='$currentPath' uri=$childrenUri", it)
-        }.getOrDefault(emptyList())
-    }
-
-    private fun searchWithDocumentFile(
-        base: DocumentFile,
-        basePath: String,
-        matcher: FileSearchMatcher,
-        results: LinkedHashMap<String, WorkspaceFile>,
-        stats: SearchStats,
-    ) {
-        Log.d(TAG, "documentfile_start base='$basePath' existingResults=${results.size}")
-        val queue = ArrayDeque<Pair<DocumentFile, String>>()
-        queue.add(base to basePath)
-        var visited = 0
-        while (queue.isNotEmpty() && results.size < SEARCH_LIMIT && visited < SEARCH_VISIT_LIMIT) {
-            val (dir, currentPath) = queue.removeFirst()
-            visited++
-            stats.documentFileVisited++
-            val children = runCatching { dir.listFiles() }
-                .onFailure { Log.w(TAG, "documentfile_list_failed path='$currentPath' uri=${dir.uri}", it) }
-                .getOrDefault(emptyArray())
-            stats.documentFileChildren += children.size
-            children.forEach { child ->
-                val name = child.name.orEmpty()
-                if (name.isBlank()) return@forEach
-                val childPath = joinPath(currentPath, name)
-                if (matcher.matches(name, childPath)) {
-                    results[childPath] = WorkspaceFile(name, childPath, child.isDirectory, child.length(), child.lastModified())
-                }
-                if (child.isDirectory) queue.add(child to childPath)
-            }
-        }
-        Log.d(TAG, "documentfile_done visited=${stats.documentFileVisited} children=${stats.documentFileChildren} results=${results.size} queue=${queue.size}")
-    }
-
     private fun fuzzyPathCandidates(matcher: FileSearchMatcher): List<String> {
         return matcher.rawTerms
             .filter { it.contains("/") }
@@ -340,21 +239,6 @@ class NativeFileManager(
             }
             .filter { it.isNotBlank() }
             .distinct()
-    }
-
-    private fun documentIdForRelativePath(rootDocId: String, relativePath: String): String {
-        if (relativePath.isBlank()) return rootDocId
-        return when {
-            rootDocId.endsWith(":") -> rootDocId + relativePath
-            rootDocId.contains(":") -> "$rootDocId/$relativePath"
-            else -> "$rootDocId:$relativePath"
-        }
-    }
-
-    private fun searchComparator(matcher: FileSearchMatcher): Comparator<WorkspaceFile> {
-        return compareByDescending<WorkspaceFile> { matcher.score(it.name, it.path) }
-            .thenBy { it.path.length }
-            .thenBy { it.path.lowercase() }
     }
 
     private fun normalize(path: String): String {
@@ -413,37 +297,8 @@ class NativeFileManager(
         private const val MAX_EDIT_BYTES = 16L * 1024L * 1024L
         private const val MAX_BINARY_BYTES = 200L * 1024L * 1024L
         private const val SEARCH_LIMIT = 200
-        private const val SEARCH_VISIT_LIMIT = 10_000
     }
 }
-
-private data class SearchStats(
-    val query: String,
-    val basePath: String,
-    val rootUri: String,
-    var safVisited: Int = 0,
-    var safChildren: Int = 0,
-    var safErrors: Int = 0,
-    var documentFileVisited: Int = 0,
-    var documentFileChildren: Int = 0,
-    var candidateHits: Int = 0,
-)
-
-private fun Cursor.getStringOrEmpty(index: Int): String {
-    return if (index >= 0 && !isNull(index)) getString(index).orEmpty() else ""
-}
-
-private fun Cursor.getLongOrZero(index: Int): Long {
-    return if (index >= 0 && !isNull(index)) getLong(index) else 0L
-}
-
-private data class DocumentEntry(
-    val documentId: String,
-    val name: String,
-    val directory: Boolean,
-    val size: Long,
-    val modifiedAt: Long,
-)
 
 internal class FileSearchMatcher(query: String) {
     val rawTerms: List<String> = query
@@ -455,24 +310,38 @@ internal class FileSearchMatcher(query: String) {
     private val terms = rawTerms.map { normalizeToken(it) }.filter { it.isNotBlank() }
 
     fun matches(name: String, path: String): Boolean {
-        if (terms.isEmpty()) return true
-        val normalizedName = normalizeToken(name)
-        val normalizedPath = normalizeToken(path)
-        return terms.all { term ->
-            normalizedName.contains(term) ||
-                normalizedPath.contains(term) ||
-                fuzzyContains(normalizedName, term) ||
-                fuzzyContains(normalizedPath, term)
-        }
+        return matchScore(name, path) != null
     }
 
     fun score(name: String, path: String): Int {
+        return matchScore(name, path) ?: 0
+    }
+
+    internal fun strictMatchScore(name: String, path: String): Int? {
+        if (rawTerms.isEmpty()) return 1
+        var total = 0
+        rawTerms.forEach { term ->
+            val termScore = when {
+                name.equals(term, ignoreCase = true) -> 100
+                path.endsWith("/$term", ignoreCase = true) -> 90
+                name.startsWith(term, ignoreCase = true) -> 80
+                name.contains(term, ignoreCase = true) -> 70
+                path.contains(term, ignoreCase = true) -> 50
+                else -> 0
+            }
+            if (termScore == 0) return null
+            total += termScore
+        }
+        return total
+    }
+
+    internal fun matchScore(name: String, path: String): Int? {
         if (terms.isEmpty()) return 1
-        if (!matches(name, path)) return 0
         val normalizedName = normalizeToken(name)
         val normalizedPath = normalizeToken(path)
-        return terms.sumOf { term ->
-            when {
+        var total = 0
+        terms.forEach { term ->
+            val termScore = when {
                 normalizedName == term -> 100
                 normalizedPath.endsWith("/$term") -> 90
                 normalizedName.startsWith(term) -> 80
@@ -482,13 +351,16 @@ internal class FileSearchMatcher(query: String) {
                 fuzzyContains(normalizedPath, term) -> 20
                 else -> 0
             }
+            if (termScore == 0) return null
+            total += termScore
         }
+        return total
     }
 
     private fun normalizeToken(value: String): String {
         return value.lowercase()
             .replace('\\', '/')
-            .replace(Regex("[_\\-.]+"), "")
+            .replace(TOKEN_SEPARATOR_REGEX, "")
             .trim('/')
     }
 
@@ -500,5 +372,9 @@ internal class FileSearchMatcher(query: String) {
             if (index == needle.length) return true
         }
         return false
+    }
+
+    private companion object {
+        val TOKEN_SEPARATOR_REGEX = Regex("[_\\-.]+")
     }
 }

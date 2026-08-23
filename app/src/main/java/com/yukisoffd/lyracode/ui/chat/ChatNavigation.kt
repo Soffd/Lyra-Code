@@ -171,11 +171,17 @@ internal fun WorkspaceFileMentionPicker(
     }
 }
 
+internal fun workspaceFilePickerQuery(input: String): String? {
+    val prefix = input.firstOrNull() ?: return null
+    if (prefix !in WORKSPACE_FILE_PREFIXES) return null
+    return input.drop(1).substringBefore(' ').trim()
+}
+
 internal fun shouldShowWorkspaceFilePicker(input: String, enabled: Boolean, hasWorkspace: Boolean): Boolean =
-    enabled && hasWorkspace && input.startsWith("@")
+    enabled && hasWorkspace && workspaceFilePickerQuery(input) != null
 
 internal fun removeWorkspaceMentionPrefix(input: String): String {
-    if (!input.startsWith("@")) return input
+    if (workspaceFilePickerQuery(input) == null) return input
     val body = input.drop(1)
     val firstWhitespace = body.indexOfFirst { it.isWhitespace() }
     if (firstWhitespace < 0) return ""
@@ -192,9 +198,8 @@ internal fun ForcedSkillControls(
     onInputChange: (String) -> Unit,
 ) {
     val forcedSkills = forcedSkillIds.mapNotNull { id -> installedSkills.firstOrNull { it.id == id } }
-    val slashBody = input.takeIf { it.startsWith("/") }?.drop(1).orEmpty()
-    val query = slashBody.substringBefore(' ').trim()
-    val showPicker = enabled && input.startsWith("/") && installedSkills.isNotEmpty()
+    val query = skillPickerQuery(input).orEmpty()
+    val showPicker = shouldShowSkillPicker(input, enabled)
     val matches = installedSkills
         .filterNot { it.id in forcedSkillIds }
         .filter { skill ->
@@ -286,13 +291,23 @@ internal fun ForcedSkillControls(
     }
 }
 
-private fun removeSkillSlashPrefix(input: String): String {
-    if (!input.startsWith("/")) return input
+internal fun skillPickerQuery(input: String): String? {
+    if (!input.startsWith("/")) return null
+    return input.drop(1).substringBefore(' ').trim()
+}
+
+internal fun shouldShowSkillPicker(input: String, enabled: Boolean): Boolean =
+    enabled && skillPickerQuery(input) != null
+
+internal fun removeSkillSlashPrefix(input: String): String {
+    if (skillPickerQuery(input) == null) return input
     val body = input.drop(1)
     val firstWhitespace = body.indexOfFirst { it.isWhitespace() }
     if (firstWhitespace < 0) return ""
     return body.drop(firstWhitespace + 1).trimStart()
 }
+
+private val WORKSPACE_FILE_PREFIXES = setOf('#', '@')
 
 internal class NavigationSwipeGuard {
     var blockCurrentGesture: Boolean = false

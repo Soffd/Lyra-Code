@@ -111,6 +111,7 @@ import ru.noties.jlatexmath.JLatexMathDrawable
 import java.io.File
 import kotlin.math.max
 import kotlin.math.pow
+import kotlin.math.round
 
 private val richMarkdownFlavour by lazy {
     GFMFlavourDescriptor(makeHttpsAutoLinks = true, useSafeLinks = true)
@@ -133,6 +134,9 @@ internal data class StreamingTextFade(
 ) {
     private val fadeStart: Float
         get() = max(opaquePosition, (contentLength - maximumTailCharacters).toFloat()).coerceAtLeast(0f)
+
+    internal val firstFadingSourceIndex: Int
+        get() = fadeStart.toInt().coerceIn(0, contentLength.coerceAtLeast(0))
 
     fun alphaAt(sourceIndex: Int): Float {
         if (sourceIndex + 1 <= fadeStart || contentLength <= 0) return 1f
@@ -157,7 +161,10 @@ internal fun RichMarkdownContent(
     style: TextStyle = LocalTextStyle.current,
     streamingFade: StreamingTextFade? = null,
 ) {
-    var data by remember(markdown) { mutableStateOf(parseRichMarkdown(markdown)) }
+    // Keep the rendered tree alive while new chunks are parsed. Re-keying this
+    // state with every chunk rebuilt the whole Markdown subtree synchronously,
+    // which made expanded reasoning cards visibly shake during streaming.
+    var data by remember { mutableStateOf(parseRichMarkdown(markdown)) }
     val currentMarkdown by rememberUpdatedState(markdown)
     LaunchedEffect(Unit) {
         snapshotFlow { currentMarkdown }
@@ -188,21 +195,98 @@ private fun parseRichMarkdown(content: String, fallback: Boolean = false): RichM
 }
 
 private fun preProcessMarkdownLatex(content: String): String {
-    val codeRanges = codeBlockRegex.findAll(content).map { it.range }.toList()
-    if (codeRanges.isEmpty()) return preProcessMarkdownLatexChunk(content)
-    val result = StringBuilder(content.length)
+    val normalizedContent = normalizeMarkdownTableBoundaries(content)
+    val codeRanges = codeBlockRegex.findAll(normalizedContent).map { it.range }.toList()
+    if (codeRanges.isEmpty()) return preProcessMarkdownLatexChunk(normalizedContent)
+    val result = StringBuilder(normalizedContent.length)
     var cursor = 0
     codeRanges.forEach { range ->
         if (range.first > cursor) {
-            result.append(preProcessMarkdownLatexChunk(content.substring(cursor, range.first)))
+            result.append(preProcessMarkdownLatexChunk(normalizedContent.substring(cursor, range.first)))
         }
-        result.append(content.substring(range.first, range.last + 1))
+        result.append(normalizedContent.substring(range.first, range.last + 1))
         cursor = range.last + 1
     }
-    if (cursor < content.length) {
-        result.append(preProcessMarkdownLatexChunk(content.substring(cursor)))
+    if (cursor < normalizedContent.length) {
+        result.append(preProcessMarkdownLatexChunk(normalizedContent.substring(cursor)))
     }
     return result.toString()
+}
+
+/**
+ * GFM only recognizes a table when its header starts a block. Models commonly
+ * place a table directly after bold prose, so insert the missing block boundary
+ * once a matching delimiter row proves that the following lines are a table.
+ */
+internal fun normalizeMarkdownTableBoundaries(content: String): String {
+    if ('|' !in content || '\n' !in content) return content
+    val lineSeparator = if ("\r\n" in content) "\r\n" else "\n"
+    val lines = content.split(lineSeparator)
+    if (lines.size < 3) return content
+
+    val result = ArrayList<String>(lines.size + 2)
+    var fenceMarker: Char? = null
+    var fenceLength = 0
+
+    lines.forEachIndexed { index, line ->
+        val fence = markdownFenceRun(line)
+        if (fenceMarker != null) {
+            result += line
+            if (
+                fence != null &&
+                fence.first == fenceMarker &&
+                fence.second >= fenceLength &&
+                line.dropWhile { it == ' ' }.drop(fence.second).trim().isEmpty()
+            ) {
+                fenceMarker = null
+                fenceLength = 0
+            }
+            return@forEachIndexed
+        }
+
+        if (
+            index + 1 < lines.size &&
+            result.lastOrNull()?.isNotBlank() == true &&
+            isMarkdownTableHeader(line, lines[index + 1])
+        ) {
+            result += ""
+        }
+        result += line
+
+        if (fence != null) {
+            fenceMarker = fence.first
+            fenceLength = fence.second
+        }
+    }
+    return result.joinToString(lineSeparator)
+}
+
+private fun markdownFenceRun(line: String): Pair<Char, Int>? {
+    val indentation = line.takeWhile { it == ' ' }.length
+    if (indentation > 3 || indentation >= line.length) return null
+    val marker = line[indentation]
+    if (marker != '`' && marker != '~') return null
+    val length = line.drop(indentation).takeWhile { it == marker }.length
+    return if (length >= 3) marker to length else null
+}
+
+private fun isMarkdownTableHeader(header: String, delimiter: String): Boolean {
+    val headerCells = markdownTableCells(header) ?: return false
+    val delimiterCells = markdownTableCells(delimiter) ?: return false
+    if (headerCells.size != delimiterCells.size || headerCells.none { it.isNotBlank() }) return false
+    return delimiterCells.all { cell ->
+        cell.trim().matches(Regex("^:?-{3,}:?$"))
+    }
+}
+
+private fun markdownTableCells(line: String): List<String>? {
+    val indentation = line.takeWhile { it == ' ' }.length
+    if (indentation > 3 || line.startsWith('\t')) return null
+    val trimmed = line.trim()
+    if ('|' !in trimmed) return null
+    val body = trimmed.removePrefix("|").removeSuffix("|")
+    val cells = body.split(Regex("(?<!\\\\)\\|"))
+    return cells.takeIf { it.isNotEmpty() }
 }
 
 private fun preProcessMarkdownLatexChunk(content: String): String {
@@ -770,7 +854,7 @@ private fun AnnotatedString.Builder.appendInlineMarkdownNode(
     }
 }
 
-private fun AnnotatedString.Builder.appendStreamingFadedText(
+internal fun AnnotatedString.Builder.appendStreamingFadedText(
     value: String,
     sourceStart: Int,
     streamingFade: StreamingTextFade?,
@@ -780,11 +864,47 @@ private fun AnnotatedString.Builder.appendStreamingFadedText(
         append(value)
         return
     }
-    value.forEachIndexed { index, char ->
-        withStyle(SpanStyle(color = baseColor.copy(alpha = streamingFade.alphaAt(sourceStart + index)))) {
-            append(char)
+
+    val firstFadingIndex = (streamingFade.firstFadingSourceIndex - sourceStart)
+        .coerceIn(0, value.length)
+    if (firstFadingIndex > 0) {
+        append(value.substring(0, firstFadingIndex))
+    }
+    if (firstFadingIndex == value.length) return
+
+    // Quantized runs keep the visual gradient while avoiding one SpanStyle per
+    // character on every animation frame. Long streamed answers otherwise
+    // generate thousands of spans and can make expanded reasoning unreadable.
+    fun alphaBand(index: Int): Float {
+        val alpha = streamingFade.alphaAt(sourceStart + index)
+        if (alpha >= 0.995f) return 1f
+        val steps = 12f
+        return (round(alpha * steps) / steps).coerceIn(0.08f, 1f)
+    }
+
+    var runStart = firstFadingIndex
+    var runAlpha = alphaBand(firstFadingIndex)
+    fun appendRun(endExclusive: Int) {
+        if (endExclusive <= runStart) return
+        val segment = value.substring(runStart, endExclusive)
+        if (runAlpha >= 0.995f) {
+            append(segment)
+        } else {
+            withStyle(SpanStyle(color = baseColor.copy(alpha = runAlpha))) {
+                append(segment)
+            }
         }
     }
+
+    for (index in (firstFadingIndex + 1) until value.length) {
+        val alpha = alphaBand(index)
+        if (alpha != runAlpha) {
+            appendRun(index)
+            runStart = index
+            runAlpha = alpha
+        }
+    }
+    appendRun(value.length)
 }
 private fun AnnotatedString.Builder.appendInlineLink(
     node: ASTNode,
