@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <strong>An Android-first local AI Agent app</strong>
+  <strong>AI-powered full-stack development on Android</strong>
 </p>
 
 <p align="center">
@@ -17,13 +17,12 @@
 <p align="center">
   <img alt="Version" src="https://img.shields.io/badge/version-3.7.2-blue" />
   <img alt="Android" src="https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white" />
-  <img alt="Kotlin" src="https://img.shields.io/badge/Kotlin-Jetpack%20Compose-7F52FF?logo=kotlin&logoColor=white" />
+  <img alt="PRoot Linux" src="https://img.shields.io/badge/PRoot-Linux-FCC624?logo=linux&logoColor=black" />
+  <img alt="Termux" src="https://img.shields.io/badge/Termux-integrated-000000" />
   <img alt="License" src="https://img.shields.io/badge/license-AGPL--3.0-orange" />
-  <img alt="MCP" src="https://img.shields.io/badge/MCP-Client%20%2F%20Server-purple" />
-  <img alt="File Transfer" src="https://img.shields.io/badge/File%20Transfer-WebDAV%20%2F%20FTP%20%2F%20SFTP-0A84FF" />
 </p>
 
-Lyra Code is an Android-first local AI Agent app. It brings model chat, an independent dual-pane file manager and code editor, native downloads, command execution, web search, MCP client/server support, SSH, SMTP/IMAP email, WebDAV, FTP/FTPS/SFTP, a built-in mini server, backups, Skills, device diagnostics, and usage statistics into a mobile workflow.
+Lyra Code turns an arm64 Android device into an AI-assisted full-stack development environment. Its core is not just chat, file management, or code editing: the Agent can work inside app-managed **PRoot Linux environments** or an existing **Termux environment** to edit projects, install toolchains, run commands, build and test code, start services, and debug applications directly on Android.
 
 ## Screenshots
 
@@ -31,155 +30,72 @@ Lyra Code is an Android-first local AI Agent app. It brings model chat, an indep
 | --- | --- | --- |
 | <img src="example-img/chat.png" alt="Chat screen" width="260" /> | <img src="example-img/set.png" alt="Settings screen" width="260" /> | <img src="example-img/agent.png" alt="Agent tools screen" width="260" /> |
 
-## Highlights
+## Built for Android full-stack development
 
-### Model Providers
+- **Complete Linux userspace with PRoot:** download the verified Debian Trixie seed or import compatible arm64 rootfs archives such as Ubuntu and Alpine. Keep multiple environments, use distro package managers and development toolchains, and access each environment from the shared terminal or the Agent's `proot_command` tool.
+- **First-class Termux integration:** `run_command` calls Termux RunCommandService and returns the exit code, stdout, and stderr. This lets the Agent use your existing Termux packages, scripts, and workspace; Termux:API is optional.
+- **Agent-driven coding loop:** use OpenAI-compatible, Anthropic, or Gemini APIs to search, read, edit, and review project files; execute commands; inspect diffs; follow TODO plans; search the web; and use Skills.
+- **On-device app and web workflows:** run front-end or back-end development commands in Linux/Termux, then preview static sites with the built-in HTTP/HTTPS mini server and inspect live request and JavaScript-error logs.
 
-- OpenAI Chat Completions-compatible APIs, Anthropic Messages API, and Gemini GenerateContent API.
-- Multiple providers, API keys, base URLs, saved models, custom system prompts, and reasoning-depth presets.
-- Fast provider/model/prompt switching from the chat action panel.
-- HTTP API URLs are supported with an explicit security warning.
+## Two local execution paths
 
-### Agent Tools
+| | App-internal PRoot Linux | External Termux |
+| --- | --- | --- |
+| Environment | Full ARM64 Linux userspace managed by Lyra Code | Your existing Termux installation and packages |
+| Agent tool | `proot_command(linux_id, ...)` | `run_command(...)` |
+| Terminal | Built in; one persistent session per Linux environment | Continue using Termux itself |
+| Best for | Debian/Ubuntu/Alpine toolchains and isolated distro environments | Android-native Termux workflows and an existing setup |
 
-- Workspace/global file operations, file search, code editing, and change review.
-- Native HTTP/HTTPS downloads with redirects, headers, progress, and optional SHA-256 verification.
-- Command execution through Termux RunCommandService with stdout/stderr feedback; only obvious high-risk blacklist patterns are blocked.
-- TODO planning, process records, file-change review, and diff visualization.
-- Web search, web page reading, source annotation, and a configurable domain blacklist to avoid unwanted, spammy, or low-quality sources.
-- Time/location awareness, configuration management, background tasks, and scheduled tasks.
+PRoot is available without installing Termux; the two modes can coexist. PRoot uses the Android host kernel, so it is not a VM, root access, or a security boundary.
 
-### File Manager and Code Editor
+## Supporting toolkit
 
-- Independent dual-pane file manager rooted at `/storage/emulated/0`, with separately navigable panes designed for copying and moving files between directories.
-- Active-pane highlighting, per-directory scroll restoration, animated navigation, swipe multi-selection, and confirmed batch copy, move, and delete operations.
-- Create, rename, inspect, copy, move, delete, and extract files or folders; long-press `.html` and `.htm` files to preview them directly in an installed browser.
-- Sora Editor with line numbers, TextMate syntax highlighting, in-file search, line navigation, word wrapping, and horizontal scrolling in no-wrap mode.
-- UTF-8 decoding warnings, unsaved-change prompts, and automatic same-directory `.bak` backups before modified files are overwritten.
-- Swipe open an editor-specific AI panel that receives the current file path silently, supports project workspaces, keeps approvals/tool output visible, and visually replays AI edits in the open document.
+- Workspace file search and editing, change review, diff visualization, TODO/process records, native downloads, background tasks, and scheduled tasks.
+- Sora Editor with TextMate highlighting, line numbers, search, navigation, wrapping, `.bak` backups, and an AI editing panel; plus a dual-pane Android file manager.
+- MCP client/server, SSH, SMTP/IMAP, WebDAV, FTP/FTPS/SFTP, native HTTP/HTTPS downloads, and natural-language configuration.
+- Importable Skills, image input and annotation, Markdown/LaTeX/media rendering, device diagnostics, usage statistics, and local/WebDAV backups.
+- Optional Shizuku and Root tools, each independently switchable.
 
-### Device and System
+## Getting started
 
-- Device information page covering manufacturer, model, Android version, CPU/hardware, ABI, memory, storage, display, network, Bluetooth, and battery state.
-- Hardware inspection Agent for device diagnostics, troubleshooting, and hardware comparison.
-- Installed-app recognition, optional Shizuku Shell, and optional Root command tools.
-- System-level tools can be disabled independently.
+1. Add a model provider and select a model.
+2. Open **Settings > PRoot Linux**, then download Debian or import a compatible arm64 rootfs. No Termux installation is required for this path.
+3. Open a terminal or let the Agent use `proot_command` to set up the project's language runtimes, dependencies, build tools, and services.
+4. Optionally connect Termux to reuse an existing Termux development environment.
 
-### Remote Integrations
-
-- MCP Client: connect to remote MCP servers over Streamable HTTP or SSE.
-- MCP Server: expose Lyra Code's enabled local tools and connected MCP tools to other MCP clients over local/LAN HTTP, with configurable port and optional auth key.
-- SSH: password/key login for Linux, Windows, and Git servers, with user-approved command execution.
-- Email (SMTP / IMAP): add mail servers and let the Agent read, search, and manage emails.
-- WebDAV: file listing, PROPFIND, search, upload, download, and cloud backup.
-- FTP / FTPS / SFTP: add storage servers, list directories, search files, upload, and download through AI tools or manual configuration.
-- Natural-language configuration management for MCP, SSH, email (IMAP/SMTP), WebDAV, FTP/FTPS/SFTP, Skills, and Agent tools.
-
-### Mini Server
-
-- Built-in local HTTP/HTTPS static file server for previewing and debugging local websites, documentation sites, and generated front-end projects.
-- Configurable host, port, password authentication, custom domains, HTTPS certificate chain/private key, and force-HTTPS mode.
-- Terminal-style live logs for connections, resource loading, 404/auth failures, and page JavaScript errors.
-- The Agent can start/stop the mini server and inspect logs after user approval.
-
-### Skills
-
-- Import zip packages or a single `SKILL.md` file.
-- Import a full GitHub / Gitee / GitLab repository.
-- Manually create a Skill by editing `SKILL.md`.
-- The Agent first reads `name` / `description` to judge relevance, then reads internal files on demand to avoid context bloat.
-
-### Multimodal and Rendering
-
-- Image upload, photo capture, cropping, rotation, brush annotation, and mosaic annotation.
-- Thumbnail preview, full-screen preview, and save support for user/AI images and videos.
-- Markdown, tables, syntax-highlighted code blocks, LaTeX math, and media Data URL rendering.
-- Preview and save AI-returned base64 media, remote URLs, and local media files.
-
-### Theme and Display
-
-- Light, dark, and system-following theme modes.
-- Optional Material You dynamic color, applying wallpaper-derived colors without changing the app layout.
-- Adjustable font size with live preview, system-following mode, and a wider custom range.
-- Refresh-rate preference: system smart mode, 30 Hz, 60 Hz, 90 Hz, or 120 Hz. The final effective rate still depends on device and Android display policy.
-
-### Data and Backup
-
-- Export/import profile data, conversations, model providers, MCP, SSH, email (IMAP/SMTP), WebDAV, FTP/FTPS/SFTP, system prompts, and Skills.
-- Local zip backup and WebDAV cloud backup, with supplement import mode and deduplication.
-- Safe export without API keys, or full migration export with secrets included.
-
-### Usage Statistics
-
-- Counts conversations, messages, user-input tokens, and AI-output tokens, including reasoning, tool context, file reads, command output, and repeated context.
-- Offline token estimation without a network dependency.
-- Daily, weekly, monthly, yearly, total, and historical date-range views.
-
-
-## Project Structure
-
-```text
-app/                         Android application module
-app/src/main/java/...        Kotlin / Jetpack Compose source code
-app/src/main/assets/textmate/ TextMate grammars, language configurations, and themes
-third_party/jlatexmath/      JLaTeXMath Android fork for LaTeX rendering
-example-img/                 README screenshots
-gradle/                      Gradle Wrapper configuration
-```
-
-## Build Requirements
-
-- Android Studio or command-line Android SDK
-- JDK 17
-- Android SDK 36
-- Gradle Wrapper
-
-Build a debug APK:
-
-```powershell
-.\gradlew.bat assembleDebug
-```
-
-Every APK includes the small PRoot engine but no Linux rootfs. On arm64 devices, **Settings > PRoot Linux** can download the verified Debian seed or import multiple compatible arm64 `tar.gz`/`tgz`/uncompressed-tar rootfs archives such as Ubuntu or Alpine. Each environment has a stable Linux ID; enabled environments are exposed through `proot_command(linux_id, ...)` and the shared terminal UI even when no workspace is selected. Granting Android All files access mounts Android shared storage under `/storage`, with primary storage also available at `/sdcard`; app-UID and SELinux restrictions still apply. The existing `run_command` path continues to call external Termux. See [docs/DEBIAN_RUNTIME.md](docs/DEBIAN_RUNTIME.md) for lifecycle and storage details.
-
-The generated APK is usually under:
-
-```text
-app/build/outputs/apk/debug/
-```
-
-For release builds, configure signing in Android Studio manually. Do not commit signing keys, keystores, API keys, `.env`, `local.properties`, or local private files.
-
-## Termux Setup
-
-Before using `run_command`, enable external app calls in Termux:
+To enable Termux command execution, run this once in Termux:
 
 ```bash
 mkdir -p ~/.termux && (grep -qxF 'allow-external-apps=true' ~/.termux/termux.properties || echo 'allow-external-apps=true' >> ~/.termux/termux.properties) && termux-reload-settings
 ```
 
-Then grant the Termux communication permission in Lyra Code settings. If permission is not granted, `run_command` is disabled automatically.
+Then grant the Termux `RUN_COMMAND` permission from Lyra Code settings. Without that permission, only `run_command` is disabled; app-internal PRoot Linux continues to work.
 
-## Security Notes
+### PRoot Linux notes
 
-Lyra Code may handle API keys, SSH passwords/private keys, MCP tokens, email passwords/app passwords, WebDAV/FTP credentials, conversations, local files, and remote server output. Please note:
+- Every APK includes the small PRoot engine, but not a rootfs. The managed runtime currently supports `arm64-v8a` only and does not emulate x86 architectures.
+- Granting Android “All files access” mounts shared storage at `/storage` and primary storage at `/sdcard`; a directly accessible workspace is mounted at `/workspace`. Android app-UID and SELinux restrictions still apply.
+- Linux rootfs instances are mutable app data. Clearing app data or uninstalling Lyra Code removes them, and they are excluded from Android cloud backup/device transfer.
+- See [App-internal PRoot Linux environments](docs/DEBIAN_RUNTIME.md) for supported archives, lifecycle, storage, limitations, and source information.
 
-- Email passwords/app passwords are encrypted on this device. Reading message bodies does not change their read status; every SMTP send requires fresh, explicit user confirmation. Attachments are downloaded into a quarantine directory only and are never read by the AI.
-- HTTP API, MCP, WebDAV, FTP, and mini server endpoints are insecure unless protected by HTTPS/TLS or a trusted network.
-- Exposing the mini server to LAN, tunneling, or public networks may leak local files if the served directory, authentication, or HTTPS configuration is wrong. Review the workspace and password before enabling external access.
-- Review tool calls before allowing AI to execute commands, edit files, upload/download files, or operate remote servers.
-- The file manager requires Android's all-files access. Review selected paths carefully before confirming batch operations, and only preview trusted local HTML because browser scripts can execute with the browser's permissions.
-- `run_command` no longer uses a fixed command allowlist, but it still blocks obvious high-risk operations such as `rm -rf /`, writes to `/dev/block`, and filesystem formatting commands. Review commands before approving them.
-- The web search blacklist is stored locally. Plain domains are exact matches: `x.com` blocks only `x.com`, while `www.x.com` must be added separately. Use wildcard rules such as `*.x.com` to block subdomains; add both `x.com` and `*.x.com` when you want to block the root domain and all subdomains.
-- Backup files containing secrets must be stored carefully and must not be shared publicly.
-- This project does not verify that remote scripts, MCP servers, Skill repositories, or SSH commands are trustworthy.
+## Build
 
-## PR Notice
+Requirements: JDK 17, Android SDK 37, and Android Studio or a command-line Android SDK. The minimum supported version is Android 8.0 (API 26).
 
-We accept pull requests from members of the organization. If you would like to contribute, please contact the administrator to try joining the organization. Contributions are welcome, including code generated or assisted by AI. Regardless of how the code was produced, contributors must perform the necessary hands-on testing and human review before submission and remain responsible for the result. Code does not have to be elegant or flawless, and minor imperfections are acceptable, but it must not break existing functionality, introduce serious bugs, or create obvious security, stability, or data risks. Please describe the test scope and results in the PR.
+```powershell
+.\gradlew.bat assembleDebug
+```
+
+The APK is generated under `app/build/outputs/apk/debug/`. Configure release signing locally, and never commit signing keys, keystores, API keys, `.env`, `local.properties`, or other private files.
+
+## Security
+
+Lyra Code can execute commands, modify files, start servers, and connect to third-party services. Review Agent tool calls, use HTTPS/TLS or trusted networks for remote endpoints, protect backups that contain secrets, and only install rootfs archives, Skills, scripts, and MCP servers you trust. PRoot processes have Lyra Code's Android permissions and must not be treated as isolated from the app.
+
+## Contributing
+
+Pull requests are accepted from organization members; contact the administrator if you would like to join. AI-assisted contributions are welcome, but contributors must test and review their changes, remain responsible for the result, and describe the test scope in the PR.
 
 ## License
 
-Original Lyra Code source code is licensed exclusively under the GNU Affero General Public License version 3 (`AGPL-3.0`). Third-party components remain governed by their own licenses.
-
-See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for details.
+Original Lyra Code source code is licensed exclusively under GNU AGPL v3. Third-party components retain their own licenses. See [LICENSE](LICENSE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
