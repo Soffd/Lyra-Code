@@ -22,6 +22,7 @@ import com.yukisoffd.lyracode.data.FileTransferServerConfig
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
 import com.yukisoffd.lyracode.data.MemoryEntry
+import com.yukisoffd.lyracode.data.MediaGenerationKind
 import com.yukisoffd.lyracode.data.MiniServerConfig
 import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.data.SubAgentConfig
@@ -359,6 +360,7 @@ class OpenAiAgent(
         .readTimeout(0, TimeUnit.SECONDS)
         .build()
     private val deepSeekFilesApi = DeepSeekFilesApi(context, client)
+    private val mediaGenerationClient = MediaGenerationClient(context, client)
     private val reachabilityClient = client.newBuilder()
         .readTimeout(20, TimeUnit.SECONDS)
         .callTimeout(30, TimeUnit.SECONDS)
@@ -407,6 +409,7 @@ class OpenAiAgent(
         firstUserMessage: String,
     ): String = withContext(Dispatchers.IO) {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        require(!isMediaGenerationModel(model)) { "媒体生成模型不能用于会话标题总结" }
         val input = firstUserMessage.trim().take(4000)
         require(input.isNotBlank()) { "首条消息不能为空" }
         val instruction = "Create a short title for the new conversation below. Use 4-12 Chinese characters for Chinese content or 2-6 words for English content. Output only the title, with no quotes, prefix, punctuation, or explanation."
@@ -446,6 +449,10 @@ class OpenAiAgent(
     }
 
     fun estimatedConversationContextTokens(conversationId: Long): Long {
+        val model = conversationStore.conversation(conversationId)?.model.orEmpty()
+        if (isMediaGenerationModel(model)) {
+            return mediaGenerationHistory(conversationId, -1L).sumOf { it.promptInputCost() }
+        }
         return estimatedStaticInputTokens(conversationId) +
             contextHistory(conversationId, -1L).sumOf { it.promptInputCost() } +
             pendingRuntimeContextTokens(conversationId)
@@ -460,6 +467,7 @@ class OpenAiAgent(
     ): String = withContext(Dispatchers.IO) {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
         require(model.isNotBlank()) { "未配置会话历史压缩模型" }
+        require(!isMediaGenerationModel(model)) { "媒体生成模型不能用于会话历史压缩" }
         val history = contextHistory(conversationId, -1L)
         require(history.isNotEmpty()) { "当前会话没有可压缩的历史" }
         val transcript = buildCompressionTranscript(history)
@@ -734,7 +742,9 @@ class OpenAiAgent(
         try {
             while (true) {
                 currentCoroutineContext().ensureActive()
-                ensureRuntimeContextSnapshot(conversationId, profile, model)
+                if (!isMediaGenerationModel(model)) {
+                    ensureRuntimeContextSnapshot(conversationId, profile, model)
+                }
                 val assistantId = conversationStore.addMessage(conversationId, "assistant", "", profileId = profile.id, model = model)
                 activeAssistantId = assistantId
                 val result = streamModel(
@@ -777,7 +787,7 @@ class OpenAiAgent(
                 )
                 conversationStore.recordUsageModelRequest(
                     assistantId,
-                    estimatedPromptInputTokens(conversationId, assistantId),
+                    estimatedPromptInputTokens(conversationId, assistantId, model),
                     estimatedAssistantOutputTokens(result.content, result.thinking, result.rawMessage.toString()),
                 )
                 onUpdate(
@@ -956,17 +966,21 @@ class OpenAiAgent(
     ): StreamingResult {
         require(profile.apiFormat == ApiProfile.API_FORMAT_OPENAI) { "Responses API 仅支持 OpenAI 接口格式" }
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        val mediaGeneration = isMediaGenerationModel(model)
         val requestJson = JSONObject()
             .put("model", model)
-            .put("instructions", responsesInstructions(conversationId, profile))
-            .put("input", responsesInputItems(conversationId, excludeMessageId, profile, model))
-            .put("tools", responsesToolDefinitions(conversationId, profile))
-            .put("tool_choice", "auto")
+            .put("input", responsesInputItems(conversationId, excludeMessageId, profile, model, mediaGeneration))
             .put("stream", true)
             .put("store", false)
-        if (!modelLooksReasoningCapable(model)) requestJson.put("temperature", 0.2)
-        applyProviderCacheHints(requestJson, profile, model, conversationId)
-        applyReasoningDepthHint(requestJson, profile, model)
+        if (!mediaGeneration) {
+            requestJson
+                .put("instructions", responsesInstructions(conversationId, profile))
+                .put("tools", responsesToolDefinitions(conversationId, profile))
+                .put("tool_choice", "auto")
+            if (!modelLooksReasoningCapable(model)) requestJson.put("temperature", 0.2)
+            applyProviderCacheHints(requestJson, profile, model, conversationId)
+            applyReasoningDepthHint(requestJson, profile, model)
+        }
 
         val body = stableJson(requestJson).toRequestBody("application/json".toMediaType())
         val request = Request.Builder()
@@ -1097,20 +1111,24 @@ class OpenAiAgent(
         onDelta: suspend (String, String) -> Unit,
     ): StreamingResult {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
-        val messages = promptMessages(conversationId, excludeMessageId).also {
+        val mediaGeneration = isMediaGenerationModel(model)
+        val messages = promptMessages(conversationId, excludeMessageId, mediaGeneration).also {
             if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceOpenAiInlineImages(it, profile)
         }
         val requestJson = JSONObject()
             .put("model", model)
-            .put("tools", toolDefinitionsFor(conversationId))
-            .put("tool_choice", "auto")
             .put("messages", messages)
-            .put("temperature", 0.2)
             .put("stream", true)
-        applyProviderCacheHints(requestJson, profile, model, conversationId)
-        applyReasoningDepthHint(requestJson, profile, model)
+        if (!mediaGeneration) {
+            requestJson
+                .put("tools", toolDefinitionsFor(conversationId))
+                .put("tool_choice", "auto")
+                .put("temperature", 0.2)
+            applyProviderCacheHints(requestJson, profile, model, conversationId)
+            applyReasoningDepthHint(requestJson, profile, model)
+        }
 
-        val allowLocalResponseCache = !isFreshSingleUserTurn(conversationId, excludeMessageId)
+        val allowLocalResponseCache = !mediaGeneration && !isFreshSingleUserTurn(conversationId, excludeMessageId)
         if (allowLocalResponseCache) responseCache?.get(profile, requestJson, responseCacheScope(conversationId))?.let { cached ->
             val result = cached.toStreamingResult()
             Log.d(
@@ -1286,15 +1304,19 @@ class OpenAiAgent(
         onDelta: suspend (String, String) -> Unit,
     ): StreamingResult {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        val mediaGeneration = isMediaGenerationModel(model)
         val requestJson = JSONObject()
             .put("model", model)
             .put("max_tokens", 4096)
-            .put("temperature", 0.2)
-            .put("system", providerSystemText(conversationId))
-            .put("messages", anthropicMessages(conversationId, excludeMessageId, profile, model))
-            .put("tools", anthropicToolsFor(conversationId))
+            .put("messages", anthropicMessages(conversationId, excludeMessageId, profile, model, mediaGeneration))
             .put("stream", true)
-        applyReasoningDepthHint(requestJson, profile, model)
+        if (!mediaGeneration) {
+            requestJson
+                .put("temperature", 0.2)
+                .put("system", providerSystemText(conversationId))
+                .put("tools", anthropicToolsFor(conversationId))
+            applyReasoningDepthHint(requestJson, profile, model)
+        }
         val requestBuilder = Request.Builder()
             .url(profile.chatEndpoint)
             .addHeader("x-api-key", profile.apiKey)
@@ -1430,11 +1452,15 @@ class OpenAiAgent(
         onDelta: suspend (String, String) -> Unit,
     ): StreamingResult {
         require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        val mediaGeneration = isMediaGenerationModel(model)
         val requestJson = JSONObject()
-            .put("contents", geminiContents(conversationId, excludeMessageId))
-            .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", providerSystemText(conversationId)))))
-            .put("generationConfig", JSONObject().put("temperature", 0.2))
-            .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", geminiFunctionDeclarationsFor(conversationId))))
+            .put("contents", geminiContents(conversationId, excludeMessageId, mediaGeneration))
+        if (!mediaGeneration) {
+            requestJson
+                .put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", providerSystemText(conversationId)))))
+                .put("generationConfig", JSONObject().put("temperature", 0.2))
+                .put("tools", JSONArray().put(JSONObject().put("functionDeclarations", geminiFunctionDeclarationsFor(conversationId))))
+        }
         val request = Request.Builder()
             .url(profile.geminiGenerateContentEndpoint(model))
             .addHeader("x-goog-api-key", profile.apiKey)
@@ -1517,12 +1543,20 @@ class OpenAiAgent(
         )
     }
 
-    private fun promptMessages(conversationId: Long, excludeMessageId: Long): JSONArray {
+    private fun promptMessages(
+        conversationId: Long,
+        excludeMessageId: Long,
+        mediaGeneration: Boolean = false,
+    ): JSONArray {
         val messages = JSONArray()
-        systemMessagesFor(conversationId).forEach(messages::put)
-        val history = openAiHistoryGroups(conversationId, excludeMessageId)
-        history.forEach { group ->
-            group.forEach { messages.put(it) }
+        if (mediaGeneration) {
+            mediaGenerationHistory(conversationId, excludeMessageId).forEach { messages.put(it.toPromptJson()) }
+        } else {
+            systemMessagesFor(conversationId).forEach(messages::put)
+            val history = openAiHistoryGroups(conversationId, excludeMessageId)
+            history.forEach { group ->
+                group.forEach { messages.put(it) }
+            }
         }
         return sanitizePromptMessageSequence(messages)
     }
@@ -1533,8 +1567,14 @@ class OpenAiAgent(
             includeDeepSeekWebSearch = supportsDeepSeekNativeWebSearch(profile),
         )
 
-    private fun responsesInputItems(conversationId: Long, excludeMessageId: Long, profile: ApiProfile, model: String): JSONArray {
-        val messages = promptMessages(conversationId, excludeMessageId).also {
+    private fun responsesInputItems(
+        conversationId: Long,
+        excludeMessageId: Long,
+        profile: ApiProfile,
+        model: String,
+        mediaGeneration: Boolean = false,
+    ): JSONArray {
+        val messages = promptMessages(conversationId, excludeMessageId, mediaGeneration).also {
             if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceOpenAiInlineImages(it, profile)
         }
         val includeReasoningTextFallback = supportsDeepSeekNativeWebSearch(profile)
@@ -1676,8 +1716,20 @@ class OpenAiAgent(
         add(activeSystemPromptMessage())
     }
 
-    private fun providerHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
-        return contextHistory(conversationId, excludeMessageId)
+    private fun providerHistory(
+        conversationId: Long,
+        excludeMessageId: Long,
+        mediaGeneration: Boolean = false,
+    ): List<ChatMessage> {
+        return if (mediaGeneration) {
+            mediaGenerationHistory(conversationId, excludeMessageId)
+        } else {
+            contextHistory(conversationId, excludeMessageId)
+        }
+    }
+
+    private fun mediaGenerationHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
+        return selectMediaGenerationInput(conversationStore.messages(conversationId), excludeMessageId)
     }
 
     private fun contextHistory(conversationId: Long, excludeMessageId: Long): List<ChatMessage> {
@@ -1686,6 +1738,7 @@ class OpenAiAgent(
             .filter {
                     it.id != excludeMessageId &&
                     it.id > (conversation?.compressedThroughMessageId ?: 0L) &&
+                    it.role != MEDIA_MESSAGE_ROLE &&
                     !it.isLocalRequestErrorMessage() &&
                     !it.isEmptyAssistantPlaceholder()
             }
@@ -1717,9 +1770,10 @@ class OpenAiAgent(
         excludeMessageId: Long,
         profile: ApiProfile,
         model: String,
+        mediaGeneration: Boolean = false,
     ): JSONArray {
         val output = JSONArray()
-        val source = providerHistory(conversationId, excludeMessageId)
+        val source = providerHistory(conversationId, excludeMessageId, mediaGeneration)
         var index = 0
         while (index < source.size) {
             val message = source[index]
@@ -1830,9 +1884,13 @@ class OpenAiAgent(
         }
     }
 
-    private fun geminiContents(conversationId: Long, excludeMessageId: Long): JSONArray {
+    private fun geminiContents(
+        conversationId: Long,
+        excludeMessageId: Long,
+        mediaGeneration: Boolean = false,
+    ): JSONArray {
         val output = JSONArray()
-        providerHistory(conversationId, excludeMessageId).forEach { message ->
+        providerHistory(conversationId, excludeMessageId, mediaGeneration).forEach { message ->
             when (message.role) {
                 "user", RUNTIME_CONTEXT_ROLE -> output.put(JSONObject().put("role", "user").put("parts", geminiUserParts(message.content)))
                 "assistant" -> output.put(JSONObject().put("role", "model").put("parts", geminiAssistantParts(message)))
@@ -2164,6 +2222,8 @@ class OpenAiAgent(
                 "global_delete_file_or_folder" -> ToolExecution(globalFileManager.delete(args.getString("path")).getOrThrow())
                 "global_rename_move" -> ToolExecution(globalFileManager.renameMove(args.getString("from"), args.getString("to")).getOrThrow())
                 "download_file" -> downloadFile(args)
+                "generate_image", "generate_video", "generate_music", "generate_audio" ->
+                    generateMedia(conversationId, mediaGenerationKindForTool(call.name)!!, args)
                 "manage_scheduled_tasks" -> ToolExecution(manageScheduledTasks(args))
                 "search_conversation_history" -> ToolExecution(searchConversationHistory(args))
                 "read_conversation_history" -> ToolExecution(readConversationHistory(args))
@@ -2405,6 +2465,7 @@ class OpenAiAgent(
                                 workspaceRoot = workspaceManager.termuxRootPath(),
                                 workDir = args.cleanString("workDir"),
                                 timeoutSeconds = args.optInt("timeout_seconds", 60).coerceIn(5, 600),
+                                background = args.optBoolean("background", false),
                             ),
                         )
                     }
@@ -2465,6 +2526,90 @@ class OpenAiAgent(
                 output
             },
         )
+    }
+
+    private fun generateMedia(
+        conversationId: Long,
+        kind: MediaGenerationKind,
+        args: JSONObject,
+    ): ToolExecution {
+        require(conversationId > 0L) { "Media generation tools are available only inside a foreground conversation." }
+        val configured = settings.mediaGenerationModelOrNull(kind)
+            ?: error("No ${kind.value} generation model is configured. Configure it in Settings > Additional feature models.")
+        val profile = configured.first
+        val model = configured.second
+        val prompt = args.getString("prompt").trim()
+        require(prompt.isNotBlank()) { "prompt must not be empty." }
+        val references = buildList {
+            args.optJSONArray("reference_media_message_ids")?.let { ids ->
+                for (index in 0 until ids.length()) {
+                    val messageId = ids.optString(index).toLongOrNull()
+                        ?: error("Invalid media_message_id: ${ids.optString(index)}")
+                    val message = conversationStore.message(messageId)
+                        ?: error("Media message does not exist: $messageId")
+                    require(message.conversationId == conversationId && message.role == MEDIA_MESSAGE_ROLE) {
+                        "Message $messageId is not generated media from this conversation."
+                    }
+                    addAll(extractRenderedMediaSources(message.content))
+                }
+            }
+            if (args.optBoolean("use_latest_user_attachments", true)) {
+                addAll(latestUserMediaReferences(conversationId, kind))
+            }
+        }.distinct()
+        val result = mediaGenerationClient.generate(
+            profile = profile,
+            model = model,
+            request = MediaGenerationPrompt(
+                kind = kind,
+                prompt = prompt,
+                negativePrompt = args.optString("negative_prompt"),
+                aspectRatio = args.optString("aspect_ratio"),
+                durationSeconds = args.optInt("duration_seconds").takeIf { args.has("duration_seconds") && it > 0 },
+                lyrics = args.optString("lyrics"),
+                instrumental = args.optBoolean("instrumental").takeIf { args.has("instrumental") },
+                voice = args.optString("voice"),
+                references = references,
+            ),
+        )
+        val raw = JSONObject()
+            .put("schema", "lyra_generated_media_message_v1")
+            .put("kind", kind.value)
+            .put("status", "completed")
+            .put("file_count", result.assets.size)
+            .put("source_tool", mediaGenerationToolName(kind))
+        val mediaMessageId = conversationStore.addMessage(
+            conversationId = conversationId,
+            role = MEDIA_MESSAGE_ROLE,
+            content = generatedMediaMarkdown(kind, result.assets),
+            profileId = profile.id,
+            model = model,
+            rawJson = raw.toString(),
+        )
+        return ToolExecution(
+            JSONObject()
+                .put("schema", "lyra_media_generation_result_v1")
+                .put("status", "completed")
+                .put("kind", kind.value)
+                .put("media_message_id", mediaMessageId.toString())
+                .put("file_count", result.assets.size)
+                .put("model", model)
+                .put("note", "Generated files were rendered directly in the user's conversation. Media bytes are intentionally omitted from this tool result.")
+                .toString(),
+        )
+    }
+
+    private fun latestUserMediaReferences(conversationId: Long, kind: MediaGenerationKind): List<String> {
+        val latest = conversationStore.messages(conversationId).asReversed().firstOrNull { it.role == "user" }
+            ?: return emptyList()
+        return parseUploadedAttachments(latest.content).mapNotNull { attachment ->
+            val compatible = when (kind) {
+                MediaGenerationKind.IMAGE -> attachment.kind == "image"
+                MediaGenerationKind.VIDEO -> attachment.kind == "image" || attachment.kind == "video"
+                MediaGenerationKind.MUSIC, MediaGenerationKind.AUDIO -> attachment.kind == "audio"
+            }
+            if (!compatible) null else attachment.dataUrl.ifBlank { attachment.uri }.takeIf { it.isNotBlank() }
+        }
     }
 
     private fun subAgentToolAccessError(conversationId: Long, toolName: String): String? {
@@ -4854,7 +4999,10 @@ class OpenAiAgent(
 
     private fun forcedSkillIdsFor(conversationId: Long): List<String> = forcedSkillsByConversation[conversationId].orEmpty()
 
-    private fun estimatedPromptInputTokens(conversationId: Long, excludeMessageId: Long): Long {
+    private fun estimatedPromptInputTokens(conversationId: Long, excludeMessageId: Long, model: String): Long {
+        if (isMediaGenerationModel(model)) {
+            return mediaGenerationHistory(conversationId, excludeMessageId).sumOf { it.promptInputCost() }
+        }
         val contextTokens = contextHistory(conversationId, excludeMessageId)
             .sumOf { it.promptInputCost() }
         return estimatedStaticInputTokens(conversationId) + contextTokens
@@ -5015,11 +5163,11 @@ class OpenAiAgent(
             For *_lines arguments, pass an actual JSON array of strings such as {"content_lines":["line 1","line 2",""]}, never a serialized array string. Respect mutually exclusive fields. If a match count or argument type is rejected, re-read the current content, correct the arguments, and retry; do not fall back to blind full-file replacement.
 
             # Termux and Android commands
-            ${if (prootCommandExecutor.isAvailable()) "proot_command is the default command tool. It executes a shell in an app-private PRoot Linux environment and does not require Termux. Installed Linux IDs: ${prootCommandExecutor.inventoryForAgent()}. Always pass the intended linux_id. When a directly accessible workspace is selected it is mounted at /workspace; otherwise the command defaults to /root and remains usable. ${if (prootCommandExecutor.hasAllFilesAccess()) "Android All files access is granted, so Android shared storage is mounted under /storage and primary storage is also available at /sdcard; workDir may point there." else "Android All files access is not granted, so shared storage outside the selected workspace is unavailable; absolute Linux-internal paths remain usable."} It is foreground-only; do not start persistent or interactive processes." else "proot_command is unavailable in this session."}
+            ${if (prootCommandExecutor.isAvailable()) "proot_command is the default command tool. It executes a shell in an app-private PRoot Linux environment and does not require Termux. Installed Linux IDs: ${prootCommandExecutor.inventoryForAgent()}. Always pass the intended linux_id. When a directly accessible workspace is selected it is mounted at /workspace; otherwise the command defaults to /root and remains usable. ${if (prootCommandExecutor.hasAllFilesAccess()) "Android All files access is granted, so Android shared storage is mounted under /storage and primary storage is also available at /sdcard; workDir may point there." else "Android All files access is not granted, so shared storage outside the selected workspace is unavailable; absolute Linux-internal paths remain usable."} For a persistent service or watcher, set background=true; the service keeps its own PRoot supervisor and later proot_command calls do not stop it. Existing nohup/setsid commands that actually detach are also preserved. Do not run interactive processes." else "proot_command is unavailable in this session."}
             run_command executes Bash in the external Termux app as the Termux app user; it is not Android's Shizuku shell and is not root. Use it only when the user explicitly requests Termux or proot_command is unavailable. Before the first run_command call for a task, call ask_user to confirm that Termux is already running in the background, unless the user explicitly confirmed this in the current conversation. Tool availability, installation, and RUN_COMMAND permission do not count as confirmation. If ask_user is unavailable, ask the same question in assistant text and wait for the answer; do not call run_command before confirmation. It defaults to the selected workspace. Omit workDir for the root or pass a workspace-relative directory; never use cd merely to change the working directory. Use command_lines for multiline or indentation-sensitive commands.
             Use execute_shell_command only for Android shell operations that actually require Shizuku, and execute_root_command only when root is necessary and the user-approved tool is present. Never escalate from Termux to Shizuku or root merely to make a failing command pass.
             Quote paths containing spaces or shell metacharacters. Use non-interactive flags. Join dependent steps with && so later steps stop on failure; keep unrelated commands separate or batch them as independent tool calls. Before a destructive command, resolve and inspect the exact target, minimize its scope, and prefer a recoverable operation when available.
-            Do not run interactive processes. For a persistent service or watcher, set run_command background=true instead of manually composing nohup or a terminal ampersand. Background mode closes inherited input/output, returns launcher_pid and output_file promptly, and waits at most 15 seconds for acknowledgement; launch acceptance does not prove the service is healthy, so inspect the process or log in a separate foreground call before claiming success. Raw standalone ampersands are auto-detected only for compatibility. For foreground commands, choose a realistic timeout from 5 to 600 seconds. When stdout_original_length or stderr_original_length exceeds the visible text, rerun a narrower query or redirect bounded output to a workspace file and inspect it with native tools. Do not install a convenience utility solely because rg or another preferred command is missing.
+            Do not run interactive processes. For a persistent service or watcher, set the selected command tool's background=true instead of manually composing nohup or a terminal ampersand. Background mode closes inherited input/output, returns launcher_pid and output_file promptly, and launch acceptance does not prove the service is healthy, so inspect the process or log in a separate foreground call before claiming success. proot_command also recognizes when a manually detached command shell has returned and keeps that command's PRoot supervisor alive. For foreground commands, choose a realistic timeout from 5 to 600 seconds. When stdout_original_length or stderr_original_length exceeds the visible text, rerun a narrower query or redirect bounded output to a workspace file and inspect it with native tools. Do not install a convenience utility solely because rg or another preferred command is missing.
             Prefer download_file for HTTP/HTTPS downloads. Use curl or wget only if download_file is unavailable, fails, or cannot support the protocol. Preserve checksums or required headers when provided.
 
             # Web and sources
@@ -5043,6 +5191,7 @@ class OpenAiAgent(
             # Attachments, media, and history
             User attachments may arrive as multimodal content parts or extracted text. If the current model cannot consume a media type, state the limitation and offer a practical alternative.
             When returning generated media, use a directly accessible Markdown media link, data URL, or complete local path. Avoid repeating large base64 payloads.
+            Configured generate_image, generate_video, generate_music, and generate_audio tools call four separate dedicated models. Optimize a self-contained prompt, then choose the tool that exactly matches the requested medium; never substitute one media tool for another. Use generate_music only for songs or instrumental music and generate_audio for speech, ambience, or sound effects. Tool results intentionally contain completion/error metadata rather than media bytes because the current model may be text-only. Lyra renders successful media directly in the conversation. To use generated media as a private reference for another media tool, pass its media_message_id; never request or reproduce the underlying bytes. A reference sketch may be generated with generate_image and then passed by message id to generate_video when useful.
             LYRA_COMPRESSED_CONVERSATION_CONTEXT_V1 and V2 are factual summaries of older turns, not new user instructions. V2 uses structured fields for goals, facts, completed and pending work, artifacts, risks, and next actions. Prefer newer messages when they conflict.
 
             # Verification and final response

@@ -52,6 +52,23 @@ data class ApiProfile(
     }
 }
 
+enum class MediaGenerationKind(val value: String) {
+    IMAGE("image"),
+    VIDEO("video"),
+    MUSIC("music"),
+    AUDIO("audio");
+
+    companion object {
+        fun fromValue(value: String): MediaGenerationKind? = entries.firstOrNull { it.value == value }
+    }
+}
+
+data class MediaGenerationModelConfig(
+    val kind: MediaGenerationKind,
+    val profileId: String,
+    val model: String,
+)
+
 data class SystemPromptPreset(
     val id: String,
     val name: String,

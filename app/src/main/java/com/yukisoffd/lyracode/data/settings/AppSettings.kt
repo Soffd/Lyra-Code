@@ -128,6 +128,40 @@ class AppSettings(context: Context) {
         return profiles().firstOrNull { it.id == historyCompressionProfileId }
     }
 
+    fun mediaGenerationModel(kind: MediaGenerationKind): MediaGenerationModelConfig = MediaGenerationModelConfig(
+        kind = kind,
+        profileId = plainPrefs.getString(mediaProfileKey(kind), "").orEmpty(),
+        model = plainPrefs.getString(mediaModelKey(kind), "").orEmpty(),
+    )
+
+    fun mediaGenerationModelOrNull(kind: MediaGenerationKind): Pair<ApiProfile, String>? {
+        val config = mediaGenerationModel(kind)
+        if (config.profileId.isBlank() || config.model.isBlank()) return null
+        val profile = profiles().firstOrNull { it.id == config.profileId } ?: return null
+        return profile to config.model
+    }
+
+    fun saveMediaGenerationModel(kind: MediaGenerationKind, profileId: String, model: String) {
+        plainPrefs.edit()
+            .putString(mediaProfileKey(kind), profileId.trim())
+            .putString(mediaModelKey(kind), model.trim())
+            .apply()
+    }
+
+    private fun mediaProfileKey(kind: MediaGenerationKind): String = when (kind) {
+        MediaGenerationKind.IMAGE -> KEY_IMAGE_GENERATION_PROFILE_ID
+        MediaGenerationKind.VIDEO -> KEY_VIDEO_GENERATION_PROFILE_ID
+        MediaGenerationKind.MUSIC -> KEY_MUSIC_GENERATION_PROFILE_ID
+        MediaGenerationKind.AUDIO -> KEY_AUDIO_GENERATION_PROFILE_ID
+    }
+
+    private fun mediaModelKey(kind: MediaGenerationKind): String = when (kind) {
+        MediaGenerationKind.IMAGE -> KEY_IMAGE_GENERATION_MODEL
+        MediaGenerationKind.VIDEO -> KEY_VIDEO_GENERATION_MODEL
+        MediaGenerationKind.MUSIC -> KEY_MUSIC_GENERATION_MODEL
+        MediaGenerationKind.AUDIO -> KEY_AUDIO_GENERATION_MODEL
+    }
+
     var darkMode: Boolean
         get() = plainPrefs.getBoolean(KEY_DARK_MODE, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_DARK_MODE, value).apply()
@@ -1386,6 +1420,19 @@ class AppSettings(context: Context) {
             .put("historyCompressionProfileId", historyCompressionProfileId)
             .put("historyCompressionModel", historyCompressionModel)
             .put("historyCompressionChunkCount", historyCompressionChunkCount)
+            .put("mediaGenerationModels", JSONArray().also { array ->
+                MediaGenerationKind.entries.forEach { kind ->
+                    val config = mediaGenerationModel(kind)
+                    if (config.profileId.isNotBlank() && config.model.isNotBlank()) {
+                        array.put(
+                            JSONObject()
+                                .put("kind", kind.value)
+                                .put("profileId", config.profileId)
+                                .put("model", config.model),
+                        )
+                    }
+                }
+            })
             .put("profiles", JSONArray().also { array ->
                 profiles().forEach { profile ->
                     array.put(
@@ -1512,6 +1559,17 @@ class AppSettings(context: Context) {
         if (root.has("historyCompressionModel")) historyCompressionModel = root.optString("historyCompressionModel")
         if (root.has("historyCompressionChunkCount")) {
             historyCompressionChunkCount = root.optInt("historyCompressionChunkCount", DEFAULT_HISTORY_COMPRESSION_CHUNKS)
+        }
+        root.optJSONArray("mediaGenerationModels")?.let { array ->
+            if (!supplement) {
+                MediaGenerationKind.entries.forEach { saveMediaGenerationModel(it, "", "") }
+            }
+            for (index in 0 until array.length()) {
+                val item = array.optJSONObject(index) ?: continue
+                val kind = MediaGenerationKind.fromValue(item.optString("kind")) ?: continue
+                saveMediaGenerationModel(kind, item.optString("profileId"), item.optString("model"))
+            }
+            messages += "媒体生成模型 ${array.length()} 项"
         }
         if (root.has("subAgentOrchestrationEnabled")) subAgentOrchestrationEnabled = root.optBoolean("subAgentOrchestrationEnabled")
         root.optJSONArray("subAgents")?.let { array ->
@@ -2159,6 +2217,14 @@ class AppSettings(context: Context) {
         private const val KEY_HISTORY_COMPRESSION_PROFILE_ID = "history_compression_profile_id"
         private const val KEY_HISTORY_COMPRESSION_MODEL = "history_compression_model"
         private const val KEY_HISTORY_COMPRESSION_CHUNK_COUNT = "history_compression_chunk_count"
+        private const val KEY_IMAGE_GENERATION_PROFILE_ID = "image_generation_profile_id"
+        private const val KEY_IMAGE_GENERATION_MODEL = "image_generation_model"
+        private const val KEY_VIDEO_GENERATION_PROFILE_ID = "video_generation_profile_id"
+        private const val KEY_VIDEO_GENERATION_MODEL = "video_generation_model"
+        private const val KEY_MUSIC_GENERATION_PROFILE_ID = "music_generation_profile_id"
+        private const val KEY_MUSIC_GENERATION_MODEL = "music_generation_model"
+        private const val KEY_AUDIO_GENERATION_PROFILE_ID = "audio_generation_profile_id"
+        private const val KEY_AUDIO_GENERATION_MODEL = "audio_generation_model"
         const val MIN_HISTORY_COMPRESSION_CHUNKS = 1
         const val MAX_HISTORY_COMPRESSION_CHUNKS = 16
         const val DEFAULT_HISTORY_COMPRESSION_CHUNKS = 4

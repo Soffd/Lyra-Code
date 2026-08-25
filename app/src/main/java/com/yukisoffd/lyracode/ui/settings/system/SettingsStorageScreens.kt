@@ -4,24 +4,23 @@ import android.app.usage.StorageStatsManager
 import android.content.Context
 import android.os.Build
 import android.os.storage.StorageManager
+import android.system.Os
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -31,8 +30,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.nio.file.FileVisitResult
+import java.nio.file.Files
+import java.nio.file.LinkOption
+import java.nio.file.Path
+import java.nio.file.SimpleFileVisitor
+import java.nio.file.attribute.BasicFileAttributes
+import java.util.ArrayDeque
 import java.util.Locale
-import kotlin.math.max
 
 
 
@@ -40,26 +46,43 @@ import kotlin.math.max
 internal fun StorageCacheSettings() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var scan by remember { mutableStateOf(scanStorageUsage(context)) }
+    var scan by remember { mutableStateOf<StorageScanResult?>(null) }
+    var scanning by remember { mutableStateOf(true) }
     var status by remember { mutableStateOf("") }
-    fun refresh() {
-        scan = scanStorageUsage(context)
+
+    fun refresh(completionStatus: String? = null) {
+        if (scanning) return
+        scanning = true
+        scope.launch {
+            val result = withContext(Dispatchers.IO) { scanStorageUsage(context.applicationContext) }
+            scan = result
+            scanning = false
+            if (completionStatus != null) status = completionStatus
+        }
     }
+
+    LaunchedEffect(context.applicationContext) {
+        scan = withContext(Dispatchers.IO) { scanStorageUsage(context.applicationContext) }
+        scanning = false
+    }
+
+    val currentScan = scan
+    val calculating = uiText(R.string.file_property_calculating_size)
     KimiCardBox {
         Text(uiText(R.string.title_storage_usage), style = MaterialTheme.typography.titleMedium)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Storage, uiText(R.string.menu_total_usage), formatBytes(scan.totalBytes))
+        KimiMenuRow(Icons.Default.Storage, uiText(R.string.menu_total_usage), currentScan?.let { formatBytes(it.totalBytes) } ?: calculating)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Android, uiText(R.string.menu_app_package), formatBytes(scan.appBytes))
+        KimiMenuRow(Icons.Default.Android, uiText(R.string.menu_app_package), currentScan?.let { formatBytes(it.appBytes) } ?: calculating)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_app_data), formatBytes(scan.dataBytes))
+        KimiMenuRow(Icons.Default.Folder, uiText(R.string.menu_app_data), currentScan?.let { formatBytes(it.dataBytes) } ?: calculating)
         KimiDivider()
-        KimiMenuRow(Icons.Default.Memory, uiText(R.string.menu_system_cache), formatBytes(scan.cacheBytes))
+        KimiMenuRow(Icons.Default.Memory, uiText(R.string.menu_system_cache), currentScan?.let { formatBytes(it.cacheBytes) } ?: calculating)
         KimiDivider()
-        KimiMenuRow(Icons.Default.CleaningServices, uiText(R.string.menu_cleanable_cache), formatBytes(scan.cleanableBytes))
+        KimiMenuRow(Icons.Default.CleaningServices, uiText(R.string.menu_cleanable_cache), currentScan?.let { formatBytes(it.cleanableBytes) } ?: calculating)
         Text(uiText(R.string.storage_explanation), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
-    scan.items.forEach { item ->
+    currentScan?.items.orEmpty().forEach { item ->
         KimiCardBox {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -86,13 +109,17 @@ internal fun StorageCacheSettings() {
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        Button(onClick = { refresh(); status = uiText(R.string.status_scan_complete) }, shape = KimiPillShape) { Text(uiText(R.string.action_rescan)) }
+        Button(
+            enabled = !scanning,
+            onClick = { refresh(uiText(R.string.status_scan_complete)) },
+            shape = KimiPillShape,
+        ) { Text(uiText(R.string.action_rescan)) }
         OutlinedButton(
-            enabled = scan.cleanableBytes > 0L,
+            enabled = !scanning && (currentScan?.cleanableBytes ?: 0L) > 0L,
             onClick = {
                 status = uiText(R.string.ui_clearing_cache)
                 scope.launch(Dispatchers.IO) {
-                    scan.items.filter { it.cleanable }.forEach { deleteCacheTarget(it.file) }
+                    currentScan?.items.orEmpty().filter { it.cleanable }.forEach { deleteCacheTarget(it.file) }
                     withContext(Dispatchers.Main) {
                         status = uiText(R.string.status_cache_cleaned)
                         refresh()
@@ -102,6 +129,7 @@ internal fun StorageCacheSettings() {
             shape = KimiPillShape,
         ) { Text(uiText(R.string.action_clean_all_cache)) }
     }
+    if (scanning) Text(calculating, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     if (status.isNotBlank()) Text(status, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
 }
 
@@ -123,20 +151,25 @@ internal data class StorageCacheItem(
     val cleanable: Boolean,
 )
 
-internal fun scanStorageUsage(context: Context): StorageScanResult {
-    val recursiveAppBytes = safeInstalledAppBytes(context)
-    val recursiveCacheBytes = safeDirSize(context.cacheDir) +
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) safeDirSize(context.codeCacheDir) else 0L
-    val recursiveDataRootBytes = safeDirSize(File(context.applicationInfo.dataDir)) +
-        context.getExternalFilesDirs(null).filterNotNull().sumOf { safeDirSize(it) } +
-        context.externalCacheDirs.filterNotNull().sumOf { safeDirSize(it) }
+internal fun scanStorageUsage(context: Context): StorageScanResult = runCatching {
     val systemStats = querySystemStorageStats(context)
-    val appBytes = max(systemStats?.appBytes ?: 0L, recursiveAppBytes)
-    val cacheBytes = max(systemStats?.cacheBytes ?: 0L, recursiveCacheBytes)
-    val dataBytes = max(
-        systemStats?.let { (it.dataBytes - it.cacheBytes).coerceAtLeast(0L) } ?: 0L,
-        (recursiveDataRootBytes - recursiveCacheBytes).coerceAtLeast(0L),
-    )
+    val totals = resolveStorageTotals(systemStats) {
+        val recursiveAppBytes = safeInstalledAppBytes(context)
+        val recursiveCacheBytes = saturatedSum(
+            safeDirSize(context.cacheDir),
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) safeDirSize(context.codeCacheDir) else 0L,
+        )
+        val recursiveDataRootBytes = saturatedSum(
+            safeDirSize(File(context.applicationInfo.dataDir)),
+            *context.getExternalFilesDirs(null).filterNotNull().map { safeDirSize(it) }.toLongArray(),
+            *context.externalCacheDirs.filterNotNull().map { safeDirSize(it) }.toLongArray(),
+        )
+        StorageTotals(
+            appBytes = recursiveAppBytes,
+            dataBytes = (recursiveDataRootBytes - recursiveCacheBytes).coerceAtLeast(0L),
+            cacheBytes = recursiveCacheBytes,
+        )
+    }
     val items = buildList {
         add(storageItem(uiText(R.string.cache_ai_response), File(context.cacheDir, "ai_response_cache"), cleanable = true))
         add(storageItem(uiText(R.string.cache_crop_image), File(context.cacheDir, "uploads"), cleanable = true))
@@ -152,18 +185,37 @@ internal fun scanStorageUsage(context: Context): StorageScanResult {
             add(storageItem(context.getString(R.string.cache_external_cache, index + 1), dir, cleanable = true))
         }
     }
-    val total = appBytes + dataBytes + cacheBytes
-    val cleanable = items.filter { it.cleanable }.sumOf { it.bytes }
-    return StorageScanResult(total, appBytes, dataBytes, cacheBytes, cleanable, items)
-}
+    val total = saturatedSum(totals.appBytes, totals.dataBytes, totals.cacheBytes)
+    val cleanable = saturatedSum(*items.filter { it.cleanable }.map { it.bytes }.toLongArray())
+    StorageScanResult(total, totals.appBytes, totals.dataBytes, totals.cacheBytes, cleanable, items)
+}.getOrDefault(StorageScanResult(0L, 0L, 0L, 0L, 0L, emptyList()))
 
 internal data class SystemStorageStats(val appBytes: Long, val dataBytes: Long, val cacheBytes: Long)
+internal data class StorageTotals(val appBytes: Long, val dataBytes: Long, val cacheBytes: Long)
+
+internal fun resolveStorageTotals(
+    systemStats: SystemStorageStats?,
+    fallback: () -> StorageTotals,
+): StorageTotals = systemStats?.let {
+    val cacheBytes = it.cacheBytes.coerceAtLeast(0L)
+    StorageTotals(
+        appBytes = it.appBytes.coerceAtLeast(0L),
+        // StorageStats.dataBytes includes cache/code-cache. Split it the same way Android
+        // Settings presents user data and cache, then add each component exactly once.
+        dataBytes = (it.dataBytes.coerceAtLeast(0L) - cacheBytes).coerceAtLeast(0L),
+        cacheBytes = cacheBytes,
+    )
+} ?: fallback()
 
 internal fun querySystemStorageStats(context: Context): SystemStorageStats? {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return null
     return runCatching {
         val manager = context.getSystemService(StorageStatsManager::class.java)
-        val stats = manager.queryStatsForUid(StorageManager.UUID_DEFAULT, context.applicationInfo.uid)
+        val storageManager = context.getSystemService(StorageManager::class.java)
+        val storageUuid = runCatching {
+            storageManager.getUuidForPath(File(context.applicationInfo.dataDir))
+        }.getOrDefault(StorageManager.UUID_DEFAULT)
+        val stats = manager.queryStatsForUid(storageUuid, context.applicationInfo.uid)
         SystemStorageStats(
             appBytes = stats.appBytes,
             dataBytes = stats.dataBytes,
@@ -179,43 +231,99 @@ internal fun safeInstalledAppBytes(context: Context): Long = runCatching {
         appInfo.splitSourceDirs?.forEach { add(File(it)) }
         appInfo.nativeLibraryDir?.takeIf { it.isNotBlank() }?.let { add(File(it)) }
     }
-    files.distinctBy { it.absolutePath }.sumOf { safeDirSize(it) }
+    saturatedSum(*files.distinctBy { it.absolutePath }.map { safeDirSize(it) }.toLongArray())
 }.getOrDefault(0L)
 
 internal fun storageItem(title: String, file: File, cleanable: Boolean): StorageCacheItem {
+    val usage = safeTreeUsage(file)
     return StorageCacheItem(
         title = title,
         file = file,
         path = file.absolutePath,
-        bytes = safeDirSize(file),
-        fileCount = safeFileCount(file),
+        bytes = usage.bytes,
+        fileCount = usage.fileCount,
         cleanable = cleanable,
     )
 }
 
-internal fun safeDirSize(file: File): Long = runCatching {
-    if (!file.exists()) return 0L
-    if (file.isFile) return file.length()
-    file.walkTopDown().filter { it.isFile }.sumOf { it.length() }
-}.getOrDefault(0L)
+internal data class StorageTreeUsage(val bytes: Long, val fileCount: Int)
 
-internal fun safeFileCount(file: File): Int = runCatching {
-    if (!file.exists()) return 0
-    if (file.isFile) return 1
-    file.walkTopDown().count { it.isFile }
-}.getOrDefault(0)
+internal fun safeDirSize(file: File): Long = safeTreeUsage(file).bytes
+
+internal fun safeFileCount(file: File): Int = safeTreeUsage(file).fileCount
+
+/** Iterative, no-follow traversal that also counts hard-linked inodes only once. */
+internal fun safeTreeUsage(file: File): StorageTreeUsage = runCatching {
+    val pending = ArrayDeque<Path>()
+    val visitedKeys = HashSet<Any>()
+    pending.add(file.toPath())
+    var bytes = 0L
+    var fileCount = 0
+    while (pending.isNotEmpty()) {
+        val path = pending.removeLast()
+        val attributes = runCatching {
+            Files.readAttributes(path, BasicFileAttributes::class.java, LinkOption.NOFOLLOW_LINKS)
+        }.getOrNull() ?: continue
+        val fileKey = storageFileKey(path, attributes)
+        if (fileKey != null && !visitedKeys.add(fileKey)) continue
+        if (attributes.isDirectory) {
+            path.toFile().listFiles().orEmpty().forEach { pending.add(it.toPath()) }
+        } else {
+            bytes = saturatedSum(bytes, attributes.size().coerceAtLeast(0L))
+            if (fileCount < Int.MAX_VALUE) fileCount++
+        }
+    }
+    StorageTreeUsage(bytes, fileCount)
+}.getOrDefault(StorageTreeUsage(0L, 0))
+
+private data class AndroidStorageFileKey(val device: Long, val inode: Long)
+
+private fun storageFileKey(path: Path, attributes: BasicFileAttributes): Any? =
+    attributes.fileKey() ?: runCatching {
+        val stat = Os.lstat(path.toString())
+        AndroidStorageFileKey(stat.st_dev, stat.st_ino)
+    }.getOrNull()
 
 internal fun deleteCacheTarget(file: File) {
     runCatching {
-        if (!file.exists()) return
-        if (file.isFile) {
-            file.delete()
+        val attributes = Files.readAttributes(
+            file.toPath(),
+            BasicFileAttributes::class.java,
+            LinkOption.NOFOLLOW_LINKS,
+        )
+        if (attributes.isDirectory) {
+            file.listFiles().orEmpty().forEach { deleteTreeNoFollow(it.toPath()) }
         } else {
-            file.listFiles()?.forEach { child ->
-                if (child.isDirectory) child.deleteRecursively() else child.delete()
-            }
+            Files.deleteIfExists(file.toPath())
         }
     }
+}
+
+private fun deleteTreeNoFollow(root: Path) {
+    Files.walkFileTree(
+        root,
+        object : SimpleFileVisitor<Path>() {
+            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                Files.deleteIfExists(file)
+                return FileVisitResult.CONTINUE
+            }
+
+            override fun postVisitDirectory(dir: Path, error: IOException?): FileVisitResult {
+                if (error != null) throw error
+                Files.deleteIfExists(dir)
+                return FileVisitResult.CONTINUE
+            }
+        },
+    )
+}
+
+private fun saturatedSum(vararg values: Long): Long {
+    var total = 0L
+    values.forEach { value ->
+        val safeValue = value.coerceAtLeast(0L)
+        total = if (Long.MAX_VALUE - total < safeValue) Long.MAX_VALUE else total + safeValue
+    }
+    return total
 }
 
 internal fun formatBytes(bytes: Long): String {

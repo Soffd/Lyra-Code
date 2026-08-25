@@ -1280,7 +1280,7 @@ class ChatController(
         )
         _messages.value = current.toMutableList().also { it[index] = updated }
         lastMessageReloadAt = System.currentTimeMillis()
-        if (update.status.startsWith("工具完成")) {
+        if (update.status.startsWith(appContext.getString(R.string.ui_tool_complete))) {
             reloadConversations()
             reloadMessages()
         }

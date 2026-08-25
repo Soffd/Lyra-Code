@@ -53,6 +53,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.BackupManager
+import com.yukisoffd.lyracode.data.MediaGenerationKind
 import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
 import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
@@ -136,7 +137,11 @@ internal fun SettingsScreen(
         "custom_theme_color" -> "theme_mode"
         "font_library" -> "font"
         "topic_summary_model_topic",
-        "topic_summary_model_compression" -> "topic_summary_model"
+        "topic_summary_model_compression",
+        "topic_summary_model_media_image",
+        "topic_summary_model_media_video",
+        "topic_summary_model_media_music",
+        "topic_summary_model_media_audio" -> "topic_summary_model"
         "theme_mode", "font", "refresh_rate", "chat_background", "streaming_output" -> "theme"
         "mini_server_logs" -> "mini_server"
         else -> null
@@ -239,9 +244,14 @@ internal fun SettingsScreen(
                     "topic_summary_model" -> TopicSummaryModelSettings(
                         onOpenTopic = { detail = "topic_summary_model_topic" },
                         onOpenCompression = { detail = "topic_summary_model_compression" },
+                        onOpenMedia = { kind -> detail = "topic_summary_model_media_${kind.value}" },
                     )
                     "topic_summary_model_topic" -> TopicSummaryModelEditor(settings, controller)
                     "topic_summary_model_compression" -> HistoryCompressionModelEditor(settings, controller)
+                    "topic_summary_model_media_image" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.IMAGE)
+                    "topic_summary_model_media_video" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.VIDEO)
+                    "topic_summary_model_media_music" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.MUSIC)
+                    "topic_summary_model_media_audio" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.AUDIO)
                     "sub_agents" -> SubAgentSettings(settings, controller)
 
                     "theme" -> ThemeSettings(
@@ -496,8 +506,8 @@ internal fun SettingsScreen(
                             initialState == "font_library" && targetState == "font" -> false
                             initialState == "theme_mode" && targetState == "custom_theme_color" -> true
                             initialState == "font" && targetState == "font_library" -> true
-                            initialState in setOf("topic_summary_model_topic", "topic_summary_model_compression") && targetState == "topic_summary_model" -> false
-                            initialState == "topic_summary_model" && targetState in setOf("topic_summary_model_topic", "topic_summary_model_compression") -> true
+                            initialState in ADDITIONAL_MODEL_DETAIL_IDS && targetState == "topic_summary_model" -> false
+                            initialState == "topic_summary_model" && targetState in ADDITIONAL_MODEL_DETAIL_IDS -> true
                             initialState in setOf("theme_mode", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
                             initialState == "theme" && targetState in setOf("theme_mode", "font", "refresh_rate", "chat_background", "streaming_output") -> true
                             initialState == "mini_server_logs" && targetState == "mini_server" -> false
@@ -550,6 +560,10 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "topic_summary_model" -> context.getString(R.string.detail_topic_summary_model)
     "topic_summary_model_topic" -> uiText(R.string.ui_topic_summary_model)
     "topic_summary_model_compression" -> uiText(R.string.label_history_compression_model)
+    "topic_summary_model_media_image" -> uiText(R.string.ui_image_generation_model)
+    "topic_summary_model_media_video" -> uiText(R.string.ui_video_generation_model)
+    "topic_summary_model_media_music" -> uiText(R.string.ui_music_generation_model)
+    "topic_summary_model_media_audio" -> uiText(R.string.ui_audio_generation_model)
     "sub_agents" -> context.getString(R.string.detail_sub_agents)
     "web_search" -> context.getString(R.string.detail_web_search)
     "workspace" -> context.getString(R.string.detail_workspace)
@@ -591,6 +605,15 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     CompliancePageIds.APP_PERMISSIONS -> context.getString(R.string.compliance_app_permissions)
     else -> context.getString(R.string.detail_default)
 }
+
+private val ADDITIONAL_MODEL_DETAIL_IDS = setOf(
+    "topic_summary_model_topic",
+    "topic_summary_model_compression",
+    "topic_summary_model_media_image",
+    "topic_summary_model_media_video",
+    "topic_summary_model_media_music",
+    "topic_summary_model_media_audio",
+)
 
 private fun isComplianceDocument(detail: String?): Boolean = detail != null && detail in CompliancePageIds.documents
 

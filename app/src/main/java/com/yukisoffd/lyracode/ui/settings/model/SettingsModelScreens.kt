@@ -89,6 +89,7 @@ import com.yukisoffd.lyracode.ai.ModelReachabilityResult
 import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
+import com.yukisoffd.lyracode.data.MediaGenerationKind
 import com.yukisoffd.lyracode.data.SubAgentConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -117,6 +118,7 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
 internal fun TopicSummaryModelSettings(
     onOpenTopic: () -> Unit,
     onOpenCompression: () -> Unit,
+    onOpenMedia: (MediaGenerationKind) -> Unit,
 ) {
     KimiCardBox {
         KimiMenuRow(
@@ -132,6 +134,20 @@ internal fun TopicSummaryModelSettings(
             value = uiText(R.string.ui_choose_the_model_used_for_manual_and_automatic_compression),
             onClick = onOpenCompression,
         )
+        MediaGenerationKind.entries.forEach { kind ->
+            KimiDivider()
+            KimiMenuRow(
+                icon = when (kind) {
+                    MediaGenerationKind.IMAGE -> Icons.Default.Photo
+                    MediaGenerationKind.VIDEO -> Icons.Default.Movie
+                    MediaGenerationKind.MUSIC -> Icons.Default.MusicNote
+                    MediaGenerationKind.AUDIO -> Icons.Default.GraphicEq
+                },
+                title = uiText(mediaGenerationTitleRes(kind)),
+                value = uiText(mediaGenerationDescriptionRes(kind)),
+                onClick = { onOpenMedia(kind) },
+            )
+        }
     }
 }
 
@@ -274,6 +290,105 @@ internal fun HistoryCompressionModelEditor(settings: AppSettings, controller: Ch
         ) { Text(uiText(R.string.file_editor_save)) }
         if (compressionNotice.isNotBlank()) Text(compressionNotice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
+}
+
+@Composable
+internal fun MediaGenerationModelEditor(
+    settings: AppSettings,
+    controller: ChatController,
+    kind: MediaGenerationKind,
+) {
+    val profiles = controller.profiles.toList()
+    val saved = remember(kind, controller.settingsRevision.intValue) { settings.mediaGenerationModel(kind) }
+    var enabled by remember(kind) { mutableStateOf(saved.profileId.isNotBlank() && saved.model.isNotBlank()) }
+    var profileId by remember(kind) {
+        mutableStateOf(saved.profileId.ifBlank { settings.selectedProfile().id })
+    }
+    val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    var model by remember(kind, profileId) {
+        mutableStateOf(
+            saved.model.takeIf { profileId == saved.profileId && it.isNotBlank() }
+                ?: selectedProfile?.selectedModel.orEmpty(),
+        )
+    }
+    var notice by remember(kind) { mutableStateOf("") }
+    KimiCardBox {
+        Text(uiText(mediaGenerationTitleRes(kind)), style = MaterialTheme.typography.titleMedium)
+        Text(
+            uiText(R.string.ui_media_generation_isolation_desc),
+            color = KimiMuted,
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(uiText(R.string.ui_use_media_generation_model), style = MaterialTheme.typography.titleSmall)
+                Text(
+                    uiText(mediaGenerationDescriptionRes(kind)),
+                    color = KimiMuted,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = enabled, onCheckedChange = { enabled = it })
+        }
+        if (enabled) {
+            SubAgentDropdownPicker(
+                label = uiText(R.string.detail_model),
+                value = selectedProfile?.name ?: uiText(R.string.label_not_configured_or_na),
+                subtitle = selectedProfile?.selectedModel.orEmpty(),
+                items = profiles,
+                itemTitle = { it.name },
+                itemSubtitle = { it.selectedModel },
+                isSelected = { it.id == profileId },
+                onSelect = { profile ->
+                    profileId = profile.id
+                    model = profile.selectedModel
+                },
+            )
+            SubAgentDropdownPicker(
+                label = uiText(mediaGenerationTitleRes(kind)),
+                value = model.ifBlank { uiText(R.string.label_not_selected) },
+                items = selectedProfile?.enabledModels.orEmpty(),
+                itemTitle = { it },
+                isSelected = { it == model },
+                onSelect = { model = it },
+            )
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(uiText(mediaGenerationTitleRes(kind))) },
+                singleLine = true,
+            )
+        }
+        Button(
+            enabled = !enabled || (selectedProfile != null && model.isNotBlank()),
+            onClick = {
+                settings.saveMediaGenerationModel(
+                    kind = kind,
+                    profileId = if (enabled) selectedProfile?.id.orEmpty() else "",
+                    model = if (enabled) model else "",
+                )
+                controller.settingsRevision.intValue++
+                notice = uiText(R.string.ui_media_generation_model_saved)
+            },
+            shape = KimiPillShape,
+        ) { Text(uiText(R.string.file_editor_save)) }
+        if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+internal fun mediaGenerationTitleRes(kind: MediaGenerationKind): Int = when (kind) {
+    MediaGenerationKind.IMAGE -> R.string.ui_image_generation_model
+    MediaGenerationKind.VIDEO -> R.string.ui_video_generation_model
+    MediaGenerationKind.MUSIC -> R.string.ui_music_generation_model
+    MediaGenerationKind.AUDIO -> R.string.ui_audio_generation_model
+}
+
+internal fun mediaGenerationDescriptionRes(kind: MediaGenerationKind): Int = when (kind) {
+    MediaGenerationKind.IMAGE -> R.string.ui_image_generation_model_desc
+    MediaGenerationKind.VIDEO -> R.string.ui_video_generation_model_desc
+    MediaGenerationKind.MUSIC -> R.string.ui_music_generation_model_desc
+    MediaGenerationKind.AUDIO -> R.string.ui_audio_generation_model_desc
 }
 
 

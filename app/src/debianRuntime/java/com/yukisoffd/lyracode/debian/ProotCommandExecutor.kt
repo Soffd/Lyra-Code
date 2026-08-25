@@ -5,8 +5,8 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
 import java.nio.charset.StandardCharsets
-import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -26,38 +26,88 @@ internal class ProotCommandExecutor(context: Context) {
         workspaceRoot: String?,
         workDir: String?,
         timeoutSeconds: Int,
+        background: Boolean = false,
     ): String = withContext(Dispatchers.IO) {
         require(linuxId.isNotBlank()) { "proot_command requires linux_id." }
         require(command.isNotBlank()) { "proot_command requires a non-empty command." }
         val workContext = resolveWorkContext(workspaceRoot, workDir)
-        val process = manager.startCommand(linuxId, workContext.workspaceRoot, workContext.guestWorkDir, command)
+        val executionId = nextExecutionId.getAndIncrement()
+        val started = manager.startCommand(
+            id = linuxId,
+            workspaceRoot = workContext.workspaceRoot,
+            guestWorkDir = workContext.guestWorkDir,
+            command = command,
+            executionId = executionId,
+            background = background,
+        )
+        val process = started.process
         process.outputStream.close()
 
-        val readers = Executors.newFixedThreadPool(2)
-        val stdoutFuture = readers.submit<CapturedOutput> { capture(process.inputStream) }
-        val stderrFuture = readers.submit<CapturedOutput> { capture(process.errorStream) }
-        val finished = process.waitFor(timeoutSeconds.toLong(), TimeUnit.SECONDS)
-        if (!finished) {
-            process.destroy()
-            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+        val stdout = CapturedOutputBuffer()
+        val stderr = CapturedOutputBuffer()
+        val deadlineNanos = System.nanoTime() + TimeUnit.SECONDS.toNanos(timeoutSeconds.toLong())
+        var shellExitCode: Int? = null
+        while (process.isAlive && shellExitCode == null && System.nanoTime() < deadlineNanos) {
+            drainAvailable(process.inputStream, stdout)
+            drainAvailable(process.errorStream, stderr)
+            shellExitCode = readCompletionCode(started.completionFile)
+            if (process.isAlive && shellExitCode == null) Thread.sleep(COMMAND_POLL_INTERVAL_MILLIS)
         }
-        val stdout = runCatching { stdoutFuture.get(5, TimeUnit.SECONDS) }.getOrElse { CapturedOutput("", 0, false) }
-        val stderr = runCatching { stderrFuture.get(5, TimeUnit.SECONDS) }.getOrElse { CapturedOutput("", 0, false) }
-        readers.shutdownNow()
-        if (!finished) {
+        drainAvailable(process.inputStream, stdout)
+        drainAvailable(process.errorStream, stderr)
+        shellExitCode = shellExitCode ?: readCompletionCode(started.completionFile)
+
+        val timedOut = process.isAlive && shellExitCode == null && System.nanoTime() >= deadlineNanos
+        val supervisorPid = readSupervisorPid(started.supervisorPidFile)
+        var retainedBackgroundProcesses = false
+        if (timedOut) {
+            manager.terminateCommandProcess(process, supervisorPid)
+            if (!process.waitFor(2, TimeUnit.SECONDS)) process.destroyForcibly()
+        } else if (shellExitCode != null && process.isAlive) {
+            // The command shell is done, but PRoot is still tracing one or more detached
+            // descendants. Keep this exact PRoot Process alive; later calls get their own tracer.
+            waitForNaturalProotExit(process, stdout, stderr)
+            if (process.isAlive) {
+                manager.retainBackgroundCommand(executionId, linuxId, process, supervisorPid)
+                retainedBackgroundProcesses = true
+            }
+        }
+
+        if (!process.isAlive) {
+            captureRemaining(process.inputStream, stdout)
+            captureRemaining(process.errorStream, stderr)
+        } else if (timedOut) {
+            drainAvailable(process.inputStream, stdout)
+            drainAvailable(process.errorStream, stderr)
+        }
+        if (!retainedBackgroundProcesses) {
             runCatching { process.inputStream.close() }
             runCatching { process.errorStream.close() }
         }
+        started.completionFile.delete()
+        started.supervisorPidFile.delete()
+
+        val processFinished = !process.isAlive
+        val exitCode = when {
+            timedOut -> 124
+            shellExitCode != null -> shellExitCode
+            processFinished -> process.exitValue()
+            else -> 124
+        }
+        val stdoutResult = stdout.result()
+        val stderrResult = stderr.result()
 
         JSONObject()
-            .put("exit_code", if (finished) process.exitValue() else 124)
-            .put("stdout", stdout.text)
-            .put("stderr", stderr.text)
-            .put("stdout_original_bytes", stdout.originalBytes)
-            .put("stderr_original_bytes", stderr.originalBytes)
-            .put("stdout_truncated", stdout.truncated)
-            .put("stderr_truncated", stderr.truncated)
-            .put("timed_out", !finished)
+            .put("exit_code", exitCode)
+            .put("stdout", stdoutResult.text)
+            .put("stderr", stderrResult.text)
+            .put("stdout_original_bytes", stdoutResult.originalBytes)
+            .put("stderr_original_bytes", stderrResult.originalBytes)
+            .put("stdout_truncated", stdoutResult.truncated)
+            .put("stderr_truncated", stderrResult.truncated)
+            .put("timed_out", timedOut)
+            .put("background_requested", background)
+            .put("background_processes_retained", retainedBackgroundProcesses)
             .put("environment", "internal-proot-linux")
             .put("linux_id", linuxId)
             .put("work_dir", workContext.guestWorkDir)
@@ -142,27 +192,80 @@ internal class ProotCommandExecutor(context: Context) {
     private fun isInside(root: File, candidate: File): Boolean =
         candidate == root || candidate.absolutePath.startsWith(root.absolutePath + File.separator)
 
-    private fun capture(input: InputStream): CapturedOutput {
-        val visible = ByteArrayOutputStream(MAX_CAPTURE_BYTES)
+    private fun waitForNaturalProotExit(
+        process: Process,
+        stdout: CapturedOutputBuffer,
+        stderr: CapturedOutputBuffer,
+    ) {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(PROOT_EXIT_GRACE_MILLIS)
+        while (process.isAlive && System.nanoTime() < deadline) {
+            drainAvailable(process.inputStream, stdout)
+            drainAvailable(process.errorStream, stderr)
+            if (process.isAlive) Thread.sleep(COMMAND_POLL_INTERVAL_MILLIS)
+        }
+        drainAvailable(process.inputStream, stdout)
+        drainAvailable(process.errorStream, stderr)
+    }
+
+    private fun readCompletionCode(completionFile: File): Int? = runCatching {
+        if (!completionFile.isFile) return@runCatching null
+        completionFile.readText().trim().toIntOrNull()
+    }.getOrNull()
+
+    private fun readSupervisorPid(supervisorPidFile: File): Int? = runCatching {
+        if (!supervisorPidFile.isFile) return@runCatching null
+        supervisorPidFile.readText().trim().toIntOrNull()?.takeIf { it > 1 }
+    }.getOrNull()
+
+    private fun drainAvailable(input: InputStream, output: CapturedOutputBuffer) {
         val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
-        var total = 0L
-        input.use {
+        runCatching {
             while (true) {
-                val count = it.read(buffer)
-                if (count < 0) break
-                val remaining = MAX_CAPTURE_BYTES - visible.size()
-                if (remaining > 0) visible.write(buffer, 0, minOf(count, remaining))
-                total += count
+                val available = input.available()
+                if (available <= 0) break
+                val count = input.read(buffer, 0, minOf(buffer.size, available))
+                if (count <= 0) break
+                output.append(buffer, count)
             }
         }
-        return CapturedOutput(visible.toString(StandardCharsets.UTF_8.name()), total, total > MAX_CAPTURE_BYTES)
+    }
+
+    private fun captureRemaining(input: InputStream, output: CapturedOutputBuffer) {
+        val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+        runCatching {
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                output.append(buffer, count)
+            }
+        }
     }
 
     private data class ProotWorkContext(val workspaceRoot: File?, val guestWorkDir: String)
     private data class CapturedOutput(val text: String, val originalBytes: Long, val truncated: Boolean)
 
+    private class CapturedOutputBuffer {
+        private val visible = ByteArrayOutputStream(MAX_CAPTURE_BYTES)
+        private var total = 0L
+
+        fun append(buffer: ByteArray, count: Int) {
+            val remaining = MAX_CAPTURE_BYTES - visible.size()
+            if (remaining > 0) visible.write(buffer, 0, minOf(count, remaining))
+            total += count
+        }
+
+        fun result(): CapturedOutput = CapturedOutput(
+            visible.toString(StandardCharsets.UTF_8.name()),
+            total,
+            total > MAX_CAPTURE_BYTES,
+        )
+    }
+
     private companion object {
         const val WORKSPACE_DIR = "/workspace"
         const val MAX_CAPTURE_BYTES = 256 * 1024
+        const val COMMAND_POLL_INTERVAL_MILLIS = 25L
+        const val PROOT_EXIT_GRACE_MILLIS = 250L
+        val nextExecutionId = AtomicLong(System.currentTimeMillis())
     }
 }

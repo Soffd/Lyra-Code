@@ -2,6 +2,7 @@ package com.yukisoffd.lyracode.ai
 
 import android.util.Log
 import com.yukisoffd.lyracode.data.AppSettings
+import com.yukisoffd.lyracode.data.MediaGenerationKind
 import com.yukisoffd.lyracode.data.McpServerConfig
 import com.yukisoffd.lyracode.data.McpToolDefinition
 import com.yukisoffd.lyracode.system.SystemCommandExecutor
@@ -452,6 +453,11 @@ internal class AgentToolSchemaFactory(
         if (allowSubAgents && settings.subAgentOrchestrationEnabled && settings.enabledSubAgents().isNotEmpty()) {
             definitions.put(subAgentFunction())
         }
+        MediaGenerationKind.entries.forEach { kind ->
+            if (settings.mediaGenerationModelOrNull(kind) != null) {
+                definitions.put(mediaGenerationFunction(kind))
+            }
+        }
         definitions
         .put(
             functionWithOptional(
@@ -595,6 +601,54 @@ internal class AgentToolSchemaFactory(
                             .put("additionalProperties", false),
                     ),
             )
+    }
+
+    private fun mediaGenerationFunction(kind: MediaGenerationKind): JSONObject {
+        val optional = buildList {
+            add("reference_media_message_ids" to "array:string")
+            add("use_latest_user_attachments" to "boolean")
+            add("negative_prompt" to "string")
+            when (kind) {
+                MediaGenerationKind.IMAGE -> add("aspect_ratio" to "string")
+                MediaGenerationKind.VIDEO -> {
+                    add("aspect_ratio" to "string")
+                    add("duration_seconds" to "integer")
+                }
+                MediaGenerationKind.MUSIC -> {
+                    add("duration_seconds" to "integer")
+                    add("lyrics" to "string")
+                    add("instrumental" to "boolean")
+                }
+                MediaGenerationKind.AUDIO -> {
+                    add("duration_seconds" to "integer")
+                    add("voice" to "string")
+                }
+            }
+        }
+        val description = when (kind) {
+            MediaGenerationKind.IMAGE -> "Generate still images only with the separately configured image model. Use this for image requests, reference sketches, illustrations, or visual drafts; never use video, music, or audio tools for a still image. Optimize the user's prompt before calling."
+            MediaGenerationKind.VIDEO -> "Generate moving video only with the separately configured video model. Never route a video request to the image, music, or audio model. Optimize the prompt and specify motion, shot, and timing."
+            MediaGenerationKind.MUSIC -> "Generate songs or instrumental music only with the separately configured music model. Use generate_audio instead for speech, sound effects, or other non-musical audio."
+            MediaGenerationKind.AUDIO -> "Generate non-music audio only with the separately configured audio model, including speech, narration, voices, ambience, and sound effects. Use generate_music for songs or instrumental music."
+        }
+        return functionWithOptional(
+            name = mediaGenerationToolName(kind),
+            description = "$description Generated media is displayed to the user by Lyra. The tool result contains status metadata only and never returns media bytes to you. To reuse generated media as a reference, pass its media_message_id in reference_media_message_ids.",
+            required = listOf("prompt" to "string"),
+            optional = optional,
+            propertyDescriptions = mapOf(
+                "prompt" to "The final, self-contained prompt for the dedicated media model. Do not include Lyra protocol text or tool instructions.",
+                "reference_media_message_ids" to "Optional media_message_id values from earlier successful media tool results. Lyra resolves the files internally without exposing their bytes to the main LLM.",
+                "use_latest_user_attachments" to "When true, include compatible media attachments from the latest user message as private model references. Defaults to true.",
+                "negative_prompt" to "Optional undesired content or qualities.",
+                "aspect_ratio" to "Optional target aspect ratio such as 1:1, 16:9, or 9:16.",
+                "duration_seconds" to "Optional requested duration in seconds.",
+                "lyrics" to "Optional lyrics for music generation.",
+                "instrumental" to "True to request music without vocals.",
+                "voice" to "Optional voice, speaker, or delivery description for speech audio.",
+            ),
+            disallowAdditionalProperties = true,
+        )
     }
 
     private fun mcpFunction(server: McpServerConfig, tool: McpToolDefinition): JSONObject {

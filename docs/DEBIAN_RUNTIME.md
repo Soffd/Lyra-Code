@@ -43,6 +43,8 @@ The two verified ARM64 ELF files are stored in `app/src/debianRuntime/jniLibs/ar
 
 The Agent receives `proot_command` only while at least one environment is enabled. Every call specifies `linux_id`, and the Agent prompt lists the currently enabled IDs and display names. When a directly accessible workspace is selected it is mounted at `/workspace`; without a workspace, commands remain available and start in `/root`. The command runs through the selected environment's `/bin/bash -lc` or `/bin/sh -lc`.
 
+Persistent services and watchers can be launched with `background=true`. The launcher redirects their standard streams to the reported Linux `output_file`, returns immediately, and retains that invocation's PRoot supervisor independently of later `proot_command` calls. Existing commands that detach themselves (for example `nohup ... &` or `setsid --fork ...`) are detected when their command shell exits and receive the same lifecycle treatment. Foreground timeouts terminate only their own invocation; they do not clean up services retained by earlier calls. Disabling or deleting a Linux environment intentionally stops its retained processes first.
+
 When Android's All files access permission is granted, Android shared storage is mounted read/write under `/storage`, and primary storage is also available through `/sdcard`. `workDir` accepts paths in those mounts, absolute paths inside the Linux rootfs, and workspace-relative paths when a workspace exists. Without All files access, PRoot exposes only the selected workspace and Linux-internal files. Existing terminal processes must reconnect after the permission changes because bind mounts are fixed when PRoot starts. Android app-UID permissions and SELinux still apply, so this does not grant root access or access to other apps' private data.
 
 The terminal uses the same transport-neutral screen for SSH and local Linux. Each enabled PRoot environment appears as a separate target and owns an app-long session keyed by Linux ID. Deleting or disabling an environment first closes its terminal session.
@@ -53,5 +55,6 @@ The terminal uses the same transport-neutral screen for SSH and local Linux. Eac
 - XZ/Zstandard archives are not currently accepted; decompress them to tar first or provide a gzip tarball.
 - A document-provider-only SAF workspace cannot currently be bind-mounted by PRoot.
 - PRoot is compatibility tooling, not a VM, Android sandbox, or security boundary. Processes run with Lyra Code's Android permissions.
+- Retained services require Lyra Code's Android app process to remain alive. Android may still stop them when the app is force-stopped, cleared, uninstalled, or reclaimed under device power/background policies.
 
 See `THIRD_PARTY_NOTICES.md` before distributing builds.

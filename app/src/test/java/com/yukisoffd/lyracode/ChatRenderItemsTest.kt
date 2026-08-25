@@ -1,6 +1,7 @@
 package com.yukisoffd.lyracode
 
 import com.yukisoffd.lyracode.ai.ChatRecord
+import com.yukisoffd.lyracode.ai.MEDIA_MESSAGE_ROLE
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -99,5 +100,25 @@ class ChatRenderItemsTest {
         assertEquals(listOf(2L, 3L, 4L, 5L), items.last().process.map { it.id })
         assertEquals(2_000L, items.last().processStartedAt)
         assertEquals(5_000L, items.last().processFinishedAt)
+    }
+
+    @Test
+    fun `renders generated media as a standalone chat message`() {
+        val items = chatRenderItems(
+            listOf(
+                ChatRecord(id = 1L, role = "user", content = "draw a landscape"),
+                ChatRecord(id = 2L, role = "assistant", content = "", thinking = "calling image tool"),
+                ChatRecord(id = 3L, role = "tool", content = "{\"status\":\"success\",\"media_message_id\":4}"),
+                ChatRecord(id = 4L, role = MEDIA_MESSAGE_ROLE, content = "![Generated image 1](C:/media/landscape.png)"),
+                ChatRecord(id = 5L, role = "assistant", content = "The image has been generated."),
+            ),
+        )
+
+        assertEquals(
+            listOf("message-1", "process-2", "message-4", "message-5"),
+            items.map { it.key },
+        )
+        assertEquals(MEDIA_MESSAGE_ROLE, items[2].message?.role)
+        assertTrue(items[2].process.isEmpty())
     }
 }
