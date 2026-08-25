@@ -79,6 +79,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import com.yukisoffd.lyracode.ai.ChatRecord
+import com.yukisoffd.lyracode.ai.MEDIA_MESSAGE_ROLE
 import com.yukisoffd.lyracode.ai.TodoItem
 import com.yukisoffd.lyracode.data.AppSettings
 import kotlinx.coroutines.delay
@@ -183,7 +184,7 @@ internal fun chatRenderItems(
     }
 
     messages.forEach { message ->
-        if (message.role == "user") {
+        if (message.role == "user" || message.role == MEDIA_MESSAGE_ROLE) {
             // Completed turns must keep the same item structure while a later
             // turn is streaming. Re-expanding all history invalidates the
             // LazyColumn's measured item indices and can move its viewport.
@@ -808,6 +809,7 @@ internal fun MessageCard(
     var editDialogOpen by rememberSaveable(message.id) { mutableStateOf(false) }
     var editText by rememberSaveable(message.id) { mutableStateOf(message.content) }
     val isUser = message.role == "user"
+    val isMedia = message.role == MEDIA_MESSAGE_ROLE
     val shouldRenderBubble = !isUser ||
         visibleContent.isNotBlank() ||
         message.thinking.isNotBlank()
@@ -875,7 +877,7 @@ internal fun MessageCard(
                     Card(
                         colors = CardDefaults.cardColors(containerColor = container),
                         shape = if (isUser) RoundedCornerShape(22.dp) else RoundedCornerShape(18.dp),
-                        border = if (message.role == "assistant") null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
+                        border = if (message.role == "assistant" || isMedia) null else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.14f)),
                         modifier = cardModifier,
                     ) {
                         val compactToolResult = inProcessRecord && message.role == "tool"
@@ -900,7 +902,7 @@ internal fun MessageCard(
                                 },
                             ),
                         ) {
-                            if (!isUser && message.role != "assistant" && !compactToolResult) {
+                            if (!isUser && !isMedia && message.role != "assistant" && !compactToolResult) {
                                 Text(uiText(R.string.stats_tool_results), color = KimiMuted, style = MaterialTheme.typography.labelMedium)
                             }
                             if (message.thinking.isNotBlank()) {

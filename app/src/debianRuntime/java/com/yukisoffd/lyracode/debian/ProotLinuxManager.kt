@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.OpenableColumns
 import android.system.Os
+import android.system.OsConstants
 import java.io.BufferedInputStream
 import java.io.File
 import java.io.FileOutputStream
@@ -13,8 +14,11 @@ import java.io.InputStream
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.zip.GZIPInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -53,6 +57,12 @@ internal data class ProotLinuxState(
     val message: String = "",
 )
 
+internal data class ProotCommandProcess(
+    val process: Process,
+    val completionFile: File,
+    val supervisorPidFile: File,
+)
+
 /** Registry and lifecycle owner for multiple independent PRoot Linux installations. */
 internal class ProotLinuxManager private constructor(context: Context) {
     private val appContext = context.applicationContext
@@ -62,6 +72,11 @@ internal class ProotLinuxManager private constructor(context: Context) {
     private val preferences = appContext.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
     private val operationMutex = Mutex()
     private val beforeDeleteListeners = CopyOnWriteArrayList<(String) -> Unit>()
+    private val backgroundCommands = ConcurrentHashMap<Long, BackgroundProotCommand>()
+    private val backgroundReaper = Executors.newSingleThreadScheduledExecutor { runnable ->
+        Thread(runnable, "lyracode-proot-background-reaper").apply { isDaemon = true }
+    }
+    private val backgroundReaperScheduled = AtomicBoolean(false)
     private val _state = MutableStateFlow(ProotLinuxState(instances = scanInstances()))
     val state: StateFlow<ProotLinuxState> = _state.asStateFlow()
 
@@ -99,7 +114,10 @@ internal class ProotLinuxManager private constructor(context: Context) {
     fun setEnabled(id: String, enabled: Boolean) {
         instance(id)
         preferences.edit().putBoolean(enabledKey(id), enabled).apply()
-        if (!enabled) beforeDeleteListeners.forEach { it(id) }
+        if (!enabled) {
+            stopBackgroundCommands(id)
+            beforeDeleteListeners.forEach { it(id) }
+        }
         refresh()
     }
 
@@ -198,6 +216,7 @@ internal class ProotLinuxManager private constructor(context: Context) {
         operationMutex.withLock {
             val target = instance(id)
             _state.value = ProotLinuxState(scanInstances(), ProotOperationPhase.DELETING, message = target.name)
+            stopBackgroundCommands(id)
             beforeDeleteListeners.forEach { it(id) }
             try {
                 val allowedRoot = if (target.legacy) {
@@ -243,10 +262,65 @@ internal class ProotLinuxManager private constructor(context: Context) {
         return startProcess(target, workspace, if (workspace == null) "/root" else "/workspace", guestCommand)
     }
 
-    fun startCommand(id: String, workspaceRoot: File?, guestWorkDir: String, command: String): Process {
+    fun startCommand(
+        id: String,
+        workspaceRoot: File?,
+        guestWorkDir: String,
+        command: String,
+        executionId: Long,
+        background: Boolean,
+    ): ProotCommandProcess {
         val target = requireEnabled(id)
         prepareRootfs(target.rootfsDir)
-        return startProcess(target, workspaceRoot, guestWorkDir, listOf(target.shellPath, "-lc", command), mergeError = false)
+        val commandStateDir = File(target.rootfsDir, "root/.lyracode/commands").apply {
+            check(isDirectory || mkdirs()) { "Unable to create the PRoot command state directory." }
+        }
+        val completionFile = File(commandStateDir, "$executionId.status")
+        val supervisorPidFile = File(commandStateDir, "$executionId.pid")
+        completionFile.delete()
+        supervisorPidFile.delete()
+        val commandToRun = if (background) {
+            buildDetachedProotCommand(command, executionId, target.shellPath)
+        } else {
+            command
+        }
+        val trackedCommand = buildTrackedProotCommand(
+            command = commandToRun,
+            completionGuestPath = "/root/.lyracode/commands/$executionId.status",
+            supervisorPidGuestPath = "/root/.lyracode/commands/$executionId.pid",
+            shellPath = target.shellPath,
+        )
+        return ProotCommandProcess(
+            process = startProcess(
+                target,
+                workspaceRoot,
+                guestWorkDir,
+                listOf(target.shellPath, "-lc", trackedCommand),
+                mergeError = false,
+                killOnExit = false,
+            ),
+            completionFile = completionFile,
+            supervisorPidFile = supervisorPidFile,
+        )
+    }
+
+    /**
+     * Keeps the PRoot tracer alive after its command shell has returned. Detached guest
+     * descendants still need that tracer for path translation, so allowing the Java Process to
+     * be collected (or closing it as a timed-out foreground command) would terminate the service.
+     */
+    fun retainBackgroundCommand(executionId: Long, linuxId: String, process: Process, supervisorPid: Int?) {
+        backgroundCommands[executionId] = BackgroundProotCommand(linuxId, process, supervisorPid)
+        scheduleBackgroundReaper()
+    }
+
+    /** SIGQUIT is PRoot's supported shutdown path: it kills only this supervisor's tracees. */
+    fun terminateCommandProcess(process: Process, supervisorPid: Int?) {
+        if (!process.isAlive) return
+        val signalled = supervisorPid != null && runCatching {
+            Os.kill(supervisorPid, OsConstants.SIGQUIT)
+        }.isSuccess
+        if (!signalled) runCatching { process.destroy() }
     }
 
     private fun startProcess(
@@ -255,13 +329,15 @@ internal class ProotLinuxManager private constructor(context: Context) {
         guestWorkDir: String,
         guestCommand: List<String>,
         mergeError: Boolean = true,
+        killOnExit: Boolean = true,
     ): Process {
         val args = mutableListOf(
             prootFile().absolutePath,
-            "--root-id", "--link2symlink", "--kill-on-exit",
+            "--root-id", "--link2symlink",
             "-r", target.rootfsDir.absolutePath,
             "-w", guestWorkDir,
         )
+        if (killOnExit) args.add(2, "--kill-on-exit")
         if (workspace != null) args += listOf("-b", "${workspace.absolutePath}:/workspace")
         if (hasAllFilesAccess()) {
             args += listOf("-b", "${sharedStorageContainer().absolutePath}:/storage")
@@ -297,6 +373,70 @@ internal class ProotLinuxManager private constructor(context: Context) {
         check(target.enabled) { "PRoot Linux '$id' is disabled." }
         check(target.shellPath.isNotBlank()) { "PRoot Linux '$id' has no /bin/bash or /bin/sh." }
         return target
+    }
+
+    private fun stopBackgroundCommands(linuxId: String) {
+        val commands = backgroundCommands.entries
+            .filter { it.value.linuxId == linuxId }
+            .mapNotNull { (executionId, command) ->
+                command.takeIf { backgroundCommands.remove(executionId, command) }
+            }
+        commands.forEach { command ->
+            terminateCommandProcess(command.process, command.supervisorPid)
+        }
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(BACKGROUND_STOP_TIMEOUT_MILLIS)
+        commands.forEach { command ->
+            val process = command.process
+            if (process.isAlive) {
+                val remainingMillis = TimeUnit.NANOSECONDS.toMillis(deadline - System.nanoTime()).coerceAtLeast(0L)
+                runCatching { process.waitFor(remainingMillis, TimeUnit.MILLISECONDS) }
+            }
+            if (process.isAlive) runCatching { process.destroyForcibly() }
+            closeBackgroundProcess(command)
+        }
+    }
+
+    private fun scheduleBackgroundReaper() {
+        if (!backgroundReaperScheduled.compareAndSet(false, true)) return
+        backgroundReaper.schedule(
+            {
+                try {
+                    backgroundCommands.entries.forEach { (executionId, command) ->
+                        drainAvailable(command.process.inputStream)
+                        drainAvailable(command.process.errorStream)
+                        if (!command.process.isAlive && backgroundCommands.remove(executionId, command)) {
+                            closeBackgroundProcess(command)
+                        }
+                    }
+                } finally {
+                    backgroundReaperScheduled.set(false)
+                    if (backgroundCommands.isNotEmpty()) scheduleBackgroundReaper()
+                }
+            },
+            BACKGROUND_REAP_INTERVAL_MILLIS,
+            TimeUnit.MILLISECONDS,
+        )
+    }
+
+    private fun drainAvailable(input: InputStream) {
+        runCatching {
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            var remaining = MAX_BACKGROUND_DRAIN_BYTES_PER_PASS
+            while (remaining > 0) {
+                val available = input.available()
+                if (available <= 0) break
+                val count = input.read(buffer, 0, minOf(buffer.size, available, remaining))
+                if (count <= 0) break
+                remaining -= count
+            }
+        }
+    }
+
+    private fun closeBackgroundProcess(command: BackgroundProotCommand) {
+        val process = command.process
+        runCatching { process.outputStream.close() }
+        runCatching { process.inputStream.close() }
+        runCatching { process.errorStream.close() }
     }
 
     private fun scanInstances(): List<ProotLinuxInstance> {
@@ -481,6 +621,9 @@ internal class ProotLinuxManager private constructor(context: Context) {
         private const val PROOT_EXECUTABLE = "libproot_exec.so"
         private const val PROOT_LOADER = "libproot_loader.so"
         private const val ELF_MACHINE_AARCH64 = 183
+        private const val BACKGROUND_REAP_INTERVAL_MILLIS = 1_000L
+        private const val BACKGROUND_STOP_TIMEOUT_MILLIS = 2_000L
+        private const val MAX_BACKGROUND_DRAIN_BYTES_PER_PASS = 256 * 1024
 
         @Volatile private var instance: ProotLinuxManager? = null
 
@@ -488,4 +631,43 @@ internal class ProotLinuxManager private constructor(context: Context) {
             instance ?: ProotLinuxManager(context).also { instance = it }
         }
     }
+
+    private data class BackgroundProotCommand(
+        val linuxId: String,
+        val process: Process,
+        val supervisorPid: Int?,
+    )
 }
+
+internal fun buildTrackedProotCommand(
+    command: String,
+    completionGuestPath: String,
+    supervisorPidGuestPath: String,
+    shellPath: String,
+): String {
+    val quotedShell = shellSingleQuoteForProot(shellPath)
+    val quotedCommand = shellSingleQuoteForProot(command)
+    val quotedCompletionPath = shellSingleQuoteForProot(completionGuestPath)
+    val quotedSupervisorPidPath = shellSingleQuoteForProot(supervisorPidGuestPath)
+    return """
+        printf '%s\n' "${'$'}PPID" > $quotedSupervisorPidPath
+        $quotedShell -lc $quotedCommand
+        lyra_exit_code=${'$'}?
+        printf '%s\n' "${'$'}lyra_exit_code" > $quotedCompletionPath
+        exit "${'$'}lyra_exit_code"
+    """.trimIndent()
+}
+
+internal fun buildDetachedProotCommand(command: String, executionId: Long, shellPath: String): String {
+    val quotedShell = shellSingleQuoteForProot(shellPath)
+    val quotedCommand = shellSingleQuoteForProot(command)
+    return """
+        lyra_output_file="/tmp/lyracode-run-$executionId-${'$'}${'$'}.log"
+        $quotedShell -lc $quotedCommand </dev/null >"${'$'}lyra_output_file" 2>&1 &
+        lyra_launcher_pid=${'$'}!
+        printf 'background_started: true\nlauncher_pid: %s\noutput_file: %s\nnote: Launch accepted; verify the process and log separately.\n' "${'$'}lyra_launcher_pid" "${'$'}lyra_output_file"
+    """.trimIndent()
+}
+
+private fun shellSingleQuoteForProot(value: String): String =
+    "'${value.replace("'", "'\"'\"'")}'"

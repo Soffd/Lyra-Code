@@ -768,7 +768,7 @@
     <string name="menu_app_data">Menu App Data</string>
     <string name="menu_system_cache">Menu System Cache</string>
     <string name="menu_cleanable_cache">Menu Cleanable Cache</string>
-    <string name="storage_explanation">Total usage is estimated like Android Settings: APK + app data + cache. Cleanup only includes temporary uploads, image crops, camera previews, AI response disk cache, and old installer packages left after an in-app update. It will not delete chat history, model settings, API keys, MCP/SSH, Skills, avatars, or workspace files.</string>
+    <string name="storage_explanation">Total usage uses Android system storage statistics when available; a local no-follow scan is only a fallback. Cleanup only includes temporary uploads, image crops, camera previews, AI response disk cache, and old installer packages left after an in-app update. It will not delete PRoot environments, chat history, model settings, API keys, MCP/SSH, Skills, avatars, or workspace files.</string>
     <string name="label_file_count_size">File Count Size %1$d</string>
     <string name="action_clean">Clean</string>
     <string name="status_cleaning">Cleaning %1$s</string>
@@ -1885,6 +1885,17 @@ Revocation stops new access through that permission but does not automatically e
     <string name="ui_use_current_conversation_model">Use current conversation model</string>
     <string name="ui_history_compression_model">History compression model</string>
     <string name="ui_additional_feature_models_saved">Additional feature models saved</string>
+    <string name="ui_image_generation_model">Image generation model</string>
+    <string name="ui_image_generation_model_desc">Creates still images through the generate_image Agent tool</string>
+    <string name="ui_video_generation_model">Video generation model</string>
+    <string name="ui_video_generation_model_desc">Creates moving video through the generate_video Agent tool</string>
+    <string name="ui_music_generation_model">Music generation model</string>
+    <string name="ui_music_generation_model_desc">Creates songs or instrumental music through the generate_music Agent tool</string>
+    <string name="ui_audio_generation_model">Audio generation model</string>
+    <string name="ui_audio_generation_model_desc">Creates speech, sound effects, or other non-music audio through the generate_audio Agent tool</string>
+    <string name="ui_media_generation_isolation_desc">The main LLM may optimize the prompt and call this dedicated model. Only the prompt and selected references are sent to the media model. Generated files are rendered directly in chat; the main LLM receives status metadata or an error, never the media bytes.</string>
+    <string name="ui_use_media_generation_model">Enable this media tool</string>
+    <string name="ui_media_generation_model_saved">Media generation model saved</string>
     <string name="ui_reachability_check">Reachability check</string>
     <string name="ui_select_at_least_one_model_to_check">Select at least one model to check</string>
     <string name="ui_checking_model_reachability">Checking model reachability...</string>
