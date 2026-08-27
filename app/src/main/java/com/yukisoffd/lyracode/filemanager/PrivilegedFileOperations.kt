@@ -80,13 +80,13 @@ internal class PrivilegedFileOperations(
         return privilegedResult(command) { parseEntries(it.stdout) }
     }
 
-    suspend fun readUtf8(file: File): Result<TextFileContent> {
+    suspend fun readUtf8(file: File, allowBinaryPreview: Boolean = false): Result<TextFileContent> {
         if (!isRestricted(file)) {
-            LocalFileOperations.readUtf8(file).onSuccess { return Result.success(it) }
+            LocalFileOperations.readUtf8(file, allowBinaryPreview).onSuccess { return Result.success(it) }
         }
         return prepareReadableCopy(file).fold(
             onSuccess = { staged ->
-                LocalFileOperations.readUtf8(staged).also {
+                LocalFileOperations.readUtf8(staged, allowBinaryPreview).also {
                     if (staged != file) staged.delete()
                 }
             },

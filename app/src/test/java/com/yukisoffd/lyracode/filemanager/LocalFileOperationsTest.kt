@@ -8,6 +8,21 @@ import java.nio.file.Files
 
 class LocalFileOperationsTest {
     @Test
+    fun forcedTextPreviewCanInspectAFileWithNullBytesReadOnly() {
+        val file = Files.createTempFile("lyra-forced-text-test", null).toFile()
+        try {
+            file.writeBytes(byteArrayOf('a'.code.toByte(), 0, 'b'.code.toByte()))
+
+            assertTrue(LocalFileOperations.readUtf8(file).isFailure)
+            val preview = LocalFileOperations.readUtf8(file, allowBinaryPreview = true).getOrThrow()
+            assertEquals("a\u0000b", preview.text)
+            assertTrue(preview.hasUtf8Errors)
+        } finally {
+            file.delete()
+        }
+    }
+
+    @Test
     fun totalSizeIncludesNestedFiles() {
         val root = Files.createTempDirectory("lyra-folder-size-test").toFile()
         try {

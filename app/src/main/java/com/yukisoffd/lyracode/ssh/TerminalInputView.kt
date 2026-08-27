@@ -5,24 +5,26 @@ import android.graphics.Color
 import android.text.InputType
 import android.util.Log
 import android.view.KeyEvent
+import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
-import android.view.inputmethod.InputConnectionWrapper
 import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 
 /**
- * A real text editor used as the IME endpoint for the raw terminal.
+ * Character-oriented IME endpoint for the raw terminal.
  *
- * Some Android keyboards refuse to send composing text or clipboard input to a bare [android.view.View]
- * with a hand-written BaseInputConnection. Using EditText's native connection keeps the full system
- * keyboard, symbols and clipboard available. The text is visually hidden and every IME operation is
- * mirrored to the PTY callbacks instead of being rendered by this view.
+ * A normal EditText connection may retain the first character as composing text. That is tolerable
+ * at a shell prompt because Enter commits it, but breaks modal programs: Vim never receives the `i`
+ * that enters insert mode. TYPE_NULL asks compatible keyboards for per-character key events, while
+ * commit/composition callbacks remain implemented for keyboards, Unicode text and clipboard paste
+ * that use them instead.
  */
 class TerminalInputView(context: Context) : EditText(context) {
     var onText: (String) -> Unit = {}
     var onBackspace: () -> Unit = {}
     var onEnter: () -> Unit = {}
+    var onTerminalKey: (String) -> Unit = {}
 
     private val composition = TerminalCompositionState(
         sendText = { dispatchText(it) },
@@ -33,12 +35,8 @@ class TerminalInputView(context: Context) : EditText(context) {
         isFocusable = true
         isFocusableInTouchMode = true
         isSingleLine = false
-        inputType = InputType.TYPE_CLASS_TEXT or
-            InputType.TYPE_TEXT_FLAG_MULTI_LINE or
-            InputType.TYPE_TEXT_VARIATION_NORMAL
-        imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or
-            EditorInfo.IME_FLAG_NO_FULLSCREEN or
-            EditorInfo.IME_ACTION_NONE
+        inputType = InputType.TYPE_NULL
+        imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or EditorInfo.IME_FLAG_NO_FULLSCREEN
         setTextColor(Color.TRANSPARENT)
         setHintTextColor(Color.TRANSPARENT)
         setBackgroundColor(Color.TRANSPARENT)
@@ -51,37 +49,34 @@ class TerminalInputView(context: Context) : EditText(context) {
         // Closing and reopening the keyboard may destroy the old InputConnection without first
         // calling finishComposingText(). Its stale word must not affect the next IME session.
         composition.finish()
-        val nativeConnection = super.onCreateInputConnection(outAttrs) ?: return null
+        BaseInputConnection.removeComposingSpans(text)
+        if (text.isNotEmpty()) text.clear()
         Log.d(TAG, "input connection created")
-        // This is intentionally a normal text field. Password variations trigger restricted
-        // keyboards on several OEM systems and disable clipboard and symbol input.
-        outAttrs.inputType = inputType
+        outAttrs.inputType = InputType.TYPE_NULL
         outAttrs.imeOptions = imeOptions
-        return object : InputConnectionWrapper(nativeConnection, true) {
+        return object : BaseInputConnection(this@TerminalInputView, true) {
             override fun commitText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 Log.d(TAG, "commitText chars=${text?.length ?: 0}")
                 composition.commit(text?.toString().orEmpty())
-                val handled = super.commitText(text, newCursorPosition)
-                trimBackingBufferWhenIdle()
-                return handled
+                return true
             }
 
             override fun setComposingText(text: CharSequence?, newCursorPosition: Int): Boolean {
                 Log.d(TAG, "setComposingText chars=${text?.length ?: 0}")
                 composition.update(text?.toString().orEmpty())
-                return super.setComposingText(text, newCursorPosition)
+                return true
             }
 
             override fun finishComposingText(): Boolean {
                 Log.d(TAG, "finishComposingText")
                 composition.finish()
-                return super.finishComposingText()
+                return true
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
                 Log.d(TAG, "deleteSurroundingText before=$beforeLength after=$afterLength")
                 composition.deleteBefore(beforeLength)
-                return super.deleteSurroundingText(beforeLength, afterLength)
+                return true
             }
 
             override fun deleteSurroundingTextInCodePoints(
@@ -90,7 +85,7 @@ class TerminalInputView(context: Context) : EditText(context) {
             ): Boolean {
                 Log.d(TAG, "deleteSurroundingTextInCodePoints before=$beforeLength after=$afterLength")
                 composition.deleteBefore(beforeLength)
-                return super.deleteSurroundingTextInCodePoints(beforeLength, afterLength)
+                return true
             }
 
             override fun sendKeyEvent(event: KeyEvent): Boolean {
@@ -101,6 +96,7 @@ class TerminalInputView(context: Context) : EditText(context) {
 
             override fun performEditorAction(actionCode: Int): Boolean {
                 Log.d(TAG, "performEditorAction action=$actionCode")
+                finishComposingInput()
                 onEnter()
                 return true
             }
@@ -130,13 +126,24 @@ class TerminalInputView(context: Context) : EditText(context) {
     }
 
     private fun dispatchTerminalKey(event: KeyEvent): Boolean = when (event.keyCode) {
+        KeyEvent.KEYCODE_ESCAPE -> dispatchControlSequence("\u001b")
+        KeyEvent.KEYCODE_TAB -> dispatchControlSequence("\t")
+        KeyEvent.KEYCODE_DPAD_UP -> dispatchControlSequence("\u001b[A")
+        KeyEvent.KEYCODE_DPAD_DOWN -> dispatchControlSequence("\u001b[B")
+        KeyEvent.KEYCODE_DPAD_RIGHT -> dispatchControlSequence("\u001b[C")
+        KeyEvent.KEYCODE_DPAD_LEFT -> dispatchControlSequence("\u001b[D")
+        KeyEvent.KEYCODE_MOVE_HOME -> dispatchControlSequence("\u001b[H")
+        KeyEvent.KEYCODE_MOVE_END -> dispatchControlSequence("\u001b[F")
+        KeyEvent.KEYCODE_PAGE_UP -> dispatchControlSequence("\u001b[5~")
+        KeyEvent.KEYCODE_PAGE_DOWN -> dispatchControlSequence("\u001b[6~")
+        KeyEvent.KEYCODE_FORWARD_DEL -> dispatchControlSequence("\u001b[3~")
         KeyEvent.KEYCODE_DEL -> {
             composition.deleteBefore(1)
             true
         }
         KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
             Log.d(TAG, "dispatch enter")
-            composition.finish()
+            finishComposingInput()
             onEnter()
             true
         }
@@ -152,13 +159,10 @@ class TerminalInputView(context: Context) : EditText(context) {
         }
     }
 
-    private fun trimBackingBufferWhenIdle() {
-        if (text.length <= MAX_BACKING_CHARS || composition.isComposing) return
-        post {
-            if (!composition.isComposing && text.length > MAX_BACKING_CHARS) {
-                text.clear()
-            }
-        }
+    private fun dispatchControlSequence(sequence: String): Boolean {
+        finishComposingInput()
+        onTerminalKey(sequence)
+        return true
     }
 
     fun focusAndShowKeyboard() {
@@ -171,8 +175,26 @@ class TerminalInputView(context: Context) : EditText(context) {
         }
     }
 
+    /**
+     * Ends the IME's editable word before a terminal control key changes shell/editor mode.
+     * Without this boundary, an IME can replace text composed in vim's insert mode after Esc and
+     * emit synthetic backspaces into the subsequent `:w` command.
+     */
+    fun finishComposingInput() {
+        composition.finish()
+        post {
+            BaseInputConnection.removeComposingSpans(text)
+            if (text.isNotEmpty()) text.clear()
+            if (hasFocus()) {
+                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager)?.let { manager ->
+                    manager.restartInput(this)
+                    manager.showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+                }
+            }
+        }
+    }
+
     private companion object {
-        const val MAX_BACKING_CHARS = 4096
         const val TAG = "LyraTerminalInput"
     }
 }

@@ -63,18 +63,19 @@ internal object LocalFileOperations {
         results
     }
 
-    fun readUtf8(file: File): Result<TextFileContent> = runCatching {
+    fun readUtf8(file: File, allowBinaryPreview: Boolean = false): Result<TextFileContent> = runCatching {
         require(file.isFile) { "Not a file: ${file.path}" }
         require(file.length() <= MAX_EDIT_BYTES) { "File is larger than 16 MiB" }
         val bytes = file.readBytes()
-        require(bytes.none { it == 0.toByte() }) { "Binary files cannot be edited as text" }
+        val hasNullBytes = bytes.any { it == 0.toByte() }
+        require(allowBinaryPreview || !hasNullBytes) { "Binary files cannot be edited as text" }
         val decoder = StandardCharsets.UTF_8.newDecoder()
             .onMalformedInput(CodingErrorAction.REPORT)
             .onUnmappableCharacter(CodingErrorAction.REPORT)
         val decoded = runCatching { decoder.decode(ByteBuffer.wrap(bytes)).toString() }
         TextFileContent(
             text = decoded.getOrElse { String(bytes, StandardCharsets.UTF_8) },
-            hasUtf8Errors = decoded.isFailure,
+            hasUtf8Errors = decoded.isFailure || hasNullBytes,
         )
     }
 

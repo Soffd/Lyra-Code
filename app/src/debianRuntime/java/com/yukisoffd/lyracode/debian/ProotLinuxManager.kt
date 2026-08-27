@@ -63,6 +63,13 @@ internal data class ProotCommandProcess(
     val supervisorPidFile: File,
 )
 
+internal data class ProotInteractiveShell(
+    val linuxId: String,
+    val process: Process,
+    val ttyFile: File,
+    val resizeSupported: Boolean,
+)
+
 /** Registry and lifecycle owner for multiple independent PRoot Linux installations. */
 internal class ProotLinuxManager private constructor(context: Context) {
     private val appContext = context.applicationContext
@@ -242,11 +249,22 @@ internal class ProotLinuxManager private constructor(context: Context) {
         }
     }
 
-    fun startInteractiveShell(id: String, workspaceRoot: String?, columns: Int, rows: Int): Process {
+    fun startInteractiveShell(id: String, workspaceRoot: String?, columns: Int, rows: Int): ProotInteractiveShell {
         val target = requireEnabled(id)
         prepareRootfs(target.rootfsDir)
         val workspace = workspaceRoot?.takeIf(String::isNotBlank)?.let(::File)?.canonicalFile?.takeIf(File::isDirectory)
-        val command = "stty cols ${columns.coerceIn(2, 500)} rows ${rows.coerceIn(2, 300)} 2>/dev/null; exec ${target.shellPath} -l"
+        val terminalStateDir = File(target.rootfsDir, "root/.lyracode/terminals").apply {
+            check(isDirectory || mkdirs()) { "Unable to create the PRoot terminal state directory." }
+        }
+        val terminalId = UUID.randomUUID().toString()
+        val ttyFile = File(terminalStateDir, "$terminalId.tty").also(File::delete)
+        val ttyGuestPath = "/root/.lyracode/terminals/$terminalId.tty"
+        val command = buildInteractiveShellCommand(
+            shellPath = target.shellPath,
+            ttyGuestPath = ttyGuestPath,
+            columns = columns,
+            rows = rows,
+        )
         val script = when {
             File(target.rootfsDir, "usr/bin/script").isFile -> "/usr/bin/script"
             File(target.rootfsDir, "bin/script").isFile -> "/bin/script"
@@ -259,7 +277,55 @@ internal class ProotLinuxManager private constructor(context: Context) {
             // shell over the process streams; installing util-linux upgrades this to a real PTY.
             listOf(target.shellPath, "-l")
         }
-        return startProcess(target, workspace, if (workspace == null) "/root" else "/workspace", guestCommand)
+        return ProotInteractiveShell(
+            linuxId = id,
+            process = startProcess(target, workspace, if (workspace == null) "/root" else "/workspace", guestCommand),
+            ttyFile = ttyFile,
+            resizeSupported = script != null,
+        )
+    }
+
+    /** Resizes the PTY created by util-linux `script`; TIOCSWINSZ also notifies vim via SIGWINCH. */
+    fun resizeInteractiveShell(shell: ProotInteractiveShell, columns: Int, rows: Int): Boolean {
+        if (!shell.resizeSupported || !shell.process.isAlive) return false
+        val ttyPath = discoverInteractiveTty(shell) ?: return false
+        val target = runCatching { requireEnabled(shell.linuxId) }.getOrNull() ?: return false
+        val resize = startProcess(
+            target = target,
+            workspace = null,
+            guestWorkDir = "/root",
+            guestCommand = listOf(
+                target.shellPath,
+                "-lc",
+                buildInteractiveShellResizeCommand(ttyPath, columns, rows),
+            ),
+        )
+        runCatching { resize.outputStream.close() }
+        val finished = runCatching { resize.waitFor(TERMINAL_RESIZE_TIMEOUT_MILLIS, TimeUnit.MILLISECONDS) }
+            .getOrDefault(false)
+        if (!finished) {
+            runCatching { resize.destroy() }
+            if (resize.isAlive) runCatching { resize.destroyForcibly() }
+        }
+        runCatching { resize.inputStream.close() }
+        runCatching { resize.errorStream.close() }
+        return finished && runCatching { resize.exitValue() == 0 }.getOrDefault(false)
+    }
+
+    private fun discoverInteractiveTty(shell: ProotInteractiveShell): String? {
+        val deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(TERMINAL_TTY_DISCOVERY_TIMEOUT_MILLIS)
+        while (shell.process.isAlive) {
+            val ttyPath = runCatching { shell.ttyFile.readText().trim() }.getOrNull()
+                ?.takeIf(::isSafePseudoTerminalPath)
+            if (ttyPath != null) return ttyPath
+            if (System.nanoTime() >= deadline) return null
+            runCatching { Thread.sleep(TERMINAL_TTY_DISCOVERY_POLL_MILLIS) }
+        }
+        return null
+    }
+
+    fun closeInteractiveShell(shell: ProotInteractiveShell) {
+        shell.ttyFile.delete()
     }
 
     fun startCommand(
@@ -624,6 +690,9 @@ internal class ProotLinuxManager private constructor(context: Context) {
         private const val BACKGROUND_REAP_INTERVAL_MILLIS = 1_000L
         private const val BACKGROUND_STOP_TIMEOUT_MILLIS = 2_000L
         private const val MAX_BACKGROUND_DRAIN_BYTES_PER_PASS = 256 * 1024
+        private const val TERMINAL_RESIZE_TIMEOUT_MILLIS = 2_000L
+        private const val TERMINAL_TTY_DISCOVERY_TIMEOUT_MILLIS = 1_000L
+        private const val TERMINAL_TTY_DISCOVERY_POLL_MILLIS = 25L
 
         @Volatile private var instance: ProotLinuxManager? = null
 
@@ -668,6 +737,24 @@ internal fun buildDetachedProotCommand(command: String, executionId: Long, shell
         printf 'background_started: true\nlauncher_pid: %s\noutput_file: %s\nnote: Launch accepted; verify the process and log separately.\n' "${'$'}lyra_launcher_pid" "${'$'}lyra_output_file"
     """.trimIndent()
 }
+
+internal fun buildInteractiveShellCommand(
+    shellPath: String,
+    ttyGuestPath: String,
+    columns: Int,
+    rows: Int,
+): String =
+    "umask 077; tty > ${shellSingleQuoteForProot(ttyGuestPath)}; " +
+        "stty cols ${columns.coerceIn(2, 500)} rows ${rows.coerceIn(2, 300)} 2>/dev/null; " +
+        "exec ${shellSingleQuoteForProot(shellPath)} -l"
+
+internal fun buildInteractiveShellResizeCommand(ttyPath: String, columns: Int, rows: Int): String {
+    require(isSafePseudoTerminalPath(ttyPath)) { "Unsafe PRoot terminal path." }
+    return "stty cols ${columns.coerceIn(2, 500)} rows ${rows.coerceIn(2, 300)} < ${shellSingleQuoteForProot(ttyPath)} 2>/dev/null"
+}
+
+private fun isSafePseudoTerminalPath(path: String): Boolean =
+    path.matches(Regex("^/dev/pts/[0-9]+$"))
 
 private fun shellSingleQuoteForProot(value: String): String =
     "'${value.replace("'", "'\"'\"'")}'"

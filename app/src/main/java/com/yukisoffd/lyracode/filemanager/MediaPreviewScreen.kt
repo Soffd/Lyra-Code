@@ -108,14 +108,42 @@ internal enum class MediaPreviewKind { IMAGE, AUDIO, VIDEO }
 
 private val imageExtensions = setOf("jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif", "dng")
 private val audioExtensions = setOf("mp3", "m4a", "aac", "wav", "flac", "ogg", "oga", "opus", "amr", "3ga", "ac3", "ec3")
-private val videoExtensions = setOf("mp4", "m4v", "mkv", "webm", "mov", "3gp", "3g2", "ts", "m2ts", "mts", "mpg", "mpeg", "flv", "avi")
+private val videoExtensions = setOf("mp4", "m4v", "mkv", "webm", "mov", "3gp", "3g2", "m2ts", "mts", "mpg", "mpeg", "flv", "avi")
 
-internal fun mediaPreviewKind(file: File): MediaPreviewKind? = when (file.extension.lowercase(Locale.ROOT)) {
-    in imageExtensions -> MediaPreviewKind.IMAGE
-    in audioExtensions -> MediaPreviewKind.AUDIO
-    in videoExtensions -> MediaPreviewKind.VIDEO
-    else -> null
+internal fun mediaPreviewKind(file: File): MediaPreviewKind? {
+    val extension = file.extension.lowercase(Locale.ROOT)
+    return when {
+        extension in imageExtensions -> MediaPreviewKind.IMAGE
+        extension in audioExtensions -> MediaPreviewKind.AUDIO
+        extension in videoExtensions -> MediaPreviewKind.VIDEO
+        extension == "ts" && looksLikeMpegTransportStream(file) -> MediaPreviewKind.VIDEO
+        else -> null
+    }
 }
+
+private fun looksLikeMpegTransportStream(file: File): Boolean = runCatching {
+    val probeSize = MPEG_TS_PACKET_SIZE * MPEG_TS_PROBE_PACKETS
+    val probe = file.inputStream().buffered().use { input ->
+        val buffer = ByteArray(probeSize)
+        var count = 0
+        while (count < buffer.size) {
+            val read = input.read(buffer, count, buffer.size - count)
+            if (read <= 0) break
+            count += read
+        }
+        if (count < probeSize) return@runCatching false
+        buffer
+    }
+    (0 until MPEG_TS_PACKET_SIZE).any { offset ->
+        (0 until MPEG_TS_PROBE_PACKETS).all { packet ->
+            probe[offset + packet * MPEG_TS_PACKET_SIZE] == MPEG_TS_SYNC_BYTE
+        }
+    }
+}.getOrDefault(false)
+
+private const val MPEG_TS_PACKET_SIZE = 188
+private const val MPEG_TS_PROBE_PACKETS = 3
+private const val MPEG_TS_SYNC_BYTE: Byte = 0x47
 
 @Composable
 internal fun MediaPreviewScreen(
