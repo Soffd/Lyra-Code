@@ -1,6 +1,8 @@
 package com.yukisoffd.lyracode.debian
 
 import org.junit.Assert.assertTrue
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Test
 
 class ProotCommandPreparationTest {
@@ -48,5 +50,30 @@ class ProotCommandPreparationTest {
         assertTrue(wrapper.contains("background_started: true"))
         assertTrue(wrapper.contains("launcher_pid: %s"))
         assertTrue(wrapper.contains("output_file: %s"))
+    }
+
+    @Test
+    fun interactiveShellPublishesItsPtyAndUsesBoundedDimensions() {
+        val command = buildInteractiveShellCommand(
+            shellPath = "/bin/bash",
+            ttyGuestPath = "/root/.lyracode/terminals/session.tty",
+            columns = 900,
+            rows = 1,
+        )
+
+        assertTrue(command.contains("tty > '/root/.lyracode/terminals/session.tty'"))
+        assertTrue(command.contains("stty cols 500 rows 2"))
+        assertTrue(command.contains("exec '/bin/bash' -l"))
+    }
+
+    @Test
+    fun interactiveResizeOnlyAcceptsKernelPtyPaths() {
+        assertEquals(
+            "stty cols 120 rows 36 < '/dev/pts/7' 2>/dev/null",
+            buildInteractiveShellResizeCommand("/dev/pts/7", 120, 36),
+        )
+        assertThrows(IllegalArgumentException::class.java) {
+            buildInteractiveShellResizeCommand("/dev/pts/7; touch /root/oops", 120, 36)
+        }
     }
 }

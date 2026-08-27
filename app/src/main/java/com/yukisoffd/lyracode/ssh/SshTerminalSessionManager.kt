@@ -97,8 +97,12 @@ class TerminalConnection internal constructor(
     private val generation = AtomicLong(0L)
     private val terminal = TerminalEmulator(cols, rows)
     private val writeQueue = Channel<ByteArray>(Channel.UNLIMITED)
+    private val resizeQueue = Channel<TerminalResize>(Channel.CONFLATED)
     private val writerJob = scope.launch {
         for (bytes in writeQueue) writeOnIo(bytes)
+    }
+    private val resizeJob = scope.launch {
+        for (resize in resizeQueue) resizeOnIo(resize)
     }
 
     private val _state = MutableStateFlow(SshTerminalState())
@@ -177,9 +181,6 @@ class TerminalConnection internal constructor(
 
     @Synchronized
     override fun resize(newCols: Int, newRows: Int, widthPx: Int, heightPx: Int) {
-        // Once connected, the PTY and emulator must remain the same size. This also protects a
-        // persistent connection when the Compose screen is recreated after navigation/config change.
-        if (transport?.channel?.isConnected == true || transport?.session?.isConnected == true) return
         val targetCols = newCols.coerceIn(2, 500)
         val targetRows = newRows.coerceIn(2, 300)
         val targetWidth = widthPx.coerceAtLeast(0)
@@ -191,10 +192,28 @@ class TerminalConnection internal constructor(
         pixelHeight = targetHeight
         terminal.resize(targetCols, targetRows)
         _screen.value = terminal.snapshot()
-        // Do not send window-change requests after a shell is connected. Some mobile SSH
-        // servers close their channel when window-change races with input/keepalive traffic.
-        // The latest dimensions are applied once when the next shell is opened.
+        if (transport?.channel?.isConnected == true && transport?.session?.isConnected == true) {
+            resizeQueue.trySend(TerminalResize(targetCols, targetRows, targetWidth, targetHeight))
+        }
     }
+
+    private fun resizeOnIo(resize: TerminalResize) = runCatching {
+        synchronized(writeLock) {
+            // A conflated request can still become stale while waiting for an in-flight write.
+            if (
+                resize.columns != cols || resize.rows != rows ||
+                resize.widthPx != pixelWidth || resize.heightPx != pixelHeight
+            ) return@runCatching false
+            val active = transport ?: return@runCatching false
+            if (active.channel.isConnected != true || active.session.isConnected != true) {
+                return@runCatching false
+            }
+            active.channel.setPtySize(resize.columns, resize.rows, resize.widthPx, resize.heightPx)
+        }
+        Log.d(TAG, "PTY resized cols=${resize.columns} rows=${resize.rows}")
+        true
+    }.onFailure { Log.w(TAG, "PTY resize failed type=${it.javaClass.simpleName}", it) }
+        .getOrDefault(false)
 
     private suspend fun runConnectionLoop(myGeneration: Long) {
         var reconnecting = false
@@ -309,11 +328,19 @@ class TerminalConnection internal constructor(
 
     override fun close() {
         writeQueue.close()
+        resizeQueue.close()
         writerJob.cancel()
+        resizeJob.cancel()
         disconnect(markRequested = true)
     }
 
     private data class ConnectionResult(val connected: Boolean, val connectedDurationMs: Long)
+    private data class TerminalResize(
+        val columns: Int,
+        val rows: Int,
+        val widthPx: Int,
+        val heightPx: Int,
+    )
 
     private class TerminalTransport(
         val session: Session,

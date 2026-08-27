@@ -87,6 +87,7 @@ import com.yukisoffd.lyracode.ssh.TerminalSelectionText
 import com.yukisoffd.lyracode.ssh.TerminalViewport
 import com.yukisoffd.lyracode.ssh.TerminalSnapshot
 import kotlin.math.ceil
+import kotlinx.coroutines.delay
 
 @Composable
 internal fun TerminalScreen(
@@ -224,8 +225,6 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
     var alt by rememberSaveable { mutableStateOf(false) }
     var renderWidth by remember { mutableIntStateOf(0) }
     var renderHeight by remember { mutableIntStateOf(0) }
-    var terminalWidth by remember(connection) { mutableIntStateOf(0) }
-    var terminalHeight by remember(connection) { mutableIntStateOf(0) }
     var scrollOffsetRows by remember(connection) { mutableIntStateOf(0) }
     var priorSnapshotRows by remember(connection) { mutableIntStateOf(screen.rows) }
     var scrollRemainder by remember(connection) { mutableStateOf(0f) }
@@ -326,13 +325,14 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
         if (sequence.length == 1 && sequence[0].code >= 32) { ctrl = false; alt = false }
     }
 
-    LaunchedEffect(terminalWidth, terminalHeight, cellWidth, cellHeight, connection) {
-        if (terminalWidth > 0 && terminalHeight > 0 && connection != null) {
-            // These are the largest observed dimensions, not the current IME-reduced viewport.
-            // Opening/closing the keyboard must never mutate PTY dimensions.
-            val columns = ((terminalWidth - with(density) { 4.dp.toPx() }) / cellWidth).toInt().coerceAtLeast(2)
-            val rows = (terminalHeight / cellHeight).toInt().coerceAtLeast(2)
-            connection.resize(columns, rows, terminalWidth, terminalHeight)
+    LaunchedEffect(renderWidth, renderHeight, cellWidth, cellHeight, connection) {
+        if (renderWidth > 0 && renderHeight > 0 && connection != null) {
+            // Let an IME animation settle before sending a window-change. Full-screen programs
+            // then redraw their status/command rows inside the actually visible terminal area.
+            delay(TERMINAL_RESIZE_SETTLE_MILLIS)
+            val columns = ((renderWidth - with(density) { 4.dp.toPx() }) / cellWidth).toInt().coerceAtLeast(2)
+            val rows = (renderHeight / cellHeight).toInt().coerceAtLeast(2)
+            connection.resize(columns, rows, renderWidth, renderHeight)
         }
     }
     LaunchedEffect(screen.rows) {
@@ -417,10 +417,6 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
                     .onSizeChanged {
                         renderWidth = it.width
                         renderHeight = it.height
-                        // IME opening only makes the viewport smaller, so it is deliberately
-                        // ignored for terminal/PTY sizing. Closing restores the same maxima.
-                        if (it.width > terminalWidth) terminalWidth = it.width
-                        if (it.height > terminalHeight) terminalHeight = it.height
                     },
             ) {
                 drawIntoCanvas { canvas ->
@@ -480,6 +476,7 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
                         it.onText = ::sendText
                         it.onBackspace = { sendRaw("\u007f") }
                         it.onEnter = { sendRaw("\r") }
+                        it.onTerminalKey = ::sendRaw
                     }
                 },
                 update = {
@@ -487,6 +484,7 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
                     it.onText = ::sendText
                     it.onBackspace = { sendRaw("\u007f") }
                     it.onEnter = { sendRaw("\r") }
+                    it.onTerminalKey = ::sendRaw
                 },
                 modifier = Modifier
                     .size(1.dp)
@@ -561,20 +559,25 @@ private fun TerminalSurface(screen: TerminalSnapshot, connection: TerminalSessio
             ctrl = ctrl,
             alt = alt,
             onCtrl = {
+                terminalInputView?.finishComposingInput()
                 ctrl = !ctrl
                 focusTerminalInput()
             },
             onAlt = {
+                terminalInputView?.finishComposingInput()
                 alt = !alt
                 focusTerminalInput()
             },
             onKey = { sequence ->
+                terminalInputView?.finishComposingInput()
                 sendKey(sequence)
                 focusTerminalInput()
             },
         )
     }
 }
+
+private const val TERMINAL_RESIZE_SETTLE_MILLIS = 120L
 
 private data class TerminalTarget(
     val id: String,

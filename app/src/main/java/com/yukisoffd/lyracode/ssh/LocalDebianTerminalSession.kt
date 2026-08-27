@@ -2,6 +2,7 @@ package com.yukisoffd.lyracode.ssh
 
 import android.content.Context
 import android.util.Log
+import com.yukisoffd.lyracode.debian.ProotInteractiveShell
 import com.yukisoffd.lyracode.debian.ProotLinuxManager
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
@@ -56,7 +57,7 @@ class LocalProotTerminalConnection internal constructor(
     private val workspaceRoot: () -> String?,
     private val scope: CoroutineScope,
 ) : TerminalSession {
-    @Volatile private var process: Process? = null
+    @Volatile private var interactiveShell: ProotInteractiveShell? = null
     @Volatile private var requestedClose = false
     @Volatile private var cols = 80
     @Volatile private var rows = 24
@@ -64,41 +65,53 @@ class LocalProotTerminalConnection internal constructor(
     private var processJob: Job? = null
     private val terminal = TerminalEmulator(cols, rows)
     private val writeQueue = Channel<ByteArray>(Channel.UNLIMITED)
+    private val resizeQueue = Channel<TerminalResize>(Channel.CONFLATED)
     private val _state = MutableStateFlow(SshTerminalState())
     override val state: StateFlow<SshTerminalState> = _state.asStateFlow()
     private val _screen = MutableStateFlow(terminal.snapshot())
     override val screen: StateFlow<TerminalSnapshot> = _screen.asStateFlow()
     private val writerJob = scope.launch {
         for (bytes in writeQueue) {
-            val active = process ?: continue
+            val active = interactiveShell?.process ?: continue
             runCatching {
                 active.outputStream.write(bytes)
                 active.outputStream.flush()
             }.onFailure { Log.e(TAG, "Local PTY write failed", it) }
         }
     }
+    private val resizeJob = scope.launch {
+        for (resize in resizeQueue) {
+            val active = interactiveShell ?: continue
+            if (active.process.isAlive) {
+                runtime.resizeInteractiveShell(active, resize.columns, resize.rows)
+            }
+        }
+    }
 
     override fun connect() {
-        if (process?.isAlive == true || processJob?.isActive == true) return
+        if (interactiveShell?.process?.isAlive == true || processJob?.isActive == true) return
         requestedClose = false
         val myGeneration = generation.incrementAndGet()
         processJob = scope.launch {
             _state.value = SshTerminalState(SshTerminalStatus.CONNECTING, SshTerminalMessage.CONNECTING)
+            var started: ProotInteractiveShell? = null
             try {
-                val started = runtime.startInteractiveShell(linuxId, workspaceRoot(), cols, rows)
+                val active = runtime.startInteractiveShell(linuxId, workspaceRoot(), cols, rows)
+                started = active
                 if (generation.get() != myGeneration || requestedClose) {
-                    started.destroyForcibly()
+                    active.process.destroyForcibly()
                     return@launch
                 }
-                process = started
+                interactiveShell = active
+                resizeQueue.trySend(TerminalResize(cols, rows))
                 _state.value = SshTerminalState(
                     SshTerminalStatus.CONNECTED,
                     SshTerminalMessage.CONNECTED,
                     connectedAt = System.currentTimeMillis(),
                 )
                 val buffer = ByteArray(16 * 1024)
-                started.inputStream.use { input ->
-                    while (!requestedClose && started.isAlive) {
+                active.process.inputStream.use { input ->
+                    while (!requestedClose && active.process.isAlive) {
                         val count = input.read(buffer)
                         if (count < 0) break
                         if (count > 0) {
@@ -116,13 +129,16 @@ class LocalProotTerminalConnection internal constructor(
                     _state.value = SshTerminalState(SshTerminalStatus.ERROR, SshTerminalMessage.CONNECTION_FAILED)
                 }
             } finally {
-                process = null
+                started?.let { active ->
+                    if (interactiveShell === active) interactiveShell = null
+                    runtime.closeInteractiveShell(active)
+                }
             }
         }
     }
 
     override fun write(bytes: ByteArray): Boolean {
-        if (process?.isAlive != true) return false
+        if (interactiveShell?.process?.isAlive != true) return false
         return writeQueue.trySend(bytes.copyOf()).isSuccess
     }
 
@@ -130,12 +146,16 @@ class LocalProotTerminalConnection internal constructor(
 
     @Synchronized
     override fun resize(newCols: Int, newRows: Int, widthPx: Int, heightPx: Int) {
-        // The local PTY size is selected before Bash starts, matching the SSH session policy.
-        if (process?.isAlive == true) return
-        cols = newCols.coerceIn(2, 500)
-        rows = newRows.coerceIn(2, 300)
-        terminal.resize(cols, rows)
+        val targetCols = newCols.coerceIn(2, 500)
+        val targetRows = newRows.coerceIn(2, 300)
+        if (targetCols == cols && targetRows == rows) return
+        cols = targetCols
+        rows = targetRows
+        terminal.resize(targetCols, targetRows)
         _screen.value = terminal.snapshot()
+        if (interactiveShell?.process?.isAlive == true) {
+            resizeQueue.trySend(TerminalResize(targetCols, targetRows))
+        }
     }
 
     override fun disconnect(markRequested: Boolean) {
@@ -143,12 +163,13 @@ class LocalProotTerminalConnection internal constructor(
         generation.incrementAndGet()
         processJob?.cancel()
         processJob = null
-        process?.let { active ->
-            runCatching { active.outputStream.close() }
-            active.destroy()
-            if (active.isAlive) active.destroyForcibly()
+        interactiveShell?.let { active ->
+            runCatching { active.process.outputStream.close() }
+            active.process.destroy()
+            if (active.process.isAlive) active.process.destroyForcibly()
+            runtime.closeInteractiveShell(active)
         }
-        process = null
+        interactiveShell = null
         if (markRequested) {
             _state.value = SshTerminalState(SshTerminalStatus.DISCONNECTED, SshTerminalMessage.DISCONNECTED)
         }
@@ -156,11 +177,15 @@ class LocalProotTerminalConnection internal constructor(
 
     override fun close() {
         writeQueue.close()
+        resizeQueue.close()
         writerJob.cancel()
+        resizeJob.cancel()
         disconnect(true)
     }
 
     private companion object {
         const val TAG = "LyraTerminalDebian"
     }
+
+    private data class TerminalResize(val columns: Int, val rows: Int)
 }

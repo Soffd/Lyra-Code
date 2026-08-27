@@ -48,4 +48,18 @@ class TerminalCompositionStateTest {
 
         assertEquals(listOf("old", "n"), events)
     }
+
+    @Test
+    fun `editor mode boundary does not rewrite insert text into save command`() {
+        val events = mutableListOf<String>()
+        val state = TerminalCompositionState(events::add) { events += "BACKSPACE" }
+
+        state.update("body")
+        state.finish() // terminal toolbar Esc
+        state.update(":")
+        state.finish()
+        state.update("w")
+
+        assertEquals(listOf("body", ":", "w"), events)
+    }
 }

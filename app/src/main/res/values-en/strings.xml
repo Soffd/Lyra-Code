@@ -1335,6 +1335,12 @@
     <string name="file_action_copy">Copy</string>
     <string name="file_action_move">Move</string>
     <string name="file_action_properties">Properties</string>
+    <string name="file_action_open_with">Open with</string>
+    <string name="file_open_with_title">Open with</string>
+    <string name="file_open_as_text">Open as text</string>
+    <string name="file_open_as_image">Open as image</string>
+    <string name="file_open_as_video">Open as video</string>
+    <string name="file_open_as_audio">Open as audio</string>
     <string name="file_action_preview_html">Preview in browser</string>
     <string name="file_action_rename">Rename</string>
     <string name="file_action_unzip">Extract here</string>

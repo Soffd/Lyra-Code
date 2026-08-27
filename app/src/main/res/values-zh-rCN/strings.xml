@@ -1418,6 +1418,12 @@
     <string name="file_action_copy">复制</string>
     <string name="file_action_move">移动</string>
     <string name="file_action_properties">属性</string>
+    <string name="file_action_open_with">打开方式</string>
+    <string name="file_open_with_title">选择打开方式</string>
+    <string name="file_open_as_text">以文本形式打开</string>
+    <string name="file_open_as_image">以图片形式打开</string>
+    <string name="file_open_as_video">以视频形式打开</string>
+    <string name="file_open_as_audio">以音频形式打开</string>
     <string name="file_action_preview_html">在浏览器中预览</string>
     <string name="file_action_rename">重命名</string>
     <string name="file_action_unzip">解压到当前目录</string>

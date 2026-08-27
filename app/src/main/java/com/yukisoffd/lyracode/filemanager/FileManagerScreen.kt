@@ -82,6 +82,7 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NavigateBefore
 import androidx.compose.material.icons.filled.NavigateNext
 import androidx.compose.material.icons.filled.OpenInBrowser
+import androidx.compose.material.icons.filled.OpenWith
 import androidx.compose.material.icons.filled.Redo
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Save
@@ -276,6 +277,33 @@ internal fun FileManagerScreen(
                     val result = withContext(Dispatchers.IO) { fileOperations.readUtf8(file) }
                     result.onSuccess { openFile = file to it }
                         .onFailure { openExternalFile(context, file) }
+                }
+            },
+            onOpenFileAs = { file, mode ->
+                when (mode) {
+                    FileOpenMode.TEXT -> {
+                        previewFile = null
+                        scope.launch {
+                            withContext(Dispatchers.IO) {
+                                fileOperations.readUtf8(file, allowBinaryPreview = true)
+                            }.onSuccess { openFile = file to it }
+                                .onFailure { showError(context, it) }
+                        }
+                    }
+                    FileOpenMode.IMAGE, FileOpenMode.VIDEO, FileOpenMode.AUDIO -> {
+                        openFile = null
+                        val mediaKind = when (mode) {
+                            FileOpenMode.IMAGE -> MediaPreviewKind.IMAGE
+                            FileOpenMode.VIDEO -> MediaPreviewKind.VIDEO
+                            FileOpenMode.AUDIO -> MediaPreviewKind.AUDIO
+                            FileOpenMode.TEXT -> error("Text mode is handled separately")
+                        }
+                        scope.launch {
+                            fileOperations.prepareReadableCopy(file)
+                                .onSuccess { previewFile = it to mediaKind }
+                                .onFailure { showError(context, it) }
+                        }
+                    }
                 }
             },
         )
@@ -490,6 +518,7 @@ private fun DualPaneFileManager(
     settings: AppSettings,
     systemCommandExecutor: SystemCommandExecutor,
     onOpenFile: (File) -> Unit,
+    onOpenFileAs: (File, FileOpenMode) -> Unit,
     onExit: () -> Unit,
     externalRefreshRevision: Int,
     prootInstancesDirectory: File,
@@ -515,6 +544,7 @@ private fun DualPaneFileManager(
     var deleteTarget by remember { mutableStateOf<PaneAction?>(null) }
     var renameTarget by remember { mutableStateOf<PaneAction?>(null) }
     var propertiesTarget by remember { mutableStateOf<File?>(null) }
+    var openWithTarget by remember { mutableStateOf<File?>(null) }
     var createFolderPane by remember { mutableStateOf<Int?>(null) }
     var createFilePane by remember { mutableStateOf<Int?>(null) }
     var leftSelection by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -734,6 +764,10 @@ private fun DualPaneFileManager(
             },
             onRename = { action = null; renameTarget = selected },
             onProperties = { action = null; propertiesTarget = selected.file },
+            onOpenWith = {
+                action = null
+                openWithTarget = selected.file
+            },
             onPreviewHtml = {
                 action = null
                 previewHtmlInBrowser(context, selected.file)
@@ -841,6 +875,16 @@ private fun DualPaneFileManager(
     }
     propertiesTarget?.let { file ->
         FilePropertiesDialog(file = file, fileOperations = fileOperations, onDismiss = { propertiesTarget = null })
+    }
+    openWithTarget?.let { file ->
+        OpenWithDialog(
+            file = file,
+            onDismiss = { openWithTarget = null },
+            onOpen = { mode ->
+                openWithTarget = null
+                onOpenFileAs(file, mode)
+            },
+        )
     }
 
     Box(
@@ -1480,10 +1524,11 @@ private fun FileVisual(entry: LocalFileEntry) {
         return
     }
     val extension = entry.file.extension.lowercase()
+    val mediaKind = mediaPreviewKind(entry.file)
     when {
-        mediaPreviewKind(entry.file) == MediaPreviewKind.IMAGE -> ImageThumbnail(entry.file)
-        mediaPreviewKind(entry.file) == MediaPreviewKind.VIDEO -> FileCategoryIcon(Icons.Default.Movie, MaterialTheme.colorScheme.primary)
-        mediaPreviewKind(entry.file) == MediaPreviewKind.AUDIO -> FileCategoryIcon(Icons.Default.MusicNote, Color(0xFF7E57C2))
+        mediaKind == MediaPreviewKind.IMAGE -> ImageThumbnail(entry.file)
+        mediaKind == MediaPreviewKind.VIDEO -> FileCategoryIcon(Icons.Default.Movie, MaterialTheme.colorScheme.primary)
+        mediaKind == MediaPreviewKind.AUDIO -> FileCategoryIcon(Icons.Default.MusicNote, Color(0xFF7E57C2))
         isAndroidPackageFile(entry.file) -> FileCategoryIcon(Icons.Default.Android, Color(0xFF3DDC84))
         extension in archiveExtensions -> FileCategoryIcon(Icons.Default.UnfoldMore, Color(0xFFFF8F00))
         extension in codeLanguageMarks -> CodeLanguageBadge(extension)
@@ -1599,6 +1644,7 @@ private fun FileActionDialog(
     onMove: () -> Unit,
     onRename: () -> Unit,
     onProperties: () -> Unit,
+    onOpenWith: () -> Unit,
     onPreviewHtml: () -> Unit,
     onUnzip: () -> Unit,
     onDelete: () -> Unit,
@@ -1613,6 +1659,9 @@ private fun FileActionDialog(
                 DialogAction(Icons.Default.DriveFileMove, context.getString(R.string.file_action_move_other), onMove)
                 DialogAction(Icons.Default.Edit, context.getString(R.string.file_action_rename), onRename)
                 DialogAction(Icons.Default.Info, context.getString(R.string.file_action_properties), onProperties)
+                if (target.isFile) {
+                    DialogAction(Icons.Default.OpenWith, context.getString(R.string.file_action_open_with), onOpenWith)
+                }
                 if (target.isFile && target.extension.lowercase() in setOf("html", "htm")) {
                     DialogAction(Icons.Default.OpenInBrowser, context.getString(R.string.file_action_preview_html), onPreviewHtml)
                 }
@@ -1623,6 +1672,55 @@ private fun FileActionDialog(
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text(context.getString(android.R.string.cancel)) } },
+    )
+}
+
+internal enum class FileOpenMode { TEXT, IMAGE, VIDEO, AUDIO }
+
+@Composable
+private fun OpenWithDialog(
+    file: File,
+    onDismiss: () -> Unit,
+    onOpen: (FileOpenMode) -> Unit,
+) {
+    val context = LocalContext.current
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(context.getString(R.string.file_open_with_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(
+                    file.name,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+                )
+                DialogAction(
+                    Icons.Default.Description,
+                    context.getString(R.string.file_open_as_text),
+                    onClick = { onOpen(FileOpenMode.TEXT) },
+                )
+                DialogAction(
+                    Icons.Default.ImageIcon,
+                    context.getString(R.string.file_open_as_image),
+                    onClick = { onOpen(FileOpenMode.IMAGE) },
+                )
+                DialogAction(
+                    Icons.Default.Movie,
+                    context.getString(R.string.file_open_as_video),
+                    onClick = { onOpen(FileOpenMode.VIDEO) },
+                )
+                DialogAction(
+                    Icons.Default.MusicNote,
+                    context.getString(R.string.file_open_as_audio),
+                    onClick = { onOpen(FileOpenMode.AUDIO) },
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) { Text(context.getString(android.R.string.cancel)) }
+        },
     )
 }
 
