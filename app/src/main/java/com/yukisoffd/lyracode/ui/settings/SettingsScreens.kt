@@ -138,6 +138,8 @@ internal fun SettingsScreen(
         "font_library" -> "font"
         "topic_summary_model_topic",
         "topic_summary_model_compression",
+        "topic_summary_model_vision",
+        "topic_summary_model_ocr",
         "topic_summary_model_media_image",
         "topic_summary_model_media_video",
         "topic_summary_model_media_music",
@@ -244,10 +246,14 @@ internal fun SettingsScreen(
                     "topic_summary_model" -> TopicSummaryModelSettings(
                         onOpenTopic = { detail = "topic_summary_model_topic" },
                         onOpenCompression = { detail = "topic_summary_model_compression" },
+                        onOpenVision = { detail = "topic_summary_model_vision" },
+                        onOpenOcr = { detail = "topic_summary_model_ocr" },
                         onOpenMedia = { kind -> detail = "topic_summary_model_media_${kind.value}" },
                     )
                     "topic_summary_model_topic" -> TopicSummaryModelEditor(settings, controller)
                     "topic_summary_model_compression" -> HistoryCompressionModelEditor(settings, controller)
+                    "topic_summary_model_vision" -> VisionUnderstandingModelEditor(settings, controller)
+                    "topic_summary_model_ocr" -> OcrModelEditor(settings, controller)
                     "topic_summary_model_media_image" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.IMAGE)
                     "topic_summary_model_media_video" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.VIDEO)
                     "topic_summary_model_media_music" -> MediaGenerationModelEditor(settings, controller, MediaGenerationKind.MUSIC)
@@ -560,6 +566,8 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "topic_summary_model" -> context.getString(R.string.detail_topic_summary_model)
     "topic_summary_model_topic" -> uiText(R.string.ui_topic_summary_model)
     "topic_summary_model_compression" -> uiText(R.string.label_history_compression_model)
+    "topic_summary_model_vision" -> uiText(R.string.label_vision_understanding_model)
+    "topic_summary_model_ocr" -> uiText(R.string.label_ocr_model)
     "topic_summary_model_media_image" -> uiText(R.string.ui_image_generation_model)
     "topic_summary_model_media_video" -> uiText(R.string.ui_video_generation_model)
     "topic_summary_model_media_music" -> uiText(R.string.ui_music_generation_model)
@@ -609,6 +617,8 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
 private val ADDITIONAL_MODEL_DETAIL_IDS = setOf(
     "topic_summary_model_topic",
     "topic_summary_model_compression",
+    "topic_summary_model_vision",
+    "topic_summary_model_ocr",
     "topic_summary_model_media_image",
     "topic_summary_model_media_video",
     "topic_summary_model_media_music",

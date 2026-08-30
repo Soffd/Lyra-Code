@@ -1550,7 +1550,9 @@ class OpenAiAgent(
     ): JSONArray {
         val messages = JSONArray()
         if (mediaGeneration) {
-            mediaGenerationHistory(conversationId, excludeMessageId).forEach { messages.put(it.toPromptJson()) }
+            mediaGenerationHistory(conversationId, excludeMessageId).forEach {
+                messages.put(it.toPromptJson(routeVisualAttachments = false))
+            }
         } else {
             systemMessagesFor(conversationId).forEach(messages::put)
             val history = openAiHistoryGroups(conversationId, excludeMessageId)
@@ -1778,7 +1780,16 @@ class OpenAiAgent(
         while (index < source.size) {
             val message = source[index]
             when (message.role) {
-                "user", RUNTIME_CONTEXT_ROLE -> output.put(JSONObject().put("role", "user").put("content", anthropicUserContent(message.content)))
+                "user", RUNTIME_CONTEXT_ROLE -> output.put(
+                    JSONObject().put("role", "user").put(
+                        "content",
+                        anthropicUserContent(
+                            message.content,
+                            message.id,
+                            routeVisualAttachments = settings.isVisionSupplementRoutingEnabled() && !mediaGeneration,
+                        ),
+                    ),
+                )
                 "assistant" -> {
                     val toolUseIds = message.anthropicToolUseIds()
                     if (toolUseIds.isEmpty()) {
@@ -1812,11 +1823,15 @@ class OpenAiAgent(
         return output
     }
 
-    private fun anthropicUserContent(content: String): JSONArray {
+    private fun anthropicUserContent(
+        content: String,
+        messageId: Long = 0L,
+        routeVisualAttachments: Boolean = settings.isVisionSupplementRoutingEnabled(),
+    ): JSONArray {
         if (!hasUploadedAttachments(content)) {
             return JSONArray().put(JSONObject().put("type", "text").put("text", content.ifBlank { " " }))
         }
-        val openAi = userPromptWithAttachments(content)
+        val openAi = userPromptWithAttachments(content, messageId, routeVisualAttachments)
         val parts = openAi.optJSONArray("content") ?: JSONArray()
         return JSONArray().also { output ->
             for (index in 0 until parts.length()) {
@@ -1892,7 +1907,16 @@ class OpenAiAgent(
         val output = JSONArray()
         providerHistory(conversationId, excludeMessageId, mediaGeneration).forEach { message ->
             when (message.role) {
-                "user", RUNTIME_CONTEXT_ROLE -> output.put(JSONObject().put("role", "user").put("parts", geminiUserParts(message.content)))
+                "user", RUNTIME_CONTEXT_ROLE -> output.put(
+                    JSONObject().put("role", "user").put(
+                        "parts",
+                        geminiUserParts(
+                            message.content,
+                            message.id,
+                            routeVisualAttachments = settings.isVisionSupplementRoutingEnabled() && !mediaGeneration,
+                        ),
+                    ),
+                )
                 "assistant" -> output.put(JSONObject().put("role", "model").put("parts", geminiAssistantParts(message)))
                 "tool" -> output.put(JSONObject().put("role", "user").put("parts", JSONArray().put(geminiFunctionResponse(message))))
             }
@@ -1900,9 +1924,13 @@ class OpenAiAgent(
         return output
     }
 
-    private fun geminiUserParts(content: String): JSONArray {
+    private fun geminiUserParts(
+        content: String,
+        messageId: Long = 0L,
+        routeVisualAttachments: Boolean = settings.isVisionSupplementRoutingEnabled(),
+    ): JSONArray {
         if (!hasUploadedAttachments(content)) return JSONArray().put(JSONObject().put("text", content.ifBlank { " " }))
-        val openAi = userPromptWithAttachments(content)
+        val openAi = userPromptWithAttachments(content, messageId, routeVisualAttachments)
         val parts = openAi.optJSONArray("content") ?: JSONArray()
         return JSONArray().also { output ->
             for (index in 0 until parts.length()) {
@@ -2222,6 +2250,8 @@ class OpenAiAgent(
                 "global_delete_file_or_folder" -> ToolExecution(globalFileManager.delete(args.getString("path")).getOrThrow())
                 "global_rename_move" -> ToolExecution(globalFileManager.renameMove(args.getString("from"), args.getString("to")).getOrThrow())
                 "download_file" -> downloadFile(args)
+                VISION_UNDERSTANDING_TOOL_NAME -> analyzeImageAttachments(conversationId, args)
+                OCR_TOOL_NAME -> extractImageText(conversationId, args)
                 "generate_image", "generate_video", "generate_music", "generate_audio" ->
                     generateMedia(conversationId, mediaGenerationKindForTool(call.name)!!, args)
                 "manage_scheduled_tasks" -> ToolExecution(manageScheduledTasks(args))
@@ -2598,6 +2628,246 @@ class OpenAiAgent(
                 .toString(),
         )
     }
+
+    private suspend fun analyzeImageAttachments(conversationId: Long, args: JSONObject): ToolExecution {
+        require(settings.isVisionSupplementRoutingEnabled()) { "Visual supplement routing is disabled or no provider is configured." }
+        val (message, attachments) = imageAttachmentsForTool(conversationId, args)
+        val instruction = args.getString("instruction").trim()
+        require(instruction.isNotBlank()) { "instruction must not be empty." }
+        settings.visionUnderstandingModelOrNull()?.let { (profile, model) ->
+            val report = requestVisionSupplementModel(
+                profile = profile,
+                model = model,
+                systemInstruction = settings.visionUnderstandingConfig().relayPrompt,
+                userInstruction = "Requested visual focus: $instruction",
+                attachments = attachments,
+            )
+            return visionSupplementToolResult(
+                operation = "visual_understanding",
+                source = "model",
+                sourceName = "${profile.name} / $model",
+                messageId = message.id,
+                attachmentCount = attachments.size,
+                content = report,
+            )
+        }
+        val (server, tool) = settings.visionUnderstandingMcpToolOrNull()
+            ?: error("No visual understanding model or MCP tool is configured. Configure one in Settings > Additional feature models.")
+        val reports = mutableListOf<JSONObject>()
+        attachments.forEachIndexed { index, attachment ->
+            val dataUrl = attachment.dataUrl.takeIf { it.isNotBlank() }
+                ?: mediaDataUrl(attachment.uri, attachment.mimeType)
+                ?: error("Image ${attachment.name} could not be read.")
+            val mcpArguments = buildVisionMcpArguments(
+                inputSchema = tool.inputSchema,
+                image = VisionMcpImage(attachment.name, attachment.mimeType, dataUrl),
+                instruction = settings.visionUnderstandingConfig().relayPrompt + "\n\nRequested visual focus: " + instruction,
+            )
+            val result = mcpClientManager.callTool(server, tool, mcpArguments)
+            reports += JSONObject()
+                .put("image_index", index + 1)
+                .put("name", attachment.name)
+                .put("content", result.content)
+        }
+        return visionSupplementToolResult(
+            operation = "visual_understanding",
+            source = "mcp",
+            sourceName = "${server.name} / ${tool.name}",
+            messageId = message.id,
+            attachmentCount = attachments.size,
+            content = JSONArray(reports).toString(),
+        )
+    }
+
+    private fun extractImageText(conversationId: Long, args: JSONObject): ToolExecution {
+        require(settings.isVisionSupplementRoutingEnabled()) { "Visual supplement routing is disabled or no provider is configured." }
+        val (message, attachments) = imageAttachmentsForTool(conversationId, args)
+        val (profile, model) = settings.ocrModelOrNull()
+            ?: error("No OCR model is configured. Configure one in Settings > Additional feature models.")
+        val languageHint = args.optString("language_hint").trim()
+        val instruction = buildString {
+            append("Extract all visible text from the supplied image or images. Preserve the original wording, numbers, punctuation, reading order, line breaks, table structure, and labels as faithfully as possible. Do not answer questions, summarize, translate, or add explanations. Mark uncertain characters explicitly.")
+            if (languageHint.isNotBlank()) append(" Expected language or script: ").append(languageHint).append('.')
+        }
+        val report = requestVisionSupplementModel(
+            profile = profile,
+            model = model,
+            systemInstruction = "",
+            userInstruction = instruction,
+            attachments = attachments,
+        )
+        return visionSupplementToolResult(
+            operation = "ocr",
+            source = "model",
+            sourceName = "${profile.name} / $model",
+            messageId = message.id,
+            attachmentCount = attachments.size,
+            content = report,
+        )
+    }
+
+    private fun imageAttachmentsForTool(
+        conversationId: Long,
+        args: JSONObject,
+    ): Pair<ChatMessage, List<UploadedAttachmentPrompt>> {
+        require(conversationId > 0L) { "Vision supplement tools are available only inside a foreground conversation." }
+        val requestedId = args.optString("message_id").trim().toLongOrNull()
+        val messages = conversationStore.messages(conversationId)
+        val message = if (requestedId != null) {
+            messages.firstOrNull { it.id == requestedId && it.role == "user" }
+                ?: error("User message does not exist in this conversation: $requestedId")
+        } else {
+            messages.asReversed().firstOrNull { item ->
+                item.role == "user" && parseUploadedAttachments(item.content).any { it.kind == "image" }
+            } ?: error("No user image attachment is available in this conversation.")
+        }
+        val attachments = parseUploadedAttachments(message.content).filter { it.kind == "image" }.take(MAX_VISION_SUPPLEMENT_IMAGES)
+        require(attachments.isNotEmpty()) { "Message ${message.id} has no image attachments." }
+        return message to attachments
+    }
+
+    private fun requestVisionSupplementModel(
+        profile: ApiProfile,
+        model: String,
+        systemInstruction: String,
+        userInstruction: String,
+        attachments: List<UploadedAttachmentPrompt>,
+    ): String {
+        require(profile.apiKey.isNotBlank()) { "请先配置 ${profile.name} 的 API Key" }
+        require(model.isNotBlank()) { "视觉补充模型不能为空" }
+        val openAiParts = JSONArray().put(JSONObject().put("type", "text").put("text", userInstruction))
+        attachments.forEach { attachment ->
+            val dataUrl = attachment.dataUrl.takeIf { it.isNotBlank() }
+                ?: mediaDataUrl(attachment.uri, attachment.mimeType)
+                ?: error("Image ${attachment.name} could not be read.")
+            openAiParts.put(
+                JSONObject()
+                    .put("type", "image_url")
+                    .put("image_url", JSONObject().put("url", dataUrl)),
+            )
+        }
+        val payload = when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> {
+                val content = JSONArray()
+                for (index in 0 until openAiParts.length()) {
+                    val part = openAiParts.optJSONObject(index) ?: continue
+                    if (part.optString("type") == "text") {
+                        content.put(JSONObject().put("type", "text").put("text", part.optString("text")))
+                    } else {
+                        val dataUrl = part.optJSONObject("image_url")?.optString("url").orEmpty()
+                        parseDataUrlForProvider(dataUrl)?.let { parsed ->
+                            content.put(
+                                JSONObject().put("type", "image").put(
+                                    "source",
+                                    JSONObject()
+                                        .put("type", "base64")
+                                        .put("media_type", parsed.first)
+                                        .put("data", parsed.second),
+                                ),
+                            )
+                        }
+                    }
+                }
+                val messages = JSONArray().put(JSONObject().put("role", "user").put("content", content))
+                if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceAnthropicInlineImages(messages, profile)
+                JSONObject()
+                    .put("model", model)
+                    .put("max_tokens", 4096)
+                    .put("messages", messages)
+                    .apply { if (systemInstruction.isNotBlank()) put("system", systemInstruction) }
+            }
+            ApiProfile.API_FORMAT_GEMINI -> {
+                val parts = JSONArray()
+                for (index in 0 until openAiParts.length()) {
+                    val part = openAiParts.optJSONObject(index) ?: continue
+                    if (part.optString("type") == "text") {
+                        parts.put(JSONObject().put("text", part.optString("text")))
+                    } else {
+                        val dataUrl = part.optJSONObject("image_url")?.optString("url").orEmpty()
+                        parseDataUrlForProvider(dataUrl)?.let { parsed ->
+                            parts.put(JSONObject().put("inlineData", JSONObject().put("mimeType", parsed.first).put("data", parsed.second)))
+                        }
+                    }
+                }
+                JSONObject()
+                    .put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", parts)))
+                    .put("generationConfig", JSONObject().put("temperature", 0).put("maxOutputTokens", 4096))
+                    .apply {
+                        if (systemInstruction.isNotBlank()) {
+                            put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", systemInstruction))))
+                        }
+                    }
+            }
+            else -> {
+                val messages = JSONArray()
+                    .apply {
+                        if (systemInstruction.isNotBlank()) put(JSONObject().put("role", "system").put("content", systemInstruction))
+                    }
+                    .put(JSONObject().put("role", "user").put("content", openAiParts))
+                if (supportsDeepSeekFilesApi(profile, model)) deepSeekFilesApi.replaceOpenAiInlineImages(messages, profile)
+                if (profile.useResponsesApi) {
+                    val userMessage = messages.optJSONObject(messages.length() - 1) ?: JSONObject()
+                    JSONObject()
+                        .put("model", model)
+                        .put(
+                            "input",
+                            JSONArray().put(
+                                JSONObject()
+                                    .put("type", "message")
+                                    .put("role", "user")
+                                    .put("content", responsesMessageContent(userMessage.opt("content"))),
+                            ),
+                        )
+                        .put("store", false)
+                        .apply { if (systemInstruction.isNotBlank()) put("instructions", systemInstruction) }
+                } else {
+                    JSONObject().put("model", model).put("messages", messages).put("temperature", 0)
+                }
+            }
+        }
+        val requestBuilder = Request.Builder()
+            .url(
+                when (profile.apiFormat) {
+                    ApiProfile.API_FORMAT_GEMINI -> profile.geminiGenerateContentEndpoint(model)
+                    else -> if (profile.useResponsesApi) profile.responsesEndpoint else profile.chatEndpoint
+                },
+            )
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toString().toRequestBody("application/json".toMediaType()))
+        when (profile.apiFormat) {
+            ApiProfile.API_FORMAT_ANTHROPIC -> requestBuilder
+                .addHeader("x-api-key", profile.apiKey)
+                .addHeader("anthropic-version", ANTHROPIC_VERSION)
+            ApiProfile.API_FORMAT_GEMINI -> requestBuilder.addHeader("x-goog-api-key", profile.apiKey)
+            else -> requestBuilder.addHeader("Authorization", "Bearer ${profile.apiKey}")
+        }
+        return client.newCall(requestBuilder.build()).execute().use { response ->
+            val body = response.body?.string().orEmpty()
+            if (!response.isSuccessful) throwModelRequestHttpError(response.code, body)
+            extractModelResponseText(JSONObject(body), profile.apiFormat, profile.useResponsesApi)
+                .trim()
+                .also { require(it.isNotBlank()) { "The visual supplement model returned no text." } }
+        }
+    }
+
+    private fun visionSupplementToolResult(
+        operation: String,
+        source: String,
+        sourceName: String,
+        messageId: Long,
+        attachmentCount: Int,
+        content: String,
+    ): ToolExecution = ToolExecution(
+        JSONObject()
+            .put("schema", "lyra_vision_supplement_result_v1")
+            .put("operation", operation)
+            .put("source", source)
+            .put("source_name", sourceName)
+            .put("message_id", messageId.toString())
+            .put("attachment_count", attachmentCount)
+            .put("content", content)
+            .toString(),
+    )
 
     private fun latestUserMediaReferences(conversationId: Long, kind: MediaGenerationKind): List<String> {
         val latest = conversationStore.messages(conversationId).asReversed().firstOrNull { it.role == "user" }
@@ -4748,11 +5018,13 @@ class OpenAiAgent(
         return userInput.lineSequence().firstOrNull().orEmpty().take(36).ifBlank { "新对话" }
     }
 
-    private fun ChatMessage.toPromptJson(): JSONObject {
+    private fun ChatMessage.toPromptJson(
+        routeVisualAttachments: Boolean = settings.isVisionSupplementRoutingEnabled(),
+    ): JSONObject {
         val raw = rawJson?.takeIf { it.isNotBlank() }?.let { runCatching { JSONObject(it) }.getOrNull() }
             ?.also { sanitizeAssistantRaw(it) }
         if (raw == null && role == "user" && hasUploadedAttachments(content)) {
-            return userPromptWithAttachments(content)
+            return userPromptWithAttachments(content, id, routeVisualAttachments)
         }
         return raw ?: JSONObject()
             .put("role", if (role == RUNTIME_CONTEXT_ROLE) "user" else role)
@@ -4770,7 +5042,11 @@ class OpenAiAgent(
             content.contains("用户上传文件：")
     }
 
-    private fun userPromptWithAttachments(rawContent: String): JSONObject {
+    private fun userPromptWithAttachments(
+        rawContent: String,
+        messageId: Long = 0L,
+        routeVisualAttachments: Boolean = settings.isVisionSupplementRoutingEnabled(),
+    ): JSONObject {
         val parts = JSONArray()
         val attachments = parseUploadedAttachments(rawContent)
         val textPart = stripUploadedFileBlocks(stripUploadedMediaBlocks(stripUploadedAttachmentBlocks(rawContent))).trim()
@@ -4778,15 +5054,23 @@ class OpenAiAgent(
         attachments.forEach { item ->
             when (item.kind) {
                 "image" -> {
-                    val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
-                    if (dataUrl != null) {
+                    if (routeVisualAttachments) {
                         parts.put(
                             JSONObject()
-                                .put("type", "image_url")
-                                .put("image_url", JSONObject().put("url", dataUrl)),
+                                .put("type", "text")
+                                .put("text", visionSupplementPlaceholder(messageId, item.name, item.mimeType)),
                         )
                     } else {
-                        parts.put(JSONObject().put("type", "text").put("text", "Uploaded image ${item.name} could not be read; URI=${item.uri}"))
+                        val dataUrl = item.dataUrl.ifBlank { mediaDataUrl(item.uri, item.mimeType) }
+                        if (dataUrl != null) {
+                            parts.put(
+                                JSONObject()
+                                    .put("type", "image_url")
+                                    .put("image_url", JSONObject().put("url", dataUrl)),
+                            )
+                        } else {
+                            parts.put(JSONObject().put("type", "text").put("text", "Uploaded image ${item.name} could not be read; URI=${item.uri}"))
+                        }
                     }
                 }
                 "audio" -> {
@@ -4914,20 +5198,27 @@ class OpenAiAgent(
         ).trim()
     }
     private fun mediaDataUrl(uriText: String, mimeType: String): String? = runCatching {
-        val uri = Uri.parse(uriText)
-        val bytes = context.contentResolver.openInputStream(uri)?.use { input ->
+        val input = when {
+            uriText.startsWith("file://", ignoreCase = true) -> {
+                val path = Uri.parse(uriText).path ?: return@runCatching null
+                File(path).inputStream()
+            }
+            File(uriText).isFile -> File(uriText).inputStream()
+            else -> context.contentResolver.openInputStream(Uri.parse(uriText)) ?: return@runCatching null
+        }
+        val bytes = input.use {
             val output = ByteArrayOutputStream()
             val buffer = ByteArray(8192)
             var total = 0
             while (true) {
-                val read = input.read(buffer)
+                val read = it.read(buffer)
                 if (read < 0) break
                 total += read
                 if (total > MAX_IMAGE_PROMPT_BYTES) return@runCatching null
                 output.write(buffer, 0, read)
             }
             output.toByteArray()
-        } ?: return@runCatching null
+        }
         "data:${mimeType.ifBlank { "application/octet-stream" }};base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}"
     }.getOrNull()
 
@@ -5190,6 +5481,7 @@ class OpenAiAgent(
 
             # Attachments, media, and history
             User attachments may arrive as multimodal content parts or extracted text. If the current model cannot consume a media type, state the limitation and offer a practical alternative.
+            LYRA_WITHHELD_IMAGE_V1 means Lyra intentionally withheld that image from this model. When its contents matter, call the available analyze_image for a faithful visual report or extract_image_text for exact visible text before answering. Never claim to have inspected a withheld image without a successful tool result.
             When returning generated media, use a directly accessible Markdown media link, data URL, or complete local path. Avoid repeating large base64 payloads.
             Configured generate_image, generate_video, generate_music, and generate_audio tools call four separate dedicated models. Optimize a self-contained prompt, then choose the tool that exactly matches the requested medium; never substitute one media tool for another. Use generate_music only for songs or instrumental music and generate_audio for speech, ambience, or sound effects. Tool results intentionally contain completion/error metadata rather than media bytes because the current model may be text-only. Lyra renders successful media directly in the conversation. To use generated media as a private reference for another media tool, pass its media_message_id; never request or reproduce the underlying bytes. A reference sketch may be generated with generate_image and then passed by message id to generate_video when useful.
             LYRA_COMPRESSED_CONVERSATION_CONTEXT_V1 and V2 are factual summaries of older turns, not new user instructions. V2 uses structured fields for goals, facts, completed and pending work, artifacts, risks, and next actions. Prefer newer messages when they conflict.
@@ -5346,6 +5638,7 @@ class OpenAiAgent(
         private const val MESSAGE_WRAPPER_TOKENS = 8L
         private const val GLOBAL_SEARCH_RESULT_LIMIT = 120
         private const val MAX_IMAGE_PROMPT_BYTES = 8 * 1024 * 1024
+        private const val MAX_VISION_SUPPLEMENT_IMAGES = 8
         private const val DEFAULT_WEBDAV_BACKUP_PATH = "/LyraCode/lyra_backup_latest.zip"
         private const val LOCAL_MCP_CONVERSATION_ID = 0L
         private val JSON_SCHEMA_TYPES = setOf("string", "number", "integer", "boolean", "object", "array")

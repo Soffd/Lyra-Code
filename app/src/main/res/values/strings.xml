@@ -542,7 +542,7 @@
     <string name="menu_model_service">Model services</string>
     <string name="menu_model_service_desc">Configure AI providers, API keys, and default models</string>
     <string name="menu_topic_summary_model">Additional feature models</string>
-    <string name="menu_topic_summary_model_desc">Configure topic-summary and conversation-history compression models</string>
+    <string name="menu_topic_summary_model_desc">Configure summary, compression, visual/OCR, and media generation models</string>
     <string name="menu_sub_agents">Sub-agent orchestration</string>
     <string name="menu_sub_agents_desc">Choose sub-agent models and describe their strengths</string>
     <string name="menu_web_search">Web search</string>
@@ -2032,4 +2032,26 @@ Revocation stops new access through that permission but does not automatically e
     <string name="easter_egg_recovery_factory_reset">Factory data reset</string>
     <string name="easter_egg_recovery_tap_to_start">Tap the screen to drop the paddle and ball</string>
     <string name="easter_egg_recovery_exit">Exit easter egg</string>
+    <string name="label_vision_understanding_model">Vision understanding model</string>
+    <string name="vision_understanding_model_desc">Configure a multimodal model or MCP tool to relay image details to the main model</string>
+    <string name="label_ocr_model">OCR model</string>
+    <string name="ocr_model_desc">Configure a multimodal or dedicated OCR model to extract text from images</string>
+    <string name="vision_understanding_editor_desc">The main model calls analyze_image only when it needs visual evidence. Image bytes are sent only to the selected relay model or MCP tool.</string>
+    <string name="action_enable_vision_understanding">Enable visual relay</string>
+    <string name="vision_understanding_privacy_hint">Calls may send image attachments to the configured external service.</string>
+    <string name="label_vision_source">Visual relay source</string>
+    <string name="label_mcp_source">MCP tool</string>
+    <string name="label_mcp_vision_tool">MCP visual tool</string>
+    <string name="notice_no_enabled_mcp_vision_tools">No enabled MCP tools are available. Add, enable, and refresh a visual MCP server first.</string>
+    <string name="label_vision_relay_prompt">Visual relay prompt</string>
+    <string name="vision_relay_prompt_hint">Keep this prompt focused on faithful observation. The relay should describe the image, not answer the user directly.</string>
+    <string name="action_restore_default_prompt">Restore default prompt</string>
+    <string name="notice_vision_model_saved">Visual understanding configuration saved</string>
+    <string name="ocr_model_editor_desc">The main model calls extract_image_text when exact text in an image is needed.</string>
+    <string name="action_enable_ocr">Enable OCR</string>
+    <string name="ocr_no_relay_prompt_hint">OCR uses a fixed extraction instruction and does not need a custom relay prompt.</string>
+    <string name="notice_ocr_model_saved">OCR model configuration saved</string>
+    <string name="label_enable_vision_supplement">Enable visual supplement</string>
+    <string name="vision_supplement_toggle_desc">Withhold all image attachments from the main model and expose visual/OCR tools instead</string>
+    <string name="vision_supplement_not_configured">Configure a visual understanding or OCR model in Settings first</string>
 </resources>

@@ -989,8 +989,6 @@ class ChatController(
             .put("uri", file.uri)
         if (file.mediaKind == "text") {
             payload.put("text", file.content)
-        } else if (file.content.startsWith("data:", ignoreCase = true)) {
-            payload.put("data_url", file.content)
         }
         return "$ATTACHMENT_MARKER_START$payload$ATTACHMENT_MARKER_END"
     }

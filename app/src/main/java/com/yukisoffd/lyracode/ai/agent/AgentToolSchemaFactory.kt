@@ -12,6 +12,8 @@ import org.json.JSONObject
 import java.io.File
 import java.util.Locale
 
+internal const val VISION_UNDERSTANDING_TOOL_NAME = "analyze_image"
+internal const val OCR_TOOL_NAME = "extract_image_text"
 
 internal class AgentToolSchemaFactory(
     private val settings: AppSettings,
@@ -458,6 +460,14 @@ internal class AgentToolSchemaFactory(
                 definitions.put(mediaGenerationFunction(kind))
             }
         }
+        if (settings.isVisionSupplementRoutingEnabled()) {
+            if (settings.visionUnderstandingModelOrNull() != null || settings.visionUnderstandingMcpToolOrNull() != null) {
+                definitions.put(visionUnderstandingFunction())
+            }
+            if (settings.ocrModelOrNull() != null) {
+                definitions.put(ocrFunction())
+            }
+        }
         definitions
         .put(
             functionWithOptional(
@@ -475,7 +485,14 @@ internal class AgentToolSchemaFactory(
         )
         .put(function("set_todo_list", "Set the current task's TODO list before multistep work, file changes, or commands. items is an array of objects with id, text, status, and note.", "items" to "array:object"))
         .put(function("update_todo_item", "Update one TODO item. status is pending, running, completed, or blocked.", "id" to "string", "status" to "string", "note" to "string"))
-        settings.enabledMcpTools().forEach { (server, tool) ->
+        val selectedVisionMcp = settings.visionUnderstandingMcpToolOrNull()
+        settings.enabledMcpTools()
+            .filterNot { (server, tool) ->
+                settings.isVisionSupplementRoutingEnabled() && selectedVisionMcp?.let { selected ->
+                    selected.first.id == server.id && selected.second.name == tool.name
+                } == true
+            }
+            .forEach { (server, tool) ->
             runCatching { mcpFunction(server, tool) }
                 .onSuccess { definitions.put(it) }
                 .onFailure {
@@ -650,6 +667,30 @@ internal class AgentToolSchemaFactory(
             disallowAdditionalProperties = true,
         )
     }
+
+    private fun visionUnderstandingFunction(): JSONObject = functionWithOptional(
+        name = VISION_UNDERSTANDING_TOOL_NAME,
+        description = "Inspect image attachments that Lyra withheld from your prompt because visual supplement routing is enabled. Call this whenever visual appearance, layout, objects, charts, screenshots, or non-text image details are needed. The configured visual model or MCP tool returns a faithful relay report; reason about the user's request only after reading that report.",
+        required = listOf("instruction" to "string"),
+        optional = listOf("message_id" to "string"),
+        propertyDescriptions = mapOf(
+            "instruction" to "A narrow description of what visual details the relay should inspect. Do not ask the relay to answer the user's underlying question.",
+            "message_id" to "Optional user message id shown in the withheld-image placeholder. Omit it to inspect images from the latest user message that contains them.",
+        ),
+        disallowAdditionalProperties = true,
+    )
+
+    private fun ocrFunction(): JSONObject = functionWithOptional(
+        name = OCR_TOOL_NAME,
+        description = "Extract visible text from image attachments that Lyra withheld from your prompt because visual supplement routing is enabled. Use this for screenshots, documents, signs, tables, labels, or any task requiring exact image text. The result is OCR evidence, not a final answer.",
+        required = emptyList(),
+        optional = listOf("message_id" to "string", "language_hint" to "string"),
+        propertyDescriptions = mapOf(
+            "message_id" to "Optional user message id shown in the withheld-image placeholder. Omit it to OCR images from the latest user message that contains them.",
+            "language_hint" to "Optional expected language or script, such as zh-CN, en, Japanese, or mixed.",
+        ),
+        disallowAdditionalProperties = true,
+    )
 
     private fun mcpFunction(server: McpServerConfig, tool: McpToolDefinition): JSONObject {
         val parameters = runCatching { JSONObject(tool.inputSchema.ifBlank { "{}" }) }

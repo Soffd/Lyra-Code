@@ -148,6 +148,77 @@ class AppSettings(context: Context) {
             .apply()
     }
 
+    var visionSupplementEnabled: Boolean
+        get() = plainPrefs.getBoolean(KEY_VISION_SUPPLEMENT_ENABLED, false)
+        set(value) = plainPrefs.edit().putBoolean(KEY_VISION_SUPPLEMENT_ENABLED, value).apply()
+
+    fun visionUnderstandingConfig(): VisionUnderstandingConfig = VisionUnderstandingConfig(
+        enabled = plainPrefs.getBoolean(KEY_VISION_UNDERSTANDING_ENABLED, false),
+        sourceType = plainPrefs.getString(KEY_VISION_UNDERSTANDING_SOURCE_TYPE, VISION_SOURCE_MODEL)
+            .orEmpty()
+            .let { if (it == VISION_SOURCE_MCP) VISION_SOURCE_MCP else VISION_SOURCE_MODEL },
+        profileId = plainPrefs.getString(KEY_VISION_UNDERSTANDING_PROFILE_ID, "").orEmpty(),
+        model = plainPrefs.getString(KEY_VISION_UNDERSTANDING_MODEL, "").orEmpty(),
+        mcpServerId = plainPrefs.getString(KEY_VISION_UNDERSTANDING_MCP_SERVER_ID, "").orEmpty(),
+        mcpToolName = plainPrefs.getString(KEY_VISION_UNDERSTANDING_MCP_TOOL_NAME, "").orEmpty(),
+        relayPrompt = plainPrefs.getString(KEY_VISION_UNDERSTANDING_RELAY_PROMPT, DEFAULT_VISION_RELAY_PROMPT)
+            .orEmpty()
+            .ifBlank { DEFAULT_VISION_RELAY_PROMPT },
+    )
+
+    fun saveVisionUnderstandingConfig(config: VisionUnderstandingConfig) {
+        plainPrefs.edit()
+            .putBoolean(KEY_VISION_UNDERSTANDING_ENABLED, config.enabled)
+            .putString(
+                KEY_VISION_UNDERSTANDING_SOURCE_TYPE,
+                if (config.sourceType == VISION_SOURCE_MCP) VISION_SOURCE_MCP else VISION_SOURCE_MODEL,
+            )
+            .putString(KEY_VISION_UNDERSTANDING_PROFILE_ID, config.profileId.trim())
+            .putString(KEY_VISION_UNDERSTANDING_MODEL, config.model.trim())
+            .putString(KEY_VISION_UNDERSTANDING_MCP_SERVER_ID, config.mcpServerId.trim())
+            .putString(KEY_VISION_UNDERSTANDING_MCP_TOOL_NAME, config.mcpToolName.trim())
+            .putString(KEY_VISION_UNDERSTANDING_RELAY_PROMPT, config.relayPrompt.trim().ifBlank { DEFAULT_VISION_RELAY_PROMPT })
+            .apply()
+    }
+
+    fun visionUnderstandingModelOrNull(): Pair<ApiProfile, String>? {
+        val config = visionUnderstandingConfig()
+        if (!config.enabled || config.sourceType != VISION_SOURCE_MODEL || config.profileId.isBlank() || config.model.isBlank()) return null
+        return profiles().firstOrNull { it.id == config.profileId }?.let { it to config.model }
+    }
+
+    fun visionUnderstandingMcpToolOrNull(): Pair<McpServerConfig, McpToolDefinition>? {
+        val config = visionUnderstandingConfig()
+        if (!config.enabled || config.sourceType != VISION_SOURCE_MCP) return null
+        val server = mcpServers().firstOrNull { it.enabled && it.id == config.mcpServerId } ?: return null
+        return server.tools.firstOrNull { it.name == config.mcpToolName }?.let { server to it }
+    }
+
+    fun ocrModelConfig(): OcrModelConfig = OcrModelConfig(
+        enabled = plainPrefs.getBoolean(KEY_OCR_MODEL_ENABLED, false),
+        profileId = plainPrefs.getString(KEY_OCR_MODEL_PROFILE_ID, "").orEmpty(),
+        model = plainPrefs.getString(KEY_OCR_MODEL, "").orEmpty(),
+    )
+
+    fun saveOcrModelConfig(config: OcrModelConfig) {
+        plainPrefs.edit()
+            .putBoolean(KEY_OCR_MODEL_ENABLED, config.enabled)
+            .putString(KEY_OCR_MODEL_PROFILE_ID, config.profileId.trim())
+            .putString(KEY_OCR_MODEL, config.model.trim())
+            .apply()
+    }
+
+    fun ocrModelOrNull(): Pair<ApiProfile, String>? {
+        val config = ocrModelConfig()
+        if (!config.enabled || config.profileId.isBlank() || config.model.isBlank()) return null
+        return profiles().firstOrNull { it.id == config.profileId }?.let { it to config.model }
+    }
+
+    fun hasVisionSupplementProvider(): Boolean =
+        visionUnderstandingModelOrNull() != null || visionUnderstandingMcpToolOrNull() != null || ocrModelOrNull() != null
+
+    fun isVisionSupplementRoutingEnabled(): Boolean = visionSupplementEnabled && hasVisionSupplementProvider()
+
     private fun mediaProfileKey(kind: MediaGenerationKind): String = when (kind) {
         MediaGenerationKind.IMAGE -> KEY_IMAGE_GENERATION_PROFILE_ID
         MediaGenerationKind.VIDEO -> KEY_VIDEO_GENERATION_PROFILE_ID
@@ -1420,6 +1491,23 @@ class AppSettings(context: Context) {
             .put("historyCompressionProfileId", historyCompressionProfileId)
             .put("historyCompressionModel", historyCompressionModel)
             .put("historyCompressionChunkCount", historyCompressionChunkCount)
+            .put("visionSupplementEnabled", visionSupplementEnabled)
+            .put("visionUnderstanding", visionUnderstandingConfig().let { config ->
+                JSONObject()
+                    .put("enabled", config.enabled)
+                    .put("sourceType", config.sourceType)
+                    .put("profileId", config.profileId)
+                    .put("model", config.model)
+                    .put("mcpServerId", config.mcpServerId)
+                    .put("mcpToolName", config.mcpToolName)
+                    .put("relayPrompt", config.relayPrompt)
+            })
+            .put("ocrModel", ocrModelConfig().let { config ->
+                JSONObject()
+                    .put("enabled", config.enabled)
+                    .put("profileId", config.profileId)
+                    .put("model", config.model)
+            })
             .put("mediaGenerationModels", JSONArray().also { array ->
                 MediaGenerationKind.entries.forEach { kind ->
                     val config = mediaGenerationModel(kind)
@@ -1559,6 +1647,29 @@ class AppSettings(context: Context) {
         if (root.has("historyCompressionModel")) historyCompressionModel = root.optString("historyCompressionModel")
         if (root.has("historyCompressionChunkCount")) {
             historyCompressionChunkCount = root.optInt("historyCompressionChunkCount", DEFAULT_HISTORY_COMPRESSION_CHUNKS)
+        }
+        if (root.has("visionSupplementEnabled")) visionSupplementEnabled = root.optBoolean("visionSupplementEnabled")
+        root.optJSONObject("visionUnderstanding")?.let { item ->
+            saveVisionUnderstandingConfig(
+                VisionUnderstandingConfig(
+                    enabled = item.optBoolean("enabled", false),
+                    sourceType = item.optString("sourceType").ifBlank { VISION_SOURCE_MODEL },
+                    profileId = item.optString("profileId"),
+                    model = item.optString("model"),
+                    mcpServerId = item.optString("mcpServerId"),
+                    mcpToolName = item.optString("mcpToolName"),
+                    relayPrompt = item.optString("relayPrompt").ifBlank { DEFAULT_VISION_RELAY_PROMPT },
+                ),
+            )
+        }
+        root.optJSONObject("ocrModel")?.let { item ->
+            saveOcrModelConfig(
+                OcrModelConfig(
+                    enabled = item.optBoolean("enabled", false),
+                    profileId = item.optString("profileId"),
+                    model = item.optString("model"),
+                ),
+            )
         }
         root.optJSONArray("mediaGenerationModels")?.let { array ->
             if (!supplement) {
@@ -2219,6 +2330,17 @@ class AppSettings(context: Context) {
         private const val KEY_HISTORY_COMPRESSION_CHUNK_COUNT = "history_compression_chunk_count"
         private const val KEY_IMAGE_GENERATION_PROFILE_ID = "image_generation_profile_id"
         private const val KEY_IMAGE_GENERATION_MODEL = "image_generation_model"
+        private const val KEY_VISION_SUPPLEMENT_ENABLED = "vision_supplement_enabled"
+        private const val KEY_VISION_UNDERSTANDING_ENABLED = "vision_understanding_enabled"
+        private const val KEY_VISION_UNDERSTANDING_SOURCE_TYPE = "vision_understanding_source_type"
+        private const val KEY_VISION_UNDERSTANDING_PROFILE_ID = "vision_understanding_profile_id"
+        private const val KEY_VISION_UNDERSTANDING_MODEL = "vision_understanding_model"
+        private const val KEY_VISION_UNDERSTANDING_MCP_SERVER_ID = "vision_understanding_mcp_server_id"
+        private const val KEY_VISION_UNDERSTANDING_MCP_TOOL_NAME = "vision_understanding_mcp_tool_name"
+        private const val KEY_VISION_UNDERSTANDING_RELAY_PROMPT = "vision_understanding_relay_prompt"
+        private const val KEY_OCR_MODEL_ENABLED = "ocr_model_enabled"
+        private const val KEY_OCR_MODEL_PROFILE_ID = "ocr_model_profile_id"
+        private const val KEY_OCR_MODEL = "ocr_model"
         private const val KEY_VIDEO_GENERATION_PROFILE_ID = "video_generation_profile_id"
         private const val KEY_VIDEO_GENERATION_MODEL = "video_generation_model"
         private const val KEY_MUSIC_GENERATION_PROFILE_ID = "music_generation_profile_id"
@@ -2228,6 +2350,9 @@ class AppSettings(context: Context) {
         const val MIN_HISTORY_COMPRESSION_CHUNKS = 1
         const val MAX_HISTORY_COMPRESSION_CHUNKS = 16
         const val DEFAULT_HISTORY_COMPRESSION_CHUNKS = 4
+        const val VISION_SOURCE_MODEL = "model"
+        const val VISION_SOURCE_MCP = "mcp"
+        const val DEFAULT_VISION_RELAY_PROMPT = "You are a visual relay for another AI model. Describe only what is actually visible in the supplied image, faithfully and in sufficient detail for the main model to reason from your report. Follow the requested focus, but do not answer the user's underlying question, infer unsupported facts, or take actions. Preserve exact visible text, numbers, spatial relationships, UI state, uncertainty, and relevant visual details. Clearly distinguish observation from uncertainty. Return only the visual report."
         private const val KEY_API_PROFILES = "api_profiles"
         private const val KEY_SELECTED_API_PROFILE_ID = "selected_api_profile_id"
         private const val KEY_DARK_MODE = "dark_mode"
