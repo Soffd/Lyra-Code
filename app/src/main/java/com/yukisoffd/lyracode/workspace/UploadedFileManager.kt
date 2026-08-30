@@ -4,9 +4,9 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.net.Uri
 import android.provider.OpenableColumns
-import android.util.Base64
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.util.UUID
 
 data class UploadedFile(
     val name: String,
@@ -25,11 +25,12 @@ class UploadedFileManager(private val context: Context) {
         val mediaKind = mediaKindFor(safeMime)
         if (mediaKind != "text") {
             val bytes = readBytes(uri, MAX_MEDIA_UPLOAD_BYTES)
+            val storedFile = persistMedia(name, bytes)
             return@runCatching UploadedFile(
                 name = name,
-                content = "data:$safeMime;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}",
+                content = "",
                 size = bytes.size,
-                uri = uri.toString(),
+                uri = storedFile.absolutePath,
                 mimeType = safeMime,
                 mediaKind = mediaKind,
             )
@@ -40,23 +41,31 @@ class UploadedFileManager(private val context: Context) {
     }
 
     fun saveCapturedImage(bitmap: Bitmap): Result<UploadedFile> = runCatching {
-        val dir = File(context.cacheDir, "uploads").apply { mkdirs() }
-        val file = File(dir, "photo_${System.currentTimeMillis()}.jpg")
+        val displayName = "photo_${System.currentTimeMillis()}.jpg"
         val bytes = ByteArrayOutputStream().use { output ->
             bitmap.compress(Bitmap.CompressFormat.JPEG, 92, output)
             output.toByteArray()
         }
-        file.outputStream().use { output ->
-            output.write(bytes)
-        }
+        val file = persistMedia(displayName, bytes)
         UploadedFile(
-            name = file.name,
-            content = "data:image/jpeg;base64,${Base64.encodeToString(bytes, Base64.NO_WRAP)}",
+            name = displayName,
+            content = "",
             size = bytes.size,
-            uri = Uri.fromFile(file).toString(),
+            uri = file.absolutePath,
             mimeType = "image/jpeg",
             mediaKind = "image",
         )
+    }
+
+    private fun persistMedia(name: String, bytes: ByteArray): File {
+        val directory = File(context.filesDir, CHAT_UPLOAD_DIRECTORY).apply { mkdirs() }
+        val extension = name.substringAfterLast('.', "")
+            .takeIf { it.length in 1..10 && it.all(Char::isLetterOrDigit) }
+            ?.let { ".$it" }
+            .orEmpty()
+        val file = File(directory, "upload_${UUID.randomUUID()}$extension")
+        file.outputStream().use { it.write(bytes) }
+        return file
     }
 
     private fun readBytes(uri: Uri, maxBytes: Int): ByteArray {
@@ -121,5 +130,6 @@ class UploadedFileManager(private val context: Context) {
     companion object {
         private const val MAX_UPLOAD_BYTES = 1_048_576
         private const val MAX_MEDIA_UPLOAD_BYTES = 8 * 1024 * 1024
+        internal const val CHAT_UPLOAD_DIRECTORY = "chat_uploads"
     }
 }

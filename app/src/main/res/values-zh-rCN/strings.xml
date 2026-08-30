@@ -561,7 +561,7 @@
     <string name="menu_model_service">模型服务</string>
     <string name="menu_model_service_desc">配置 AI 服务商、API Key 与默认模型</string>
     <string name="menu_topic_summary_model">额外功能模型</string>
-    <string name="menu_topic_summary_model_desc">配置话题总结与会话历史压缩模型</string>
+    <string name="menu_topic_summary_model_desc">配置总结、压缩、视觉/OCR 与媒体生成模型</string>
     <string name="menu_sub_agents">子代理编排</string>
     <string name="menu_sub_agents_desc">选择子代理模型并描述各自擅长的任务</string>
     <string name="menu_web_search">联网搜索</string>
@@ -2115,6 +2115,28 @@ Shizuku 与 Root：不属于普通运行时权限，由用户在“系统权限�
     <string name="easter_egg_recovery_factory_reset">恢复出厂设置</string>
     <string name="easter_egg_recovery_tap_to_start">点击屏幕让挡板和小球落下</string>
     <string name="easter_egg_recovery_exit">退出彩蛋</string>
+    <string name="label_vision_understanding_model">视觉理解模型</string>
+    <string name="vision_understanding_model_desc">配置多模态模型或 MCP 工具，将图片细节转述给主模型</string>
+    <string name="label_ocr_model">OCR 模型</string>
+    <string name="ocr_model_desc">配置多模态或专用 OCR 模型，从图片中提取文本</string>
+    <string name="vision_understanding_editor_desc">主模型仅在需要视觉证据时调用 analyze_image。图片数据只会发送给选定的转述模型或 MCP 工具。</string>
+    <string name="action_enable_vision_understanding">启用视觉转述</string>
+    <string name="vision_understanding_privacy_hint">调用时可能会把图片附件发送到所配置的外部服务。</string>
+    <string name="label_vision_source">视觉转述来源</string>
+    <string name="label_mcp_source">MCP 工具</string>
+    <string name="label_mcp_vision_tool">MCP 视觉工具</string>
+    <string name="notice_no_enabled_mcp_vision_tools">暂无已启用的 MCP 工具。请先添加、启用并刷新支持视觉的 MCP 服务器。</string>
+    <string name="label_vision_relay_prompt">视觉转述提示词</string>
+    <string name="vision_relay_prompt_hint">提示词应专注于忠实观察，让转述模型描述图片，不要直接回答用户问题。</string>
+    <string name="action_restore_default_prompt">恢复默认提示词</string>
+    <string name="notice_vision_model_saved">视觉理解配置已保存</string>
+    <string name="ocr_model_editor_desc">主模型在需要图片中的准确文字时调用 extract_image_text。</string>
+    <string name="action_enable_ocr">启用 OCR</string>
+    <string name="ocr_no_relay_prompt_hint">OCR 使用固定提取指令，不需要自定义转述提示词。</string>
+    <string name="notice_ocr_model_saved">OCR 模型配置已保存</string>
+    <string name="label_enable_vision_supplement">启用视觉补充</string>
+    <string name="vision_supplement_toggle_desc">一律拦截发给主模型的图片，改为提供视觉理解和 OCR 工具</string>
+    <string name="vision_supplement_not_configured">请先在设置的额外功能模型中配置视觉理解或 OCR 模型</string>
 </resources>
 
 

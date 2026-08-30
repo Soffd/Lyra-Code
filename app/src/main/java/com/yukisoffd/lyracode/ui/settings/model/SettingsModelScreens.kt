@@ -90,7 +90,9 @@ import com.yukisoffd.lyracode.ai.ProviderReachabilityResult
 import com.yukisoffd.lyracode.data.ApiProfile
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.data.MediaGenerationKind
+import com.yukisoffd.lyracode.data.OcrModelConfig
 import com.yukisoffd.lyracode.data.SubAgentConfig
+import com.yukisoffd.lyracode.data.VisionUnderstandingConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -118,6 +120,8 @@ internal fun ProfileSettingsSummary(settings: AppSettings) {
 internal fun TopicSummaryModelSettings(
     onOpenTopic: () -> Unit,
     onOpenCompression: () -> Unit,
+    onOpenVision: () -> Unit,
+    onOpenOcr: () -> Unit,
     onOpenMedia: (MediaGenerationKind) -> Unit,
 ) {
     KimiCardBox {
@@ -134,6 +138,20 @@ internal fun TopicSummaryModelSettings(
             value = uiText(R.string.ui_choose_the_model_used_for_manual_and_automatic_compression),
             onClick = onOpenCompression,
         )
+        KimiDivider()
+        KimiMenuRow(
+            icon = Icons.Default.Visibility,
+            title = uiText(R.string.label_vision_understanding_model),
+            value = uiText(R.string.vision_understanding_model_desc),
+            onClick = onOpenVision,
+        )
+        KimiDivider()
+        KimiMenuRow(
+            icon = Icons.Default.DocumentScanner,
+            title = uiText(R.string.label_ocr_model),
+            value = uiText(R.string.ocr_model_desc),
+            onClick = onOpenOcr,
+        )
         MediaGenerationKind.entries.forEach { kind ->
             KimiDivider()
             KimiMenuRow(
@@ -148,6 +166,192 @@ internal fun TopicSummaryModelSettings(
                 onClick = { onOpenMedia(kind) },
             )
         }
+    }
+}
+
+@Composable
+internal fun VisionUnderstandingModelEditor(settings: AppSettings, controller: ChatController) {
+    val profiles = controller.profiles.toList()
+    val saved = remember(controller.settingsRevision.intValue) { settings.visionUnderstandingConfig() }
+    var enabled by remember { mutableStateOf(saved.enabled) }
+    var sourceType by remember { mutableStateOf(saved.sourceType) }
+    var profileId by remember { mutableStateOf(saved.profileId.ifBlank { settings.selectedProfile().id }) }
+    val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    var model by remember(profileId) {
+        mutableStateOf(saved.model.takeIf { profileId == saved.profileId && it.isNotBlank() } ?: selectedProfile?.selectedModel.orEmpty())
+    }
+    val mcpTools = remember(controller.settingsRevision.intValue) { settings.enabledMcpTools() }
+    var mcpServerId by remember { mutableStateOf(saved.mcpServerId) }
+    var mcpToolName by remember { mutableStateOf(saved.mcpToolName) }
+    val selectedMcp = mcpTools.firstOrNull { (server, tool) -> server.id == mcpServerId && tool.name == mcpToolName }
+    var relayPrompt by remember { mutableStateOf(saved.relayPrompt) }
+    var notice by remember { mutableStateOf("") }
+    val selectionValid = when (sourceType) {
+        AppSettings.VISION_SOURCE_MCP -> selectedMcp != null
+        else -> selectedProfile != null && model.isNotBlank()
+    }
+    KimiCardBox {
+        Text(uiText(R.string.label_vision_understanding_model), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.vision_understanding_editor_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(uiText(R.string.action_enable_vision_understanding), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.vision_understanding_privacy_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = enabled, onCheckedChange = { enabled = it })
+        }
+        if (enabled) {
+            Text(uiText(R.string.label_vision_source), style = MaterialTheme.typography.titleSmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                MaterialChoiceButton(uiText(R.string.label_model), sourceType == AppSettings.VISION_SOURCE_MODEL) {
+                    sourceType = AppSettings.VISION_SOURCE_MODEL
+                }
+                MaterialChoiceButton(uiText(R.string.label_mcp_source), sourceType == AppSettings.VISION_SOURCE_MCP) {
+                    sourceType = AppSettings.VISION_SOURCE_MCP
+                }
+            }
+            if (sourceType == AppSettings.VISION_SOURCE_MODEL) {
+                SubAgentDropdownPicker(
+                    label = uiText(R.string.label_provider),
+                    value = selectedProfile?.name ?: uiText(R.string.label_not_configured_or_na),
+                    subtitle = selectedProfile?.selectedModel.orEmpty(),
+                    items = profiles,
+                    itemTitle = { it.name },
+                    itemSubtitle = { it.selectedModel },
+                    isSelected = { it.id == profileId },
+                    onSelect = { profile -> profileId = profile.id; model = profile.selectedModel },
+                )
+                SubAgentDropdownPicker(
+                    label = uiText(R.string.label_vision_understanding_model),
+                    value = model.ifBlank { uiText(R.string.label_not_selected) },
+                    items = selectedProfile?.enabledModels.orEmpty(),
+                    itemTitle = { it },
+                    isSelected = { it == model },
+                    onSelect = { model = it },
+                )
+                OutlinedTextField(
+                    value = model,
+                    onValueChange = { model = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(uiText(R.string.label_vision_understanding_model)) },
+                    singleLine = true,
+                )
+            } else {
+                SubAgentDropdownPicker(
+                    label = uiText(R.string.label_mcp_vision_tool),
+                    value = selectedMcp?.let { "${it.first.name} / ${it.second.name}" } ?: uiText(R.string.label_not_selected),
+                    subtitle = selectedMcp?.second?.description.orEmpty(),
+                    items = mcpTools,
+                    itemTitle = { "${it.first.name} / ${it.second.name}" },
+                    itemSubtitle = { it.second.description },
+                    isSelected = { it.first.id == mcpServerId && it.second.name == mcpToolName },
+                    onSelect = { (server, tool) -> mcpServerId = server.id; mcpToolName = tool.name },
+                )
+                if (mcpTools.isEmpty()) {
+                    Text(uiText(R.string.notice_no_enabled_mcp_vision_tools), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+            OutlinedTextField(
+                value = relayPrompt,
+                onValueChange = { relayPrompt = it },
+                modifier = Modifier.fillMaxWidth().heightIn(min = 150.dp),
+                label = { Text(uiText(R.string.label_vision_relay_prompt)) },
+                supportingText = { Text(uiText(R.string.vision_relay_prompt_hint)) },
+                minLines = 5,
+            )
+            TextButton(onClick = { relayPrompt = AppSettings.DEFAULT_VISION_RELAY_PROMPT }) {
+                Text(uiText(R.string.action_restore_default_prompt))
+            }
+        }
+        Button(
+            enabled = !enabled || selectionValid,
+            onClick = {
+                settings.saveVisionUnderstandingConfig(
+                    VisionUnderstandingConfig(
+                        enabled = enabled,
+                        sourceType = sourceType,
+                        profileId = if (sourceType == AppSettings.VISION_SOURCE_MODEL) selectedProfile?.id.orEmpty() else "",
+                        model = if (sourceType == AppSettings.VISION_SOURCE_MODEL) model else "",
+                        mcpServerId = if (sourceType == AppSettings.VISION_SOURCE_MCP) mcpServerId else "",
+                        mcpToolName = if (sourceType == AppSettings.VISION_SOURCE_MCP) mcpToolName else "",
+                        relayPrompt = relayPrompt,
+                    ),
+                )
+                if (!settings.hasVisionSupplementProvider()) settings.visionSupplementEnabled = false
+                controller.settingsRevision.intValue++
+                notice = uiText(R.string.notice_vision_model_saved)
+            },
+            shape = KimiPillShape,
+        ) { Text(uiText(R.string.file_editor_save)) }
+        if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+@Composable
+internal fun OcrModelEditor(settings: AppSettings, controller: ChatController) {
+    val profiles = controller.profiles.toList()
+    val saved = remember(controller.settingsRevision.intValue) { settings.ocrModelConfig() }
+    var enabled by remember { mutableStateOf(saved.enabled) }
+    var profileId by remember { mutableStateOf(saved.profileId.ifBlank { settings.selectedProfile().id }) }
+    val selectedProfile = profiles.firstOrNull { it.id == profileId } ?: profiles.firstOrNull()
+    var model by remember(profileId) {
+        mutableStateOf(saved.model.takeIf { profileId == saved.profileId && it.isNotBlank() } ?: selectedProfile?.selectedModel.orEmpty())
+    }
+    var notice by remember { mutableStateOf("") }
+    KimiCardBox {
+        Text(uiText(R.string.label_ocr_model), style = MaterialTheme.typography.titleMedium)
+        Text(uiText(R.string.ocr_model_editor_desc), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(uiText(R.string.action_enable_ocr), style = MaterialTheme.typography.titleSmall)
+                Text(uiText(R.string.ocr_no_relay_prompt_hint), color = KimiMuted, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = enabled, onCheckedChange = { enabled = it })
+        }
+        if (enabled) {
+            SubAgentDropdownPicker(
+                label = uiText(R.string.label_provider),
+                value = selectedProfile?.name ?: uiText(R.string.label_not_configured_or_na),
+                subtitle = selectedProfile?.selectedModel.orEmpty(),
+                items = profiles,
+                itemTitle = { it.name },
+                itemSubtitle = { it.selectedModel },
+                isSelected = { it.id == profileId },
+                onSelect = { profile -> profileId = profile.id; model = profile.selectedModel },
+            )
+            SubAgentDropdownPicker(
+                label = uiText(R.string.label_ocr_model),
+                value = model.ifBlank { uiText(R.string.label_not_selected) },
+                items = selectedProfile?.enabledModels.orEmpty(),
+                itemTitle = { it },
+                isSelected = { it == model },
+                onSelect = { model = it },
+            )
+            OutlinedTextField(
+                value = model,
+                onValueChange = { model = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text(uiText(R.string.label_ocr_model)) },
+                singleLine = true,
+            )
+        }
+        Button(
+            enabled = !enabled || (selectedProfile != null && model.isNotBlank()),
+            onClick = {
+                settings.saveOcrModelConfig(
+                    OcrModelConfig(
+                        enabled = enabled,
+                        profileId = if (enabled) selectedProfile?.id.orEmpty() else "",
+                        model = if (enabled) model else "",
+                    ),
+                )
+                if (!settings.hasVisionSupplementProvider()) settings.visionSupplementEnabled = false
+                controller.settingsRevision.intValue++
+                notice = uiText(R.string.notice_ocr_model_saved)
+            },
+            shape = KimiPillShape,
+        ) { Text(uiText(R.string.file_editor_save)) }
+        if (notice.isNotBlank()) Text(notice, color = KimiMuted, style = MaterialTheme.typography.bodySmall)
     }
 }
 

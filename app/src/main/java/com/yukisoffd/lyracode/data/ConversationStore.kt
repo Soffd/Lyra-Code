@@ -4,9 +4,16 @@ import android.content.ContentValues
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
+import android.net.Uri
 import com.yukisoffd.lyracode.R
+import com.yukisoffd.lyracode.workspace.UploadedFileManager
+import com.yukisoffd.lyracode.workspace.externalizeInlineAttachmentDataUrls
+import com.yukisoffd.lyracode.workspace.inlineLocalAttachmentDataUrls
 import org.json.JSONArray
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.UUID
 
 data class Conversation(
     val id: Long,
@@ -735,13 +742,14 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         deepSeekCacheHitRate: Double? = null,
     ): Long {
         val now = System.currentTimeMillis()
+        val storedContent = messageContentForStorage(content)
         val id = writableDatabase.insert(
             "messages",
             null,
             ContentValues().apply {
                 put("conversation_id", conversationId)
                 put("role", role)
-                put("content", content)
+                put("content", storedContent)
                 put("thinking", thinking)
                 put("profile_id", profileId)
                 put("model", model)
@@ -770,13 +778,14 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         deepSeekCacheHitRate: Double? = null,
         createdAt: Long,
     ): Long {
+        val storedContent = messageContentForStorage(content)
         val id = writableDatabase.insert(
             "messages",
             null,
             ContentValues().apply {
                 put("conversation_id", conversationId)
                 put("role", role)
-                put("content", content)
+                put("content", storedContent)
                 put("thinking", thinking)
                 put("profile_id", profileId)
                 put("model", model)
@@ -951,10 +960,126 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         )
     }
 
+    private fun messageContentForStorage(content: String): String {
+        if (!content.contains("\"data_url\"")) return content
+        return externalizeInlineAttachmentDataUrls(content, ::persistChatAttachment).content
+    }
+
+    private fun messageContentForExport(content: String): String = inlineLocalAttachmentDataUrls(content) { uri, _ ->
+        readAttachmentBytes(uri, MAX_STORED_ATTACHMENT_BYTES)
+    }
+
+    private fun persistChatAttachment(name: String, mimeType: String, bytes: ByteArray): String {
+        require(bytes.size <= MAX_STORED_ATTACHMENT_BYTES) { "Attachment is too large to persist." }
+        val directory = File(appContext.filesDir, UploadedFileManager.CHAT_UPLOAD_DIRECTORY).apply { mkdirs() }
+        val extension = attachmentExtension(name, mimeType)
+        val target = File(directory, "recovered_${UUID.randomUUID()}$extension")
+        target.outputStream().use { it.write(bytes) }
+        return target.absolutePath
+    }
+
+    private fun attachmentExtension(name: String, mimeType: String): String {
+        name.substringAfterLast('.', "")
+            .takeIf { it.length in 1..10 && it.all(Char::isLetterOrDigit) }
+            ?.let { return ".$it" }
+        return when (mimeType.lowercase()) {
+            "image/png" -> ".png"
+            "image/jpeg" -> ".jpg"
+            "image/gif" -> ".gif"
+            "image/webp" -> ".webp"
+            "video/mp4" -> ".mp4"
+            "audio/mpeg" -> ".mp3"
+            "audio/wav" -> ".wav"
+            else -> ".bin"
+        }
+    }
+
+    private fun readAttachmentBytes(uriText: String, maxBytes: Int): ByteArray? = runCatching {
+        val input = when {
+            uriText.startsWith("file://", ignoreCase = true) -> {
+                val path = Uri.parse(uriText).path ?: return@runCatching null
+                File(path).inputStream()
+            }
+            File(uriText).isFile -> File(uriText).inputStream()
+            else -> appContext.contentResolver.openInputStream(Uri.parse(uriText)) ?: return@runCatching null
+        }
+        input.use {
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val read = it.read(buffer)
+                if (read < 0) break
+                total += read
+                require(total <= maxBytes) { "Attachment exceeds ${maxBytes / 1024 / 1024} MB." }
+                output.write(buffer, 0, read)
+            }
+            output.toByteArray()
+        }
+    }.getOrNull()
+
+    /**
+     * Older builds stored media data URLs inside the messages.content SQLite row. A single photo could
+     * exceed Android's CursorWindow limit, making the conversation crash every time it was reopened.
+     * Read those rows in bounded SQL substrings and replace the inline bytes with an app-private path
+     * before the normal message query touches them.
+     */
+    private fun repairInlineMediaAttachments(conversationId: Long) {
+        val candidates = readableDatabase.rawQuery(
+            "SELECT id, length(content) FROM messages WHERE conversation_id=? AND content LIKE '%<lyra_attachment_v1>%' AND content LIKE '%\"data_url\"%'",
+            arrayOf(conversationId.toString()),
+        ).use { cursor ->
+            buildList {
+                while (cursor.moveToNext()) add(cursor.getLong(0) to cursor.getInt(1))
+            }
+        }
+        candidates.forEach { (messageId, contentLength) ->
+            val content = readMessageContentInChunks(messageId, contentLength) ?: return@forEach
+            val repaired = externalizeInlineAttachmentDataUrls(content, ::persistChatAttachment)
+            if (repaired.attachmentCount <= 0) return@forEach
+            writableDatabase.update(
+                "messages",
+                ContentValues().apply { put("content", repaired.content) },
+                "id=?",
+                arrayOf(messageId.toString()),
+            )
+        }
+    }
+
+    private fun readMessageContentInChunks(messageId: Long, contentLength: Int): String? = runCatching {
+        buildString(contentLength.coerceAtLeast(0)) {
+            var offset = 1
+            while (offset <= contentLength) {
+                val chunk = readableDatabase.rawQuery(
+                    "SELECT substr(content, ?, ?) FROM messages WHERE id=?",
+                    arrayOf(offset.toString(), MESSAGE_CONTENT_CHUNK_CHARS.toString(), messageId.toString()),
+                ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0).orEmpty() else "" }
+                if (chunk.isEmpty()) break
+                append(chunk)
+                offset += MESSAGE_CONTENT_CHUNK_CHARS
+            }
+        }
+    }.getOrNull()
+
     fun messages(conversationId: Long): List<ChatMessage> {
+        repairInlineMediaAttachments(conversationId)
         val cursor = readableDatabase.query(
             "messages",
-            arrayOf("id", "conversation_id", "role", "content", "thinking", "profile_id", "model", "tool_call_id", "raw_json", "tokens_per_second", "deepseek_cache_hit_rate", "created_at"),
+            arrayOf(
+                "id",
+                "conversation_id",
+                "role",
+                "CASE WHEN length(content) <= $MAX_CURSOR_MESSAGE_CONTENT_CHARS THEN content ELSE NULL END AS bounded_content",
+                "length(content)",
+                "thinking",
+                "profile_id",
+                "model",
+                "tool_call_id",
+                "raw_json",
+                "tokens_per_second",
+                "deepseek_cache_hit_rate",
+                "created_at",
+            ),
             "conversation_id=?",
             arrayOf(conversationId.toString()),
             null,
@@ -964,20 +1089,26 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         return cursor.use {
             buildList {
                 while (it.moveToNext()) {
+                    val messageId = it.getLong(0)
+                    val content = if (it.isNull(3)) {
+                        readMessageContentInChunks(messageId, it.getInt(4)).orEmpty()
+                    } else {
+                        it.getString(3).orEmpty()
+                    }
                     add(
                         ChatMessage(
-                            id = it.getLong(0),
+                            id = messageId,
                             conversationId = it.getLong(1),
                             role = it.getString(2),
-                            content = it.getString(3),
-                            thinking = it.getString(4),
-                            profileId = it.getString(5),
-                            model = it.getString(6),
-                            toolCallId = if (it.isNull(7)) null else it.getString(7),
-                            rawJson = if (it.isNull(8)) null else it.getString(8),
-                            tokensPerSecond = it.getDouble(9),
-                            deepSeekCacheHitRate = it.getDouble(10).takeIf { rate -> rate >= 0.0 },
-                            createdAt = it.getLong(11),
+                            content = content,
+                            thinking = it.getString(5),
+                            profileId = it.getString(6),
+                            model = it.getString(7),
+                            toolCallId = if (it.isNull(8)) null else it.getString(8),
+                            rawJson = if (it.isNull(9)) null else it.getString(9),
+                            tokensPerSecond = it.getDouble(10),
+                            deepSeekCacheHitRate = it.getDouble(11).takeIf { rate -> rate >= 0.0 },
+                            createdAt = it.getLong(12),
                         ),
                     )
                 }
@@ -1028,7 +1159,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
                                     messages.put(
                                         JSONObject()
                                             .put("role", message.role)
-                                            .put("content", message.content)
+                                            .put("content", messageContentForExport(message.content))
                                             .put("thinking", message.thinking)
                                             .put("profileId", message.profileId)
                                             .put("model", message.model)
@@ -1216,7 +1347,7 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
             append(rows.size).append('|')
             rows.forEach { message ->
                 append(message.role).append('\u001F')
-                append(message.content).append('\u001F')
+                append(messageContentForExport(message.content)).append('\u001F')
                 append(message.thinking).append('\u001F')
                 append(message.profileId).append('\u001F')
                 append(message.model).append('\u001F')
@@ -1329,6 +1460,9 @@ class ConversationStore(private val appContext: Context) : SQLiteOpenHelper(
         const val AUTO_COMPRESSION_TOKENS = "tokens"
         const val DEFAULT_AUTO_COMPRESSION_TURNS = 20
         const val DEFAULT_AUTO_COMPRESSION_TOKENS = 131_072L
+        private const val MAX_STORED_ATTACHMENT_BYTES = 8 * 1024 * 1024
+        private const val MESSAGE_CONTENT_CHUNK_CHARS = 256 * 1024
+        private const val MAX_CURSOR_MESSAGE_CONTENT_CHARS = 128 * 1024
         val AUTO_COMPRESSION_MODES = setOf(AUTO_COMPRESSION_OFF, AUTO_COMPRESSION_TURNS, AUTO_COMPRESSION_TOKENS)
         private val CONVERSATION_COLUMNS = arrayOf(
             "id", "title", "status", "profile_id", "model", "created_at", "updated_at",

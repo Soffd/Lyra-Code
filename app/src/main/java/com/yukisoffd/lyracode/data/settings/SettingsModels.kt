@@ -69,6 +69,22 @@ data class MediaGenerationModelConfig(
     val model: String,
 )
 
+data class VisionUnderstandingConfig(
+    val enabled: Boolean,
+    val sourceType: String,
+    val profileId: String,
+    val model: String,
+    val mcpServerId: String,
+    val mcpToolName: String,
+    val relayPrompt: String,
+)
+
+data class OcrModelConfig(
+    val enabled: Boolean,
+    val profileId: String,
+    val model: String,
+)
+
 data class SystemPromptPreset(
     val id: String,
     val name: String,

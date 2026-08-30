@@ -60,6 +60,7 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -93,6 +94,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import com.yukisoffd.lyracode.data.AppSettings
 import com.yukisoffd.lyracode.workspace.UploadedFile
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.min
 import kotlin.math.max
@@ -968,6 +971,22 @@ internal fun AttachmentActionBottomSheet(
                                 trailing = Icons.Default.ChevronRight,
                                 onClick = { onPageChange("auto_compression") },
                             )
+                            val hasVisionSupplement = settings.hasVisionSupplementProvider()
+                            ActionSheetSwitchRow(
+                                icon = Icons.Default.Visibility,
+                                title = stringResource(R.string.label_enable_vision_supplement),
+                                subtitle = if (hasVisionSupplement) {
+                                    stringResource(R.string.vision_supplement_toggle_desc)
+                                } else {
+                                    stringResource(R.string.vision_supplement_not_configured)
+                                },
+                                checked = settings.isVisionSupplementRoutingEnabled(),
+                                enabled = hasVisionSupplement,
+                                onCheckedChange = { enabled ->
+                                    settings.visionSupplementEnabled = enabled
+                                    controller.settingsRevision.intValue++
+                                },
+                            )
                             val hasSubAgents = settings.enabledSubAgents().isNotEmpty()
                             ActionSheetSwitchRow(
                                 icon = Icons.Default.AccountTree,
@@ -1148,22 +1167,19 @@ internal fun PendingUploadStrip(files: List<UploadedFile>, onRemove: (Int) -> Un
 internal fun MediaThumb(name: String, uri: String, kind: String, onRemove: (() -> Unit)? = null) {
     val context = LocalContext.current
     var previewOpen by remember { mutableStateOf(false) }
-    val bitmap = remember(uri) {
-        runCatching {
-            decodeMediaPayload(uri)?.let { decoded ->
-                BitmapFactory.decodeByteArray(decoded.bytes, 0, decoded.bytes.size)
-            } ?: context.contentResolver.openInputStream(Uri.parse(uri))?.use { BitmapFactory.decodeStream(it) }
-        }.getOrNull()
+    val bitmap by produceState<Bitmap?>(initialValue = null, uri) {
+        value = withContext(Dispatchers.IO) { decodeMediaThumbnail(context, uri) }
     }
+    val thumbnail = bitmap
     Box(
         Modifier
             .size(78.dp)
             .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant),
     ) {
-        if (bitmap != null) {
+        if (thumbnail != null) {
             Image(
-                bitmap.asImageBitmap(),
+                thumbnail.asImageBitmap(),
                 contentDescription = name,
                 modifier = Modifier
                     .fillMaxSize()
@@ -1200,6 +1216,29 @@ internal fun MediaThumb(name: String, uri: String, kind: String, onRemove: (() -
         )
     }
 }
+
+private fun decodeMediaThumbnail(context: Context, source: String): Bitmap? = runCatching {
+    val bytes = decodeMediaPayload(source)?.bytes ?: readMediaBytes(context, source, MAX_THUMBNAIL_SOURCE_BYTES)
+    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return@runCatching null
+    var sampleSize = 1
+    while (max(bounds.outWidth, bounds.outHeight) / sampleSize > MAX_THUMBNAIL_DIMENSION_PX) {
+        sampleSize *= 2
+    }
+    BitmapFactory.decodeByteArray(
+        bytes,
+        0,
+        bytes.size,
+        BitmapFactory.Options().apply {
+            inSampleSize = sampleSize
+            inPreferredConfig = Bitmap.Config.RGB_565
+        },
+    )
+}.getOrNull()
+
+private const val MAX_THUMBNAIL_DIMENSION_PX = 512
+private const val MAX_THUMBNAIL_SOURCE_BYTES = 8 * 1024 * 1024
 
 @Composable
 internal fun MediaPlaceholder(name: String, kind: String, source: String = "", onRemove: (() -> Unit)? = null) {
