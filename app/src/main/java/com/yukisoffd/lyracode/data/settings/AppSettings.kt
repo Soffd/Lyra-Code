@@ -251,6 +251,12 @@ class AppSettings(context: Context) {
         get() = plainPrefs.getBoolean(KEY_PREDICTIVE_BACK_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_PREDICTIVE_BACK_ENABLED, value).apply()
 
+    var deviceInteractionExperimentalEnabled: Boolean
+        get() = plainPrefs.getBoolean(KEY_DEVICE_INTERACTION_EXPERIMENTAL_ENABLED, false)
+        set(value) = plainPrefs.edit()
+            .putBoolean(KEY_DEVICE_INTERACTION_EXPERIMENTAL_ENABLED, value)
+            .apply()
+
     var customThemeColorEnabled: Boolean
         get() = plainPrefs.getBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, false)
         set(value) = plainPrefs.edit().putBoolean(KEY_CUSTOM_THEME_COLOR_ENABLED, value).apply()
@@ -2359,6 +2365,7 @@ class AppSettings(context: Context) {
         private const val KEY_THEME_MODE = "theme_mode"
         private const val KEY_DYNAMIC_COLOR_ENABLED = "dynamic_color_enabled"
         private const val KEY_PREDICTIVE_BACK_ENABLED = "predictive_back_enabled"
+        private const val KEY_DEVICE_INTERACTION_EXPERIMENTAL_ENABLED = "device_interaction_experimental_enabled"
         private const val KEY_CUSTOM_THEME_COLOR_ENABLED = "custom_theme_color_enabled"
         private const val KEY_CUSTOM_THEME_COLOR = "custom_theme_color"
         private const val KEY_LANGUAGE_MODE = "language_mode"

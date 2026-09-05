@@ -56,6 +56,9 @@ import com.yukisoffd.lyracode.data.BackupManager
 import com.yukisoffd.lyracode.data.MediaGenerationKind
 import com.yukisoffd.lyracode.data.SkillPack
 import com.yukisoffd.lyracode.filetransfer.FileTransferClient
+import com.yukisoffd.lyracode.interaction.ui.DeviceInteractionSettings
+import com.yukisoffd.lyracode.interaction.ui.ManualControlDebugScreen
+import com.yukisoffd.lyracode.interaction.ui.ScreenProbeDebugScreen
 import com.yukisoffd.lyracode.mcp.LocalMcpServerManager
 import com.yukisoffd.lyracode.mcp.McpClientManager
 import com.yukisoffd.lyracode.server.MiniServerManager
@@ -135,6 +138,7 @@ internal fun SettingsScreen(
         CompliancePageIds.THIRD_PARTY,
         CompliancePageIds.APP_PERMISSIONS -> CompliancePageIds.INDEX
         "custom_theme_color" -> "theme_mode"
+        "device_interaction_probe", "device_interaction_control" -> "device_interaction"
         "font_library" -> "font"
         "topic_summary_model_topic",
         "topic_summary_model_compression",
@@ -307,6 +311,13 @@ internal fun SettingsScreen(
                     "font_library" -> FontLibrarySettings(settings, controller)
                     "permissions" -> PermissionSettings(termuxExecutor)
                     "system_permissions" -> SystemPermissionSettings(settings, systemCommandExecutor)
+                    "device_interaction" -> DeviceInteractionSettings(
+                        settings = settings,
+                        onOpenScreenProbe = { detail = "device_interaction_probe" },
+                        onOpenManualControl = { detail = "device_interaction_control" },
+                    )
+                    "device_interaction_probe" -> ScreenProbeDebugScreen(settings)
+                    "device_interaction_control" -> ManualControlDebugScreen(settings)
                     "tools" -> AgentToolSettings(settings, termuxExecutor, controller.settingsRevision.intValue)
                     "termux" -> TermuxSettings(settings, termuxExecutor, workspaceManager)
                     "debian" -> ProotLinuxSettings()
@@ -412,6 +423,7 @@ internal fun SettingsScreen(
             SettingsMenuEntry(Icons.Default.Storage, context.getString(R.string.menu_storage), context.getString(R.string.menu_storage_desc), "storage"),
             SettingsMenuEntry(Icons.Default.Backup, context.getString(R.string.menu_backup), context.getString(R.string.menu_backup_desc), "backup"),
             SettingsMenuEntry(Icons.Default.AdminPanelSettings, context.getString(R.string.menu_system_permissions), context.getString(R.string.menu_system_permissions_desc), "system_permissions"),
+            SettingsMenuEntry(Icons.Default.AccessibilityNew, context.getString(R.string.menu_device_interaction), context.getString(R.string.menu_device_interaction_desc), "device_interaction"),
             SettingsMenuEntry(Icons.Default.Security, context.getString(R.string.menu_app_permissions), context.getString(R.string.menu_app_permissions_desc), "permissions"),
             SettingsMenuEntry(Icons.Default.Description, context.getString(R.string.menu_licenses), context.getString(R.string.menu_licenses_desc), "licenses"),
             SettingsMenuEntry(Icons.Default.Info, context.getString(R.string.menu_about), context.getString(R.string.menu_about_desc), "about"),
@@ -510,8 +522,12 @@ internal fun SettingsScreen(
                             initialState == CompliancePageIds.INDEX && isComplianceDocument(targetState) -> true
                             initialState == "custom_theme_color" && targetState == "theme_mode" -> false
                             initialState == "font_library" && targetState == "font" -> false
+                            initialState == "device_interaction_probe" && targetState == "device_interaction" -> false
+                            initialState == "device_interaction_control" && targetState == "device_interaction" -> false
                             initialState == "theme_mode" && targetState == "custom_theme_color" -> true
                             initialState == "font" && targetState == "font_library" -> true
+                            initialState == "device_interaction" && targetState == "device_interaction_probe" -> true
+                            initialState == "device_interaction" && targetState == "device_interaction_control" -> true
                             initialState in ADDITIONAL_MODEL_DETAIL_IDS && targetState == "topic_summary_model" -> false
                             initialState == "topic_summary_model" && targetState in ADDITIONAL_MODEL_DETAIL_IDS -> true
                             initialState in setOf("theme_mode", "font", "refresh_rate", "chat_background", "streaming_output") && targetState == "theme" -> false
@@ -586,6 +602,9 @@ internal fun settingsDetailTitle(context: Context, detail: String): String = whe
     "streaming_output" -> context.getString(R.string.detail_streaming_output)
     "permissions" -> context.getString(R.string.detail_permissions)
     "system_permissions" -> context.getString(R.string.detail_system_permissions)
+    "device_interaction" -> context.getString(R.string.detail_device_interaction)
+    "device_interaction_probe" -> context.getString(R.string.detail_screen_probe)
+    "device_interaction_control" -> context.getString(R.string.detail_manual_control)
     "tools" -> context.getString(R.string.detail_tools)
     "storage" -> context.getString(R.string.detail_storage)
     "termux" -> context.getString(R.string.detail_termux)
